@@ -85,6 +85,24 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     the music and the frame counter running). Death to first step: arcade 524, port now 527 (was 494). The
     death animation (60), death sequence (121) and map (302) already matched phase for phase.
 
+12. **Random counter in every stage loop:** the seven other stage loops (`$99EC`, `$104F7E`, `$1054E2`,
+    `$10F2D4`, `$11026A`, `$111226`, `$111AF2`) step it through `rng_tick` too (only stage 1's did).
+13. **Moving platforms stand still a frame at each segment change** (`mover_load`, `mover_load2`). The
+    arcade's mover (`$E482`) returns after loading the next entry; the port's four movers (`$106B0E`,
+    `$10F560`, `$11A390`, `$11A5AE`) loaded and moved in the same frame, so platforms drifted out of phase
+    (~25 frames in 1,200). Now the load frame holds still, as in the arcade.
+14. **Stage start times:** every stage loop entry sets the time from the stage's table (`$103D10`); the
+    stage inits copy a HUD block with the timer at `$74` and only stage 1's then set it, so stages 3, 4 and 6
+    started at 1:56 instead of 2:30, 2:30 and 3:00 (index 2, 3, 5). All seven indexes now start at the
+    table's value (120/90/150/150/180/180/120, checkpoint table after the checkpoint).
+15. **Tombstone rules in every stage:** the stage 3 rocks (type 1) kept the port's old box; the arcade's
+    check has no stage test. Now a jump from against a rock clears it, as in the arcade.
+16. **Boss hit points:** Astaroth 10 (port 6), the Satans 10 (port 4), the stage 6 dragon's head 6
+    (port 10), from the arcade's inits (`$DB1B`, `$BEF1`, `$D596`).
+17. **Stage numbers:** the stage index `$FFC512` is the arcade's `$72` (0-5 = stages 1-6, 6 = the final
+    room). The developer menu's STAGE n launched index n (so stage 2 was unreachable) and high scores
+    recorded the index; both now use index + 1.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -107,8 +125,26 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   arcade, as for the zombie. Also a 1 px x difference on the zombie's rise frames relative to its walk
   (port +1) that needs an absolute reference.
 
-- **Not yet audited:** stages 2-6 enemies and bosses, the stage-1 plants (spit timing), the raft and
-  forest, per-enemy hit points and drops beyond stage 1, two-player alternation.
+- **AI rewritten in the port (to port from the arcade):** the dragon (stages 3, 4, 6: the arcade's head
+  follows a (frames, direction) script with the body delayed per segment, `$D6D6`/`$D73D`/`$D955`; the
+  port homes, and its re-aim timer byte +$23 overlaps a counter at +$22 so it never re-aims and flies off;
+  the stage 6 dragon also spawns at camera-relative (7808,1600) instead of the arcade's absolute
+  (7825,2015) record), the Satans (`$1105C6`: choices from the rank byte `$FFA208` instead of a random),
+  Astaroth (`$DAD9`: walk/pause, rapid-fire mode, high shots; shot motion), the Petite Devils (rise from
+  the lava, hover, dive: `$A89C`/`$A8F9`/`$AB4B`), the stage 5 skulls (sleep/wake/hop, `$CC70`/`$CD08`; the
+  port fires them as aimed projectiles). The arcade has a second random source, a shift register at
+  `$68F9` (`$6E`/`$6F`), used from 34 places in enemy code; the port has no equivalent.
+- **Spawn and activation rules:** stage 2 window devils are never rejected off-screen (arcade `$B25E`,
+  on-screen test `$B193`); stage 2 crows start 56-64 frames before they're visible (port `$450A` uses
+  512 px; arcade `$A72F` waits until on screen, then perches on random timers); stage 2 tower devils
+  (16 spawns, 218-frame life vs the arcade's 9 and 579); the stage 3 dragon fight has one Red Arremer
+  instead of two.
+- **Ending:** the port walks Arthur 240 frames before the text and has no princess scene (arcade: text 1
+  frame after Astaroth dies; 131-frame princess scene on the second clear); +1,000 points at the room's
+  end that the arcade doesn't give; "Return to starting point" drawn over the room instead of on black.
+- **Smaller:** stage 4 fire pillars one frame early; a stage 5 flying knight drifts after ~600 frames; the
+  dragon's score index and weapon-2 pass-through; Astaroth's shot parks on a blinking Arthur; the stage 2
+  stone-block edge and elevator walk-step quirks; Big Men 1 px; stage 2 water death y.
 - **Bonus lives:** the plus build caps lives at 9 (the arcade doesn't).
 - **Continue digit:** the port shows one digit, so the arcade's "10" step shows as 9.
 

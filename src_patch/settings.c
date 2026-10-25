@@ -221,7 +221,7 @@ void play_tick(void)
     if (stage_pending) {
         int st = stage_pending;
         stage_pending = 0;
-        stage_jump(st);
+        stage_jump(st - 1);         /* STAGE n is stage index n - 1 ($FFC512) */
     }
     if (p->dev_on && p->dev_inf && LIVES < 3) LIVES = 3;
     p2_frame();

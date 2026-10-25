@@ -493,7 +493,8 @@ rng_now:
     add.b   menu_frames,%d0
     rts
 
-| $927C: `jsr rng_tick` + 2 nops over `addq.b #1,6(a3)` and `lea $FFB800,a4`
+| $927C and the seven other stage loops' copies (patch_gng.py): `jsr rng_tick`
+| + 2 nops over `addq.b #1,6(a3)` and `lea $FFB800,a4`
 rng_tick:
     move.l  %d0,-(%sp)
     bsr.s   rng_now
@@ -627,14 +628,40 @@ zombie_y:
 | $5A8 and the nine other stage-loop entries (patch_gng.py): `jsr
 | stage_hold_entry` + 4 nops over `move.w #$2300,sr` and `move.l
 | #'LIVE',$FF7FF0`: the arcade's stage-draw wait (pad.c stage_hold), then the
-| same two instructions.
+| same two instructions. Also sets the stage's starting time ($103D10: the
+| stage's entry in the normal or checkpoint table, $103E28/$103E36, as the
+| arcade's $6EAD/$6EBB): the stage inits copy a default HUD block with the
+| timer at $74 and only stage 1's then called $103D10, so stages 3, 4 and 6
+| (index 2, 3, 5) started at 1:56 instead of 2:30, 2:30 and 3:00.
     .global stage_hold_entry
 stage_hold_entry:
     movem.l %d0-%d1/%a0-%a1,-(%sp)
+    jsr     0x103D10                | the stage's time from its table (see below)
     jsr     stage_hold
     movem.l (%sp)+,%d0-%d1/%a0-%a1
     move.l  #0x4C495645,0xFF7FF0
     move.w  #0x2300,%sr
+    rts
+
+| $106B24: `jsr mover_load` + `rts` + 2 nops over the moving-platform mover's
+| load of its next (step, direction, count) entry. The arcade's mover ($E482)
+| returns after loading, so a platform stands still for a frame at every
+| segment change; the port loaded and moved in the same frame and drifted
+| out of phase (~25 frames in 1200).
+    .global mover_load, mover_load2
+mover_load:
+    move.w  (%a0)+,28(%a4)
+    move.b  (%a0)+,24(%a4)
+    move.b  (%a0),26(%a4)
+    rts
+| The other three movers ($10F560, $11A390, $11A5AE: the stage 3-5 platform
+| types) load from per-type sequences and wrap the index; `jsr mover_load2`
+| + `rts` over their `bcs.s` / `moveq #0,d1` / `move.w d1,28(a4)` (flags from
+| their `cmp.w` survive the jsr).
+mover_load2:
+    bcs.s   1f
+    moveq   #0,%d1
+1:  move.w  %d1,28(%a4)
     rts
 
 | $10442A: `jmp tomb_check` over its first instruction. The tombstone check,
@@ -653,15 +680,14 @@ stage_hold_entry:
 |     (y + 19), or where he is if he's within -3..+2 of its y. The y fraction
 |     is kept, as in the arcade; the landing state is the port's ($3D90 etc.).
 | The x and y tests use bytes like the arcade (after a word test that x is
-| within 128). With $FFC512 set the port's original runs.
+| within 128). In every stage, as the arcade's (no stage test there): the
+| port's original only checked stage 1, and in stage 3 only one variant, so
+| the stage 3 rocks kept the port's old box.
     .set TOMB_X, 12                     | $A052 type 1: x reach (E4; E5 = 2 * 12)
     .set TOMB_Y, 19                     | y reach and landing height (E6; E7 = 2 * 19)
     .global tomb_check
 tomb_check:
-    tst.b   0xFFC512
-    beq.s   1f
-    jmp     0x104432                | the original, from its next instruction
-1:  movem.l %d0-%d7/%a2,-(%sp)
+    movem.l %d0-%d7/%a2,-(%sp)
     move.l  0xFF9000,%d5
     lsr.l   #8,%d5                  | x
     move.w  0xFF9004,%d7            | y

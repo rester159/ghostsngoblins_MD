@@ -227,6 +227,12 @@ def install_features(rom, build_dir):
     expect(rom, 0x11CADC, bytes.fromhex('700072003600'), 'sound request scan')
     put(rom, 0x11CADC, jmp(sym['sound_scan']))
     attenuate_music(rom, MUSIC_ATT)
+    # boss hit points as the arcade's: Astaroth 10 ($DB1B; port 6), the Satans 10
+    # ($BEF1; port 4), the stage 6 dragon's head 6 ($D596; port 10)
+    for a, old, new in ((0x111C00, '197c0006000b', '197c000a000b'), (0x110586, '197c0004000b', '197c000a000b'),
+                        (0x106FF6, '197c000a000b', '197c0006000b')):
+        expect(rom, a, bytes.fromhex(old), 'boss hit points')
+        put(rom, a, bytes.fromhex(new))
     # the arcade's stage-draw wait before play (pad.c stage_hold), at the entry
     # of each stage loop (all ten set the sr and 'LIVE' the same way)
     for a in (0x5A8, 0x1046E4, 0x10EB26, 0x10F9F0, 0x110994, 0x111414, 0x1175BA,
@@ -254,8 +260,15 @@ def install_features(rom, build_dir):
     put(rom, 0x103CBE, b'\x60\x12')
     # the random source runs on like the arcade's frame counter (glue.s rng_*),
     # and the item cycle carries over (item_init)
-    expect(rom, 0x927C, bytes.fromhex('522b000649f900ffb800'), 'random counter step')
-    put(rom, 0x927C, jsr(sym['rng_tick']) + b'\x4e\x71\x4e\x71')
+    for a in (0x927C, 0x99EC, 0x104F7E, 0x1054E2, 0x10F2D4, 0x11026A, 0x111226, 0x111AF2):
+        expect(rom, a, bytes.fromhex('522b000649f900ffb800'), 'random counter step')
+        put(rom, a, jsr(sym['rng_tick']) + b'\x4e\x71\x4e\x71')
+    # moving platforms stand still a frame at each segment change (glue.s mover_load)
+    expect(rom, 0x106B24, bytes.fromhex('3958001c195800181950001a'), 'platform mover load')
+    put(rom, 0x106B24, jsr(sym['mover_load']) + b'\x4e\x75' + b'\x4e\x71' * 2)
+    for a in (0x10F59C, 0x11A3CC, 0x11A5EA):
+        expect(rom, a, bytes.fromhex('650272003941001c'), 'platform mover load')
+        put(rom, a, jsr(sym['mover_load2']) + b'\x4e\x75')
     for a in (0x91D4, 0x9952, 0x104EE6):
         expect(rom, a, bytes.fromhex('41f900014f60'), 'random counter init')
         put(rom, a, jsr(sym['rng_init']))

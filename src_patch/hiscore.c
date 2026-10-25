@@ -120,7 +120,7 @@ void game_over(void)
     if (pos >= 0) {
         for (i = 9; i > pos; i--) p->hs[t][i] = p->hs[t][i - 1];
         p->hs[t][pos].score = s;
-        p->hs[t][pos].stage = STAGE < 2 ? 1 : STAGE;
+        p->hs[t][pos].stage = STAGE >= 5 ? 6 : STAGE + 1;   /* index 6 is stage 6's final room */
         enter_initials(t, pos);
         save_write();
         header(t ? "BEST RANKING  HOME" : "BEST RANKING  ARCADE");

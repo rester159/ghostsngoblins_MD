@@ -111,7 +111,7 @@ Without `--features` the patcher produces the compatibility-only ROM.
 | `$116472`, `$116884` | item code copying armor/weapon back from its context | `hook_item_copy`: Firebrand turns pickups into points |
 
 Engine variables used: `$FFC000` score (BCD), `$FFC004` TOP SCORE, `$FFC500` lives,
-`$FFC501` difficulty rank, `$FFC561` rank floor, `$FFC512` stage (0/1 = stage 1 … 6),
+`$FFC501` difficulty rank, `$FFC561` rank floor, `$FFC512` stage index (0-5 = stages 1-6, 6 = the final room),
 `$FFC570` play state (2 = continue countdown), `$FF7FE8` credits. A debug launch to a later
 stage uses the game's own stage advance (`$FFC512 = n`, `jmp $113B70`) on the first frame of play.
 Entering a stage's code directly from the start path crashes, because it expects that loader.
