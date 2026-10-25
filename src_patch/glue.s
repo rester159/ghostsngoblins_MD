@@ -606,21 +606,26 @@ loop_again:
 
 | $7CF8: `jsr zombie_y` + nop over `move.w d7,(a5)` / `move.w #$0F00,2(a5)` in
 | the zombie sprite builder ($7C5A, type-11 objects). The port draws each
-| enemy frame as one 32x32 image at y = 352 + camera - object y; the
-| arcade's frames carry their own offsets. While a zombie comes out of the
-| ground its y is 54, 8 below the ground, and the arcade's mound and
-| head-and-shoulders frames are drawn 8 higher than that (bottom row on the
-| ground line, like a walking zombie's feet); the port's images for those
-| frames (13-17) sat 8 too low, in the grass. Measured row for row against the
-| arcade over the whole rise; frames 18-19 and the walk already matched.
-| d3 = frame * 2 here.
+| enemy frame as one 32x32 image at y = 352 + camera - object y, laid out as
+| the arcade's 2x2 shape (object +$0F = 3: pieces from (-16,-16), `$F864`);
+| the arcade draws the frames of a zombie coming out of the ground or
+| sinking back with shape 0 (one 16x16 piece at (-8,-8)) or 2 (two pieces at
+| (-16,-8)), 8 px higher. Those frames (0-4, 8-17, 21-25: both rise sets and
+| the sinking sets) are moved up 8; measured row for row against the arcade,
+| the others (shape 3) already matched. d3 = frame * 2 here.
     .global zombie_y
 zombie_y:
-    cmpi.w  #2*13,%d3
+    cmpi.w  #2*25,%d3
+    bhi.s   1f
+    cmpi.w  #2*4,%d3
+    bls.s   2f
+    cmpi.w  #2*8,%d3
     bcs.s   1f
+    cmpi.w  #2*21,%d3
+    bcc.s   2f
     cmpi.w  #2*17,%d3
     bhi.s   1f
-    subq.w  #8,%d7
+2:  subq.w  #8,%d7
 1:  move.w  %d7,(%a5)
     move.w  #0x0F00,2(%a5)
     rts
@@ -736,8 +741,8 @@ tomb_check:
     andi.l  #0xFF,%d0
     or.l    %d0,%d1
     move.l  %d1,0xFF9400
-    move.l  #0x3D90,0xFF9404
-    move.w  #1,0xFF9408
+    move.l  #0x44000,0xFF9404       | 4.25, as every landing (the fall speed
+    move.w  #1,0xFF9408             | if he walks off: the arcade's $51B)
     clr.w   0xFF9410
     bra.s   9f
 8:  lea     48(%a2),%a2

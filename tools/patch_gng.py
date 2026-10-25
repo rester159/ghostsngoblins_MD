@@ -256,7 +256,22 @@ def install_features(rom, build_dir):
               0x11864C, 0x118BB0, 0x11968C):
         expect(rom, a, bytes.fromhex('46fc230023fc4c49564500ff7ff0'), 'stage loop entry')
         put(rom, a, jsr(sym['stage_hold_entry']) + b'\x4e\x71' * 4)
-    # zombies coming out of the ground: frames 13-17 8 px higher (glue.s zombie_y)
+    # Arthur's weapons drawn 8 px low: their builder used y = 360 + camera - y,
+    # every other builder 352 (all five weapons and their burst frames)
+    expect(rom, 0x115994, bytes.fromhex('06410168'), 'weapon sprite y')
+    put(rom, 0x115994, bytes.fromhex('06410160'))
+    # final-room flames (type 10, builder $AF4A): frames 1-30 had their left and
+    # right 16 px halves swapped (records at $125620 via $123B3E)
+    for f in range(1, 31):
+        a = 0x125620 + struct.unpack('>h', rom[0x123B3E + 2 * f:0x123B40 + 2 * f])[0]
+        expect(rom, a, b'\x00\x04', 'flame pieces')
+        for i in range(4):
+            r = a + 2 + 6 * i
+            dx = rom[r:r + 2]
+            expect(rom, r, dx if dx in (b'\xff\xf0', b'\x00\x00') else b'?', 'flame piece x')
+            put(rom, r, b'\x00\x00' if dx == b'\xff\xf0' else b'\xff\xf0')
+    # zombies coming out of the ground or sinking: the arcade's 1- and 2-piece
+    # frames 8 px higher (glue.s zombie_y)
     expect(rom, 0x7CF8, bytes.fromhex('3a873b7c0f000002'), 'zombie sprite y')
     put(rom, 0x7CF8, jsr(sym['zombie_y']) + b'\x4e\x71')
     # after the second loop's ending: play on from stage 1 (glue.s loop_again)

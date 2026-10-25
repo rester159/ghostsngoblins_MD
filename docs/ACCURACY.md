@@ -114,6 +114,21 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     a grid of weapon positions around the plant gives the same kills in both.
 20. **Starting score:** a new game started with 600 points (the start block at `$28EEE`); the arcade's
     starts at 0.
+21. **Sprite placement** (audit of every frame drawn in all stages against the arcade, pixel masks relative
+    to the object's position, ~30,000 matched frames). The arcade places each frame by the object's shape
+    code (+$0F; anchors `$F864`: 0 = one 16x16 piece at (-8,-8), 2 = two at (-16,-8), 3 = 2x2 at
+    (-16,-16)); the port's 32x32 images assume shape 3. Fixed: Arthur's weapons (all five, flight and
+    burst frames) were drawn 8 px low (builder `$115994` used y = 360 + camera - y; every other builder
+    352); the zombie's other shape-0/2 frames (0-4, 8-12, 21-25: the second rise set and the sinking
+    sets) were 8 px low like the rise frames 13-17 were (`zombie_y`); the final-room flames (type 10,
+    builder `$AF4A`, frames 1-30 of `$123B3E`/`$125620`) had their 16 px halves swapped (read from the
+    data and the arcade's art; the arcade wasn't recorded in that room). After the fix both builders
+    pair at offset 0 in a re-run. Everything else matched (the zombie's 1 px rise/walk step is the
+    arcade's own). Firebrand's fireball goes through the weapon builder, so it is also 8 px higher.
+22. **Walking off a tombstone:** the arcade sets the fall speed to the jump's 4.25 on every landing (`$51B`),
+    so stepping off a tombstone drops at once (-4.25, -4.49, ... ; down in 5 frames from the top). The
+    port's tombstone landing (`tomb_check`) stored one gravity step instead, so he eased off (14 frames).
+    Now 4.25 as the port's own ground landing; frame for frame the same as the arcade.
 
 ## Matching (audited)
 
@@ -132,10 +147,9 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
 
 ## Open
 
-- **Sprite placement of every other enemy, item, weapon and boss frame** (the converted 32x32 images can
-  carry the wrong offset, as the zombie's rise did). A per-frame comparison of drawn pixels against the
-  arcade, as for the zombie. Also a 1 px x difference on the zombie's rise frames relative to its walk
-  (port +1) that needs an absolute reference.
+- **Sprite placement not checked:** the final-room boss (no pixel-identical piece to pair), `$B110` frames
+  1-4 (ambiguous). Stage 2 zombie walk frames 26-29 matched arcade images 1-2 px apart, possibly the
+  streamed art arriving an update late (hypothesis).
 
 - **AI rewritten in the port (to port from the arcade):** the dragon (stages 3, 4, 6: the arcade's head
   follows a (frames, direction) script with the body delayed per segment, `$D6D6`/`$D73D`/`$D955`; the
