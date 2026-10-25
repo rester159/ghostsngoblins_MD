@@ -1,0 +1,28 @@
+# Source-only: no ROMs, no boot intros, nothing derived from a ROM
+/rom/
+/sources/
+*.bin
+*.zip
+*.state
+*.wav
+
+# Build outputs (ROMs, the feature blob, generated includes incl. the intros)
+/build/*
+!/build/COMPATIBILITY.md
+!/build/release/
+/build/release/*
+!/build/release/README.txt
+/src_patch/build/
+
+# ROM-derived art: Maximo/Firebrand banks, Demon's Crest captures, previews,
+# the editors' generated frame data, screenshots, box art
+/art/**/*.png
+/art/*.jpg
+/art/firebrand/dc/
+/tools/*_editor/*_data.js
+/docs/screens/
+
+# Local
+/.claude/
+.DS_Store
+__pycache__/
