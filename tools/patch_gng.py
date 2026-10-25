@@ -351,6 +351,10 @@ def install_features(rom, build_dir):
     put(rom, 0x107510, b'\x4e\x71' * 5)
     expect(rom, 0x107540, bytes.fromhex('43f90005052a'), 'dragon fire speed table')
     put(rom, 0x107540, b'\x43\xf9' + be32(sym['dragon_fire_vel']))
+    # stage 4 type-14 enemy: any size-class change moves it by the arcade's
+    # anchor difference (glue.s size_shift); the port trapped on 10 -> 1
+    expect(rom, 0x10F816, bytes.fromhex('7000102c0019'), 'type-14 size class change')
+    put(rom, 0x10F816, jmp(sym['size_shift']))
     # the arcade's stage-draw wait before play (pad.c stage_hold), at the entry
     # of each stage loop (all ten set the sr and 'LIVE' the same way)
     for a in (0x5A8, 0x1046E4, 0x10EB26, 0x10F9F0, 0x110994, 0x111414, 0x1175BA,

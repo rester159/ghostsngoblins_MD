@@ -266,6 +266,13 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     `tools/re/test_satan.py` runs the same C on every recorded arcade handler call (~50,000 calls, every state
     including the straight dash): 0 mismatches.
 
+33. **Stage 4 halt** (`size_shift` at `$10F816`): a type-14 enemy's size-class change only allowed
+    1<->8 and 8<->10 and otherwise stopped the game (fault code `$8C`). Its phase restart (`$10F7C4`)
+    sets frame 3 (class 1) whatever is showing, so from a class-10 frame the game halted (reproduced in
+    co-op, in the original port's code too). Now any change moves it by the arcade's shape-anchor
+    difference (`$F864`: y -16/-24/-32 for classes 1/8/10); the reproduction plays on, the enemy
+    dropping 16 px on that frame.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
