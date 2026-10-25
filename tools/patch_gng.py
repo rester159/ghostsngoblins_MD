@@ -289,6 +289,21 @@ def install_features(rom, build_dir):
     put(rom, 0x11080E, jsr(sym['hook_satan_die']))
     expect(rom, 0x11082C, jsr(0xB7F2), 'Satan death sound')
     put(rom, 0x11082C, b'\x4e\x71' * 3)
+    # Astaroth (the final room): the arcade's handler (astaroth.c) for the port's
+    # states 0 and 1, its 22-frame burst and sounds before the port's death,
+    # and its shots moved as the arcade's projectile type $0A
+    expect(rom, 0x111BB2, bytes.fromhex('7000102c0007'), 'Astaroth state dispatch')
+    put(rom, 0x111BB2, jsr(sym['hook_ast']))
+    expect(rom, 0x111DE8, bytes.fromhex('4a2c00086630'), 'Astaroth death entry')
+    put(rom, 0x111DE8, jsr(sym['hook_ast_die']))
+    expect(rom, 0x111E10, jsr(0xB942) + jsr(0xB7F2), 'Astaroth death sounds')
+    put(rom, 0x111E10, b'\x4e\x71' * 6)
+    expect(rom, 0x11B1C8, bytes.fromhex('0c2c000a000a660007e0'), 'type-10 handler type test')
+    put(rom, 0x11B1C8, jsr(sym['hook_ast_shot']))
+    expect(rom, 0x32EE, bytes.fromhex('0c2c0009000a6600004e'), 'shot pool pass type chain')
+    put(rom, 0x32EE, jsr(sym['hook_pool10']))
+    expect(rom, 0xAE9C, bytes.fromhex('0c2c0003000a6720'), 'shot pool builder type chain')
+    put(rom, 0xAE9C, jsr(sym['hook_pool_draw']))
     # the arcade's second random ($68F9, $6E/$6F = $FFC62C, arcrand.c) is seeded
     # at power-on and game start only: the ten stage inits reloaded $87CD
     for a in (0x9C0, 0x104728, 0x10EB60, 0x10FA2A, 0x1109D0, 0x111450, 0x11761C,
