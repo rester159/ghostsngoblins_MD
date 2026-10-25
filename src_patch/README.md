@@ -93,6 +93,7 @@ Without `--features` the patcher produces the compatibility-only ROM.
   - **Spawn** (`$106F10`): stages 3 and 4 at the camera + (`$180`, `$40`) of the spawn frame, set up the frame after, as the arcade's; stage 6 in the tower at the absolute (7824, 2016) (`$EB4B`, the record's absolute branch `$EB5B`), where the port used the camera offsets too.
   - The arcade's second random source (`$68F9`, a shift register, `dragon_rnd`) drives the lunges and the fire; in the arcade 34 places in the enemy code step it, here only the dragon, so its choices follow the arcade's logic but not its sequence.
   - Checked against the arcade frame by frame (`tools/arcade/gng.py` in lockstep with the port, Arthur's position, the frame counter and the shift register copied over from the arcade, the stage 3 Red Arremers parked off screen): every node's position, direction, state and HP, the fire and the score are identical in stage 3 (3,000 frames, shot down segment by segment to the key; the stage-end flag on the same frame, 1604) and stage 4 (4,000 frames, the same, frame 1572), and in stage 6 over 4,000 frames of the dragon waking and flying round Arthur in the tower, plus its death (+1,000, no stage end). The only differences are the head's position on its spawn frame, before it is set up, and fireballs leaving the screen a frame apart (the arcade's fireball fraction is leftover RAM).
+- **Arthur's frame timing and the stage 1 boss** (all modes, `arthur.s`; evidence in `docs/ACCURACY.md`, Fixed 23-29): the stand-up frame after a crouch doesn't walk and the crouch-entry frame does, as in the arcade (also for Maximo, whose control block now uses the walk gate's answer); stepping off the bottom of a ladder, and the first ground step of a stage start, check the floor at Arthur's own y only, so he falls the 2 px a frame later as the arcade's does instead of snapping down; the armor flag `$FFC328` is set on the hit frame, not when the knockback lands; the rank creeps up with play time (`rank_creep`, +`$6B`/256 to the working rank every 256 frames of play, reset at each start; a stage clear adds 4 to the base rank); the Unicorn's walk doesn't follow the floor; stage 1's terrain map ring holds the arcade's columns (cam/16 - 15 .. + 16). With these the Unicorn fight runs update for update as the arcade's.
 - **Music volume** (all modes): the music is 6 dB quieter; the sound effects are unchanged. The music (stage tunes, map and intro themes, jingles) is the sequencer's recorded YM2612 register streams, and the action effects are separate PCM clips, so the patcher adds 8 steps of attenuation to each carrier operator's total level in the stream data (`attenuate_music` and `MUSIC_ATT` in `tools/patch_gng.py`). It's a data change only, with no code and no run-time cost (co-op stage 5 over 12 input seeds: identical to the build without it). Measured: −5.2 to −6.3 dB on the stage music and jingles. The map theme was heavily clipped before; it's about −4 dB as measured and still peaks at full scale.
 
 ## Engine hooks
@@ -121,6 +122,15 @@ Without `--features` the patcher produces the compatibility-only ROM.
 | `$106F10` | dragon spawn position (camera + `$180`/`$40`) | `dragon_spawn_pos`: stage 6 at the absolute (7824, 2016) |
 | `$105798` | `tst.b 6(a4); bne` (weapon test for the head only) | nops: every dragon node is open to weapons |
 | `$107510`, `$107540` | type-9 fire: aim at Arthur, 16-direction speed table | aim removed; `dragon_fire_vel` (3.125 px/frame along the head's side) |
+| `$7F98` | crouch stand-up (`move.b #7,12(a4)` / `clr.b 11(a4)` / `rts`) | `stand_up`: flags the stand-up frame |
+| `$7E56` | crouch entry `move.b #1,11(a4)` | `crouch_in`: flags the crouch-entry frame |
+| `$8114` | walk gate | `walk_gate`: no walk on the stand-up frame, a walk on the crouch-entry frame |
+| `$7E42` | `clr.b 8(a4)` / `cmpi.b #4,9(a4)` (no ladder below) | `lad_exit`: flags the ladder bottom |
+| `$8698` | `bsr $8744` / `tst.l d0` (ground step floor snap) | `ground_snap`: floor at his own y only after a ladder bottom or a stage start |
+| `$5FA4`, `$5AAE`, `$5ADC`, `$5B44`, `$5CD4` | armored hit, hit dispatch, knockback check, knockback animation, knockback landing | `kb_hit`, `kb_dispatch`, marker test, `kb_anim`, `kb_land`: armor lost on the hit frame |
+| `$8A802`, `$117CEC`, `$118272`, `$11929E` | stage-end blocks loading the working rank `$FFA208` | load the base rank `$FFC501` (the +4 goes to the base, as the arcade's) |
+| `$70A70` | Unicorn walk `bsr $70AE2` (floor snap) | nops |
+| `$93E0`, `$9454` | stage 1 map window start (cam/16 - 8) | `map_start_d6`/`map_start_d0`: cam/16 - 15 |
 
 Engine variables used: `$FFC000` score (BCD), `$FFC004` TOP SCORE, `$FFC500` lives,
 `$FFC501` difficulty rank, `$FFC561` rank floor, `$FFC512` stage index (0-5 = stages 1-6, 6 = the final room),
@@ -131,7 +141,8 @@ Entering a stage's code directly from the start path crashes, because it expects
 ## Memory
 
 - `$FF5000–$FF50FF`: `Persist` (`common.h`), which survives the game's soft restarts. Validated by the magic `MXMP`.
-- `$FF5100–$FF5EFF`: C `.bss` (no `.data`; everything is cleared at boot).
+- `$FF5100–$FF5EFF`: C `.bss` (no `.data`; everything is cleared at boot). `arthur.s` is linked last, so its variables (`rank_*`) come after everyone else's and the earlier addresses (`menu_frames` at `$FF5137`, ...) stay put.
+- Arthur's timing flags use two bytes of the player control block that the game never touches (`$FF9451`, `$FF9455`) and the knockback marker one of the physics block (`$FFC343`); both blocks are in Maximo's context swap and are cleared by the game's own inits (`$7FA4`, `$6456`).
 - `$FF5F00`: the SRAM transfer routine, copied there at run time.
 - `$FF2BE1–$FF6FFF` is never touched by the game. Checked over 24,000 frames of boot, attract and stage 1 play plus 6,000 frames of play in each of stages 2–6 (via the developer launch), and no instruction addresses it directly.
 
