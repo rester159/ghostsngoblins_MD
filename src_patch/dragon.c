@@ -83,8 +83,9 @@ void eng_boss_done(void *slot);
 #define NODE(w) ((Node *)(0xFF0000UL | (w)))
 #define LOW(n)  ((u16)(u32)(n))
 
-/* velocity per direction, 8.8 (gg4 $51B6): 0 right, 4 down, 8 left, 12 up */
-static const s16 vel[16][2] = {
+/* velocity per direction, 8.8 (gg4 $51B6): 0 right, 4 down, 8 left, 12 up
+ * (also read by dragon_glue.s, the segments' fast path) */
+const s16 dragon_vel[16][2] = {
     {0x0200, 0x0000}, {0x01D9, -0x00C3}, {0x016A, -0x016A}, {0x00C3, -0x01D9},
     {0x0000, -0x0200}, {-0x00C3, -0x01D9}, {-0x016A, -0x016A}, {-0x01D9, -0x00C3},
     {-0x0200, 0x0000}, {-0x01D9, 0x00C3}, {-0x016A, 0x016A}, {-0x00C3, 0x01D9},
@@ -158,8 +159,8 @@ static void animate(Node *n)            /* $9074 */
 
 static void move(Node *n)               /* $A427 */
 {
-    n->lx = (n->lx + vel[n->dir][0]) & 0xFFFFFF;
-    n->ly = (n->ly + vel[n->dir][1]) & 0xFFFFFF;
+    n->lx = (n->lx + dragon_vel[n->dir][0]) & 0xFFFFFF;
+    n->ly = (n->ly + dragon_vel[n->dir][1]) & 0xFFFFFF;
     n->x = n->lx >> 8; n->y = n->ly >> 8;
 }
 
