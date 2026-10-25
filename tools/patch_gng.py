@@ -434,6 +434,61 @@ def install_features(rom, build_dir):
                               (0x11CF2C, 0, 0x3206E0, 'ovl_tiles3')):
         expect(rom, a, lea(reg, src), 'overlay lea')
         put(rom, a, jsr(sym[name]))
+    install_stage_end(rom, sym)
+
+
+RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)
+
+
+def install_stage_end(rom, sym):
+    """After a boss dies, the arcade's stage-end freeze (src_patch/stageend.s)."""
+    jmp = lambda a: b'\x4e\xf9' + be32(a)
+    # the enemy pass cores (enemies, shots, their hits)
+    for a, core, name in ((0x6974, 0x69A2, 'se_objpass'), (0x1055A4, 0x1055D4, 'se_objpass2')):
+        expect(rom, a, b'\x4e\xba' + struct.pack('>h', core - a - 2) + bytes.fromhex('48e7009c'), 'enemy pass core')
+        put(rom, a, jmp(sym[name]) + b'\x4e\x71')
+    # the weapon pass, the item objects and their draw
+    for a, old, name in ((0xBC26, 0x1158D0, 'se_wmove'), (0xC348C, 0x11677A, 'se_items'),
+                         (0xC35E8, 0x11693E, 'se_items_draw')):
+        expect(rom, a, jmp(old), name)
+        put(rom, a, jmp(sym[name]))
+    # weapons are drawn by their on-screen flag +9 (se_wmove sets it), not +8
+    expect(rom, 0x115960, bytes.fromhex('4a2c0008673c'), 'weapon draw test')
+    put(rom, 0x115960, bytes.fromhex('4a2c0009673c'))
+    # the spawner runs after the scroll in every loop, as the arcade's $E950
+    expect(rom, 0x91E, jsr(0xA460), 'stage-1 spawner call')
+    put(rom, 0x91E, jsr(sym['se_spawn']))
+    for a in (0x104AD2, 0x10EF2E, 0x10FDDE, 0x110DDC, 0x1179FC, 0x118A80, 0x118FBE, 0x119B08):
+        expect(rom, a, jsr(0x26DA), 'early spawner call')
+        put(rom, a, b'\x4e\x71' * 3)
+    expect(rom, 0x104AF0, bytes.fromhex('4ebaf890'), 'scroll call')
+    expect(rom, 0x104B0C, jsr(0x525E), 'call after the scroll')
+    put(rom, 0x104B0C, jsr(sym['se_525e_spawn']))
+    for a in (0x10EF44, 0x10FDF4, 0x110DF2, 0x117A20, 0x118A98, 0x118FD6, 0x119B20):
+        expect(rom, a, jsr(0x104382), 'scroll call')
+        put(rom, a, jsr(sym['se_scroll_spawn']))
+    # terrain map windows of stages 2-5: the arcade's cam/16 - 15 (src_patch/mapwin.s)
+    for a, name, y_part, old in ((0x11A986, 'mw_stage2', 0x11A9B0, '3c3900ff9100e84e0c4600e8'),
+                                 (0x104D16, 'mw_stage3', 0x104D34, '3c3900ff9100e84e0c460008'),
+                                 (0x10F124, 'mw_stage4', None, '3c3900ff9100e84e0c4600e8'),
+                                 (0x11001C, 'mw_stage5', 0x11003C, '3c3900ff9100e84e0c4601a8')):
+        expect(rom, a, bytes.fromhex(old), 'map window ' + name)
+        if y_part is None:
+            put(rom, a, jmp(sym[name]))
+        else:
+            put(rom, a, jsr(sym[name]) + b'\x60' + bytes([y_part - (a + 8)]))
+    # stage 1's weapons against the tombstones
+    expect(rom, 0x102C56, bytes.fromhex('4eba18ee33fc004700ffcfb0'), 'weapon tombstone check')
+    put(rom, 0x102C56, jsr(sym['se_wtomb']) + b'\x4e\x71' * 3)
+    # the sprite builds hide the frozen enemies, shots and weapons; the
+    # update start puts them back and takes weapon slot 0 for the key
+    for a in RENDER_GATES:
+        expect(rom, a, jsr(sym['render_gate']), 'render gate')
+        put(rom, a, jsr(sym['se_rg']))
+    expect(rom, 0x92A0, jmp(sym['render_gate1']), 'stage-1 render gate')
+    put(rom, 0x92A0, jmp(sym['se_rg1']))
+    expect(rom, 0x6938, jmp(sym['pace_hook']), 'update start')
+    put(rom, 0x6938, jmp(sym['se_pace']))
 
 
 FRAME = 0x200                  # 32x32 4bpp, 16 tiles column-major
