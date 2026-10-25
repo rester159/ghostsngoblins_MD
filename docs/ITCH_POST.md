@@ -74,7 +74,7 @@ Even a single cleaned-up animation helps!
 
 ## Download & play
 
-Download **GhostsNGoblins_Plus.zip** below. It has the ROM (`GhostsNGoblins_plus.bin`) and a short readme with the controls.
+Download **GhostsNGoblins_Plus.zip** below. It has the ROM (`Ghosts'nGoblinsMD_Alpha_0.5.bin`) and a short readme with the controls.
 
 - **Emulators:** load the .bin in any Mega Drive / Genesis emulator with battery saves (tested in Genesis Plus GX and PicoDrive).
 - **Flashcarts / real hardware:** the game saves to 8 KiB of battery SRAM on a 4 MiB cartridge, so your cart needs SRAM support at that size (most EverDrives have it). It hasn't been tested on a real console yet, so reports are very welcome.

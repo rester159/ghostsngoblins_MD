@@ -6,7 +6,7 @@ A reworked version of the Ghosts 'n Goblins Mega Drive / Genesis port: fixed to
 run on real hardware and accurate emulators, faster, with 2-player co-op as
 Maximo and a campaign as Firebrand, the Red Arremer.
 
-File: GhostsNGoblins_plus.bin  (4 MiB, regions J/U/E, NTSC and PAL)
+File: Ghosts'nGoblinsMD_Alpha_0.5.bin  (4 MiB, regions J/U/E, NTSC and PAL)
 SHA-1: fdabc6593a13450c053a9436881d8c6109efb38c
 
 
