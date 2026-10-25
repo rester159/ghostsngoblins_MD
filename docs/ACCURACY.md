@@ -102,6 +102,18 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
 17. **Stage numbers:** the stage index `$FFC512` is the arcade's `$72` (0-5 = stages 1-6, 6 = the final
     room). The developer menu's STAGE n launched index n (so stage 2 was unreachable) and high scores
     recorded the index; both now use index + 1.
+18. **Weapons against enemy shots** (`shots.c`, `shot_check` at `$5930`): the port had no such check. The
+    arcade's `$F3CE` runs on odd frames before Arthur's shot check: per weapon and shot type a count
+    (`$F452`: the cross takes out both itself and shot types 1-9 and 11; the other weapons are used up on
+    type 5 and pass everything else) and a box per shot type (`$F498`). Copied with its tables; measured:
+    the cross and a man-eater plant's spit both go on the first odd frame, as in the arcade; the lance
+    passes through it in both.
+19. **Man-eater plant hit box** (`$6BB8`, record 2 at `$2AC94`): the port moved every weapon 18 px along its
+    flight and the plant 5 px down before testing (`$6C0E`), with a y range of 37; a lance from the left
+    killed it 18 px early and missed its far side. Now the arcade's +-12 x / +-16 y (`$EF62`, `$F040`):
+    a grid of weapon positions around the plant gives the same kills in both.
+20. **Starting score:** a new game started with 600 points (the start block at `$28EEE`); the arcade's
+    starts at 0.
 
 ## Matching (audited)
 
@@ -157,8 +169,9 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   port walks on it (`$7F98` then its walk in the same update). One frame.
 - **Ladder bottom:** the arcade spends one frame at y 64.90 before 62.65; the port drops straight to 62.
 - **Armor flag** (`$0158` arcade, set on the hit frame) vs the port's `$FFC328` (set on landing, +33 frames).
-- **Weapons vs enemy projectiles:** the arcade cancels enemy shots with weapons (`$F3CE`, tables `$F452`,
-  `$F498`; the shield/cross cancels types 0-9, others only type 5). Not found in the port yet.
+- **Unicorn (stage 1 boss):** its fireball (type 4, allocated by `$A3B4`) goes live 33 updates after it's
+  allocated in the arcade, 37 in the port; a jump started from raised ground (y 78.6) restarted at 70.6 in
+  the port, so that arc ran 8 px low. State machine otherwise identical for ~500 updates.
 - **Dropped fire presses:** about every 23 updates the port advances its update counter without moving the
   weapons; a one-frame fire press there is lost (frame pacing, not weapon logic).
 - **Enemies:** with the same input the port's Arthur is hit again ~130 frames after the first tombstone

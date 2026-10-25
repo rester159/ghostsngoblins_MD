@@ -967,3 +967,17 @@ p2_control:
 9:  addq.l  #4,%sp
     movem.l (%sp)+,%d2-%d7/%a2-%a6
     rts
+
+| $5930: `jsr shot_check` over `btst #0,16(a4)` (the following `bne.w $59B6`
+| stays): on the odd frames (bit set, the branch to Arthur's shot check) the
+| weapons are tested against the enemy shots first (shots.c, arcade $F3CE
+| before $F530). Returns with the flags of the btst.
+    .global shot_check
+shot_check:
+    btst    #0,16(%a4)
+    beq.s   1f
+    movem.l %d0-%d1/%a0-%a1,-(%sp)
+    jsr     weapon_vs_shots
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+    btst    #0,16(%a4)
+1:  rts

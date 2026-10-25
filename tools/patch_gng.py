@@ -233,6 +233,23 @@ def install_features(rom, build_dir):
                         (0x106FF6, '197c000a000b', '197c0006000b')):
         expect(rom, a, bytes.fromhex(old), 'boss hit points')
         put(rom, a, bytes.fromhex(new))
+    # a new game starts with 0 points, as the arcade's: the port's start block
+    # ($28EEE, copied to $FFC000 by $7874) gave 600
+    expect(rom, 0x28EEE, bytes.fromhex('0000060000010000'), 'start score')
+    put(rom, 0x28EEE, bytes(4))
+    # weapons against enemy shots on odd frames (shots.c, arcade $F3CE)
+    expect(rom, 0x5930, bytes.fromhex('082c000000106600007e'), 'odd-frame shot check')
+    put(rom, 0x5930, jsr(sym['shot_check']))
+    # man-eater plant (arcade type 17, port index 2) hit box as the arcade's
+    # ($EF62 / $F040: +-12 x, +-16 y): no weapon shift of 18 px along its
+    # flight and no 5 px y offset ($6C0E), y range 32 instead of 37
+    expect(rom, 0x6BB8, bytes.fromhex('6606'), 'plant box shift')
+    put(rom, 0x6BB8, bytes.fromhex('6006'))
+    for st in range(5):
+        r = 0x2AC94 + (st * 18 + 2) * 16
+        expect(rom, r, bytes.fromhex('000c0018001000'), 'plant box')
+        expect(rom, r + 7, b'\x25', 'plant box y range')
+        put(rom, r + 7, b'\x20')
     # the arcade's stage-draw wait before play (pad.c stage_hold), at the entry
     # of each stage loop (all ten set the sr and 'LIVE' the same way)
     for a in (0x5A8, 0x1046E4, 0x10EB26, 0x10F9F0, 0x110994, 0x111414, 0x1175BA,
