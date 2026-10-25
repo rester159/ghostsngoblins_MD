@@ -6,6 +6,9 @@
  * keep their 60 Hz timing. */
 #include "md.h"
 #include "common.h"
+/* The logos, chant and jingle go in their own section, linked at $350000
+ * (the padding past the original image) to keep the code blob small. */
+#define INTRO_DATA __attribute__((section(".intro")))
 #include "build/intro.inc"
 
 void sound_stop(void);

@@ -48,14 +48,14 @@ def main(out):
         lines.append('#define INTRO_HAVE 1')
         for f, name, typ, mine in ARRAYS:
             v = array(open(f).read(), name)
-            lines.append('static const %s %s[%d] = {' % (typ, mine, len(v)))
+            lines.append('static const %s %s[%d] INTRO_DATA = {' % (typ, mine, len(v)))
             w = {'u8': 2, 'u16': 4, 'u32': 8}[typ]
             for i in range(0, len(v), 16):
                 lines.append('    ' + ', '.join('0x%0*X' % (w, x) for x in v[i:i + 16]) + ',')
             lines.append('};')
         v = open(pcm, 'rb').read()
         # one 32 KiB Z80 bank window holds the whole sample
-        lines.append('static const u8 sega_chant[%d] __attribute__((aligned(0x8000))) = {' % len(v))
+        lines.append('static const u8 sega_chant[%d] INTRO_DATA __attribute__((aligned(0x8000))) = {' % len(v))
         for i in range(0, len(v), 16):
             lines.append('    ' + ', '.join('0x%02X' % x for x in v[i:i + 16]) + ',')
         lines.append('};')
