@@ -103,6 +103,51 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     room). The developer menu's STAGE n launched index n (so stage 2 was unreachable) and high scores
     recorded the index; both now use index + 1.
 
+18. **The second random source** (`arcrand.c`). The arcade's `$68F9` is a 16-bit shift register on `$6E/$6F`:
+    `B = ~($6F ^ $6E)`, two `ASLB` put its bit 6 in the carry, `ROL <$6F / ROL <$6E` shift it in (state =
+    state << 1 | (1 ^ bit 14 ^ bit 6)), and the new low byte is returned in B and kept in `$70`; A is kept. Only its
+    34 callers advance it (a write watch over boot, attract and stage 1: no other writer). It is seeded with
+    `$87CD` at power-on (`$6872`) and whenever the top level restarts (`$69EB`, `$05` = 0: each attract cycle, a
+    coin, after a game over), so every game starts at `$87CD`. The port has the same routine six times, working on
+    `$FFC62C`/`$FFC62E` (= `$6E/$6F`, `$70`) through enemy contexts: `$218A` (port type 3, `$1E8C`), `$4A28` and
+    `$105472` (crows, type 1), `$ABB4` and `$11B8DE` (type 10), `$70B78` (stage 5's `$71F32` unit); but its ten
+    stage inits (`$9C0`, `$104728`, `$10EB60`, `$10FA2A`, `$1109D0`, `$111450`, `$11761C`, `$118688`, `$118BEC`,
+    `$1196C8`) reloaded `$87CD` at every stage and life start. Now seeded at boot and game start only; `arc_rand`
+    (C) and `arc_rand_asm` (d0 = byte, other registers kept) are the replica for later fixes. Measured: after a
+    death in the stage 5 boss room the state carries on (`$5582` -> `$5825`, as the arcade's) where the port went
+    back to `$87CD`. The call sites (stage = arcade stage index + 1, from runs of every respawn state; types from
+    the enemy table `$4544`):
+
+    | Type (handler), stages | Call sites | What the random picks |
+    |---|---|---|
+    | 1 crow (`$A44A`), 1-3, 5 | `$A599` `$A66F` `$A6AD` `$A775` `$A796` | wake-up branch (with the slot counter), perch times by rank (`$1C,X` table, 8), flight table `$A69D` (16), timers `$A7D6`/`$A7CE` (8) |
+    | 2 Petite Devil (`$A89C`), 2, 4, 5 | `$A94A` `$A953` `$AD1E` `$AD33` | a 16-entry table, hover 64-95 frames, 80-111, an offset (& `$2F`) |
+    | 3 (`$AFFC`), 1 | `$B09D` | one bit: a 0/1 choice |
+    | 4 window/tower devil (`$B146`), 2 | `$B1D1` `$B2D0` `$B352` `$B393` | timer 10-25, two 4-entry tables, a 2-entry table |
+    | 6 Satan (`$BED5`), 5, 6 | `$BFD2` `$C066` `$C147` | drift direction (every 128 frames), phase/shot/back-off lengths (`$C06E`, `$C072`, `$C358`), the swoop's target height |
+    | 8 (`$C4EA`), 6 | `$C6CF` `$C83B` `$CADE` `$CB7A` | table `$C68E` (8), a timer (4), two 0/1 choices |
+    | 10 (`$CF36`), 2, 5 | `$D074` `$D09A` | 0/1: a table, the facing |
+    | 12 dragon (`$D518`), 6 | `$D80A` | the whole byte (`<$EB`) |
+    | 13 Astaroth (`$DAD9`), final room | `$DB7A` `$DB81` `$DBB3` `$DBDE` `$DC2F` `$DC39` `$DC41` `$DC5E` `$DC84` `$DD01` | two-byte timers (`$6,X`, `$F,X`), offsets, tables `$DBF2` (16) and 8, 1-2, 64-191 frames, and the 0/1 at `$DC84`/`$DD01` that it draws almost every frame |
+
+19. **The Satans** (stages 5 and 6; `satan.c`). The port's (`$1105C6`) took its direction (rank >> 3 & 3), whether to
+    move (rank bit 0) and its timers (`$2551EC`/`$2551F4`) from the rank byte `$FFA208`, clamped itself to a box,
+    and froze while off screen: with Arthur standing at x 7233 in the stage 5 room it never left x 7385, y 1664
+    (arcade: x 7069-7394, y 1588-1730), so Arthur couldn't reach it. The arcade's (init `$BEF1`, asleep until on
+    screen `$BF1E`, ground states `$BF4C`, flight `$C0B5`, return dash `$C285`, back-off `$C310`, wings/shots
+    `$C001`) is now translated whole, with the arcade's random, `$8FE4` direction, `$FEF0`/`$FED8` divisions and
+    `$4140` sine; its shots go into the port's shot pool as its type 6, whose motion is the arcade's type `$0B`.
+    Its death keeps the port's score phase but first waits out the arcade's 22-frame burst (`$E8A7`).
+    Measured (stage 5 room, the port's frame counter, random state and Arthur's x lined up with the arcade's at
+    the Satan's wake-up): Arthur idle, 1,500 frames: x/y (16.8), flags, random state and every shot position
+    identical frame for frame (18 shots); throwing lances from where he stands: the same 10 hits on the same
+    frames, killed on frame 4,489 in both, removed (and the key released) on frame 4,576 in both (before: 22
+    frames early), the key falls the same way, +3,000 in both, 0 differing frames in 4,700; a shot hits Arthur on
+    the same frame (163) in both. With the arcade's inputs fed to a test build (`SATAN_TEST`): 6,000 frames of
+    walking, jumping and crouching in stage 5 and 8,000 frames with both stage 6 Satans awake, identical.
+    `tools/re/test_satan.py` runs the same C on every recorded arcade handler call (~50,000 calls, every state
+    including the straight dash): 0 mismatches.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -129,11 +174,20 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   follows a (frames, direction) script with the body delayed per segment, `$D6D6`/`$D73D`/`$D955`; the
   port homes, and its re-aim timer byte +$23 overlaps a counter at +$22 so it never re-aims and flies off;
   the stage 6 dragon also spawns at camera-relative (7808,1600) instead of the arcade's absolute
-  (7825,2015) record), the Satans (`$1105C6`: choices from the rank byte `$FFA208` instead of a random),
-  Astaroth (`$DAD9`: walk/pause, rapid-fire mode, high shots; shot motion), the Petite Devils (rise from
+  (7825,2015) record), Astaroth (`$DAD9`: walk/pause, rapid-fire mode, high shots; shot motion), the Petite Devils (rise from
   the lava, hover, dive: `$A89C`/`$A8F9`/`$AB4B`), the stage 5 skulls (sleep/wake/hop, `$CC70`/`$CD08`; the
-  port fires them as aimed projectiles). The arcade has a second random source, a shift register at
-  `$68F9` (`$6E`/`$6F`), used from 34 places in enemy code; the port has no equivalent.
+  port fires them as aimed projectiles). The arcade's second random (`$68F9`, see Fixed 18) is shared by all
+  its callers, so each of these has to draw from it (`arc_rand`) exactly when the arcade does, or the numbers
+  everyone else gets shift: in the stage 5 boss room the arcade's crows (type 1, `$A66F`) draw three as the
+  Satan wakes and the port's crows (`$105472`) didn't in the same run, so in play the Satan's numbers differ
+  from the arcade's (the lockstep runs above set the state at its wake-up).
+- **The Satans, what's left:** nothing is drawn for the 22-frame burst before the score (the port has no burst
+  frames for it); the arcade's hovering pose with the wings open has no port frame (drawn as the flying pose),
+  and its shot (a star, sprites `$D7/$DF`) is drawn with the port's type-6 shot art (a small orb). The
+  arcade's spawn leaves the x fraction from RAM (stage 6's second Satan starts at 7696.06; the port's at .00),
+  which can move a drift step by a frame.
+- **Stage 5 boss room camera:** with the same jump, the port's camera follows Arthur up (y 1475 -> 1512) while
+  the arcade's stays at 1475; while it scrolls the port lost an update (one frame).
 - **Spawn and activation rules:** stage 2 window devils are never rejected off-screen (arcade `$B25E`,
   on-screen test `$B193`); stage 2 crows start 56-64 frames before they're visible (port `$450A` uses
   512 px; arcade `$A72F` waits until on screen, then perches on random timers); stage 2 tower devils

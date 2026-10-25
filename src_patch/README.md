@@ -85,19 +85,21 @@ Without `--features` the patcher produces the compatibility-only ROM.
 - **Tombstones** (all modes): the arcade's rules, translated from its check at `$9FAE` (gg3) and its box table at `$A052` (type 1: x ±12, y ±19, top at y + 19). The port had its own: landing within 20 px on a top at +20, and a side stop at 13 px that also worked in mid-air, so no jump could clear a tombstone. In the arcade a tombstone only blocks walking (probe x ± 1, y + 1); in the air it can only land you on it (probe x, y − 1, falling, inside the box: snapped to the top). Checked against the arcade (`tools/arcade/gng.py`) with the same runs: side stop at x 244 for the tombstone at 256 in both, a running jump from against it clears it in both, top at y 81 in both, and the clear/land/block takeoff ranges agree to within the 0.35 px the two start apart (see `docs/ACCURACY.md`).
 - **Input timing** (all modes, `arcade_input` in `pad.c`): as in the arcade, left/right count from their second frame (this frame AND last), and a jump from the ground takes off two frames after the press (a walk frame, a standing frame, then the jump) along the direction latched at the press. See `docs/ACCURACY.md`.
 - **Arcade rules** (all modes unless stated; details and evidence in `docs/ACCURACY.md`): the random source runs on like the arcade's frame counter instead of restarting every life (zombie patterns no longer repeat), the item-drop cycle carries over, DIFFICULTY uses the arcade's four starting ranks (NORMAL/EASY/DIFFICULT/VERY DIFFICULT), a continue resets the score and bonus thresholds, the countdown is 640 frames and in Arcade mode takes Start with fire or jump, bonus lives stop at 1,000,000, the checkpoint no longer restarts the music, and after the second loop the game plays on from stage 1.
+- **The Satans** (stages 5 and 6, all modes; `satan.c`): the arcade's Satan (type 6, handler `$BED5`) translated routine by routine in place of the port's (`$1105C6`), which drifted left/right on directions and timers from the rank byte `$FFA208`, never flew up or down and so couldn't be reached in stage 5. Now, as the arcade: asleep until on screen (`$BF1E`); hovering with a slow drift (a random direction every 128 frames), shots every 40-50 frames while the wings are open, the wings closed for 30 frames (weapons blocked: the port's weapon code already skips `+4` = `$81`), backing off when Arthur is within 48 px, swoops at Arthur in a sine arc at 3-3.4 px/frame by rank (aimed at his height ±16-32, a level run then a 96 px rise when level with him, a straight 3.5 px/frame dash when below him), and a 3-4 px/frame dash back when off the screen; 10 hit points; the arcade's 22-frame burst before its death's score phase (`hook_satan_die`, timing only: nothing is drawn for it). Each Satan keeps an image of the arcade's 48-byte slot in patch RAM (4 records), so the C reads like the 6809 code; the port slot gets x/y, flags, state and frame (1/2 flying, 3/4 wings closed). The shots go into the port's shot pool (`$FFC100`, free list `$FFC220` = the arcade's `<$A7/<$A8`) as its type 6, whose motion is the arcade's type `$0B` (velocity table `$29238` = `$5DBF`; `$7442` = `$8FE4`, identical for all 65,536 inputs). Checked against the arcade: `tools/re/test_satan.py` runs the same C on every recorded handler call (all states, 0 mismatches) and the ROM runs frame-locked with the arcade (see `docs/ACCURACY.md`).
+- **The arcade's second random source** (`arcrand.c`, `arc_rand` / `arc_rand_asm`): the shift register at `$68F9` on the port's own copy of its state (`$FFC62C` = `$6E/$6F`, `$FFC62E` = `$70`), now seeded only at boot and game start as in the arcade; the ten stage inits reloaded `$87CD` at every stage and life start.
 - **Music volume** (all modes): the music is 6 dB quieter; the sound effects are unchanged. The music (stage tunes, map and intro themes, jingles) is the sequencer's recorded YM2612 register streams, and the action effects are separate PCM clips, so the patcher adds 8 steps of attenuation to each carrier operator's total level in the stream data (`attenuate_music` and `MUSIC_ATT` in `tools/patch_gng.py`). It's a data change only, with no code and no run-time cost (co-op stage 5 over 12 input seeds: identical to the build without it). Measured: −5.2 to −6.3 dB on the stage music and jingles. The map theme was heavily clipped before; it's about −4 dB as measured and still peaks at full scale.
 
 ## Engine hooks
 
 | Address | Original | Hook |
 |---|---|---|
-| `$28E` | `lea $FF0000,a0` + RAM clear loop | `hook_ramclear`: clears RAM except `$FF5000–$FF50FF`, reads the VDP control port first |
+| `$28E` | `lea $FF0000,a0` + RAM clear loop | `hook_ramclear`: clears RAM except `$FF5000–$FF50FF`, reads the VDP control port first, seeds the arcade random (`$FFC62C` = `$87CD`) |
 | `$B7A` | title prologue (`movem` + `jsr $BF58`) | `hook_title` → `boot_flow` (intros, menus), then the title, or a Home start |
 | `$BB8` | `lea $2045E8,a0` (title palette) | `hook_title_pal`: Japanese logo on the title screen |
 | `$BF72` | pad routine | `hook_pad` → `pad_update`: same RAM outputs, per-mode mapping, pause |
 | `$113A28`, `$11CFF0` | `jmp $200` soft restarts | `warm_restart`: marks the restart as warm so it isn't treated as a power-on |
 | `$11CE80/86`, `$11CF0C/2C` | overlay `lea` sources | `ovl_*`: English or Japanese attract overlay |
-| `$61A2` | `clr.l $FFC570` (player block init) | `hook_player_init`: lives, difficulty rank and its floor, debug stage |
+| `$61A2` | `clr.l $FFC570` (player block init) | `hook_player_init`: lives, difficulty rank and its floor, debug stage, the arcade random seed |
 | `$6348` | `move.b #3,$FFC500` (continue) | `hook_continue_lives` |
 | `$7890` | `clr.l $FFC040` (score block init) | `hook_score_init`: TOP SCORE from the saved table, bonus thresholds |
 | `$779A` | `move.l (a4),d1; cmp.l 4(a4),d1` (after the score add) | `hook_score_added`: bonus life (the port had none) |
@@ -109,6 +111,9 @@ Without `--features` the patcher produces the compatibility-only ROM.
 | `$690E` | Arthur's frame upload `jsr $704BE` | `hook_arthur_dma`: skipped in Firebrand mode (his frame goes up at the sprite DMA) |
 | `$11711E` | shot-slot art upload `jsr $704BE` | `hook_shot_dma`: fireball instead of the lance in Firebrand mode |
 | `$116472`, `$116884` | item code copying armor/weapon back from its context | `hook_item_copy`: Firebrand turns pickups into points |
+| `$110578`, `$1105C6` | the Satan handler's states 0 and 1 | `jsr hook_satan` + `bra.w $110846` → `satan_update` (`satan.c`); raises the boss count (`$10E9B6`) where the arcade does (`$BF5F`) |
+| `$11080E` (+ `$11082C`) | its death: `tst.b 8(a4)` / `bne.s` (and the death sound) | `hook_satan_die`: 22 burst frames first; the sound moves to the first |
+| `$9C0`, `$104728`, `$10EB60`, `$10FA2A`, `$1109D0`, `$111450`, `$11761C`, `$118688`, `$118BEC`, `$1196C8` | stage inits: `clr.l $FFC62C`, `move.w #$87CD,$FFC62C`, clear `$FFC62E` | `clr.b $FFC62F` and nops: the random state carries on (seeded by `hook_ramclear` and `player_init`) |
 
 Engine variables used: `$FFC000` score (BCD), `$FFC004` TOP SCORE, `$FFC500` lives,
 `$FFC501` difficulty rank, `$FFC561` rank floor, `$FFC512` stage index (0-5 = stages 1-6, 6 = the final room),
@@ -119,7 +124,7 @@ Entering a stage's code directly from the start path crashes, because it expects
 ## Memory
 
 - `$FF5000–$FF50FF`: `Persist` (`common.h`), which survives the game's soft restarts. Validated by the magic `MXMP`.
-- `$FF5100–$FF5EFF`: C `.bss` (no `.data`; everything is cleared at boot).
+- `$FF5100–$FF5EFF`: C `.bss` (no `.data`; everything is cleared at boot). `satan.c` is linked last: its 4 × 52-byte Satan records end the block (`$FF55A8`).
 - `$FF5F00`: the SRAM transfer routine, copied there at run time.
 - `$FF2BE1–$FF6FFF` is never touched by the game. Checked over 24,000 frames of boot, attract and stage 1 play plus 6,000 frames of play in each of stages 2–6 (via the developer launch), and no instruction addresses it directly.
 
