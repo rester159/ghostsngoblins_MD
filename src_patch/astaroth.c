@@ -280,6 +280,7 @@ void ast_shot_spawn(u8 *slot, u16 x, u16 y, u8 dir, u8 rank);   /* below */
 void *ast_alloc(void);                  /* astaroth_glue.s: an enemy slot ($7BD2) */
 int ast_floor(int x, int y);            /* astaroth_glue.s: $8CA7 for size class 0 */
 void ast_sound(int id);                 /* astaroth_glue.s: $B762 etc. */
+void end_reset(void);                   /* ending.c */
 
 /* The arcade's projectile pool (<$A7 free count, <$A8 stack; 6 slots) is the
  * port's shot pool ($FFC220 count, $FFC228 stack, slots at $FFC100), which
@@ -334,7 +335,7 @@ int ast_update(u8 *p)
     if (r & 3)      /* $DD12: x +-4, y - 5 (low) or x +-10, y + 12 (high) */
         ast_shot_spawn(p, ast_shot_x, ast_shot_y, X(0x18), X(0x1A) >> 1);
     if (r & 4) ast_sound(0x0C);
-    if (r & 8) p[11] = 10;              /* hit points (the arcade's $16,X) */
+    if (r & 8) { p[11] = 10; end_reset(); }   /* hit points (the arcade's $16,X) */
     p[25] = 6;
     p[8] = 0;
     p[9] = 0;                           /* the death's frame count (hook_ast_die) */
