@@ -79,6 +79,12 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     then 178-201 and 171-201, now identical. Other enemies may have the same converted-image offset errors;
     see Open.
 
+11. **Stage-start wait** (`stage_hold` at the ten stage-loop entries, `$5A8` etc.). The arcade draws the stage
+    over the map for ~37 frames with the game held (`$726E` calling `$80A0`) before play; Genesis draws it at
+    once. From the end of the map to Arthur's first step: arcade 41 frames, port 15, now 41 (the hold keeps
+    the music and the frame counter running). Death to first step: arcade 524, port now 527 (was 494). The
+    death animation (60), death sequence (121) and map (302) already matched phase for phase.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -108,8 +114,9 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
 
 - **Stage start:** the arcade spends a frame landing (y 64.28 -> 62.03) without moving; the port lands and
   moves in one frame. Start x fraction `$60F5` (arcade) vs `$609C` (port); start y 64.28 vs 64.00.
-- **Stage start / respawn:** the arcade draws the stage over the map for ~37 frames (`$726E` calling `$80A0`
-  until done) before play (`<$0B` = 1); death to control is 504 frames in the arcade vs 481 in the port.
+- **Intro:** the arcade's opening shows Arthur and the princess in the graveyard (stage background) for
+  ~200 frames before the black-background kidnapping scene; the port's intro starts at the kidnapping.
+  Start to play is 557 frames in the arcade, ~335 in the port.
 - **Standing up** after a crouch: the arcade's stand-up frame doesn't walk (counter back to 7, no move); the
   port walks on it (`$7F98` then its walk in the same update). One frame.
 - **Ladder bottom:** the arcade spends one frame at y 64.90 before 62.65; the port drops straight to 62.

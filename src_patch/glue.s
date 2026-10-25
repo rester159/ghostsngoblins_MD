@@ -624,6 +624,19 @@ zombie_y:
     move.w  #0x0F00,2(%a5)
     rts
 
+| $5A8 and the nine other stage-loop entries (patch_gng.py): `jsr
+| stage_hold_entry` + 4 nops over `move.w #$2300,sr` and `move.l
+| #'LIVE',$FF7FF0`: the arcade's stage-draw wait (pad.c stage_hold), then the
+| same two instructions.
+    .global stage_hold_entry
+stage_hold_entry:
+    movem.l %d0-%d1/%a0-%a1,-(%sp)
+    jsr     stage_hold
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+    move.l  #0x4C495645,0xFF7FF0
+    move.w  #0x2300,%sr
+    rts
+
 | $10442A: `jmp tomb_check` over its first instruction. The tombstone check,
 | rewritten from the arcade's ($9FAE in gg3, Capcom `gng` set, called from the
 | walk at $940E/$9435 and the fall at $9638), for the type-1 slots of the 30

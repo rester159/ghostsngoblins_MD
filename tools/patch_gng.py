@@ -227,6 +227,12 @@ def install_features(rom, build_dir):
     expect(rom, 0x11CADC, bytes.fromhex('700072003600'), 'sound request scan')
     put(rom, 0x11CADC, jmp(sym['sound_scan']))
     attenuate_music(rom, MUSIC_ATT)
+    # the arcade's stage-draw wait before play (pad.c stage_hold), at the entry
+    # of each stage loop (all ten set the sr and 'LIVE' the same way)
+    for a in (0x5A8, 0x1046E4, 0x10EB26, 0x10F9F0, 0x110994, 0x111414, 0x1175BA,
+              0x11864C, 0x118BB0, 0x11968C):
+        expect(rom, a, bytes.fromhex('46fc230023fc4c49564500ff7ff0'), 'stage loop entry')
+        put(rom, a, jsr(sym['stage_hold_entry']) + b'\x4e\x71' * 4)
     # zombies coming out of the ground: frames 13-17 8 px higher (glue.s zombie_y)
     expect(rom, 0x7CF8, bytes.fromhex('3a873b7c0f000002'), 'zombie sprite y')
     put(rom, 0x7CF8, jsr(sym['zombie_y']) + b'\x4e\x71')

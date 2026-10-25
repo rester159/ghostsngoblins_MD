@@ -129,3 +129,23 @@ void pad_update(void)
     if (mode == MODE_ARCADE && PERSIST->dip[DIP_COIN] == 5) G_CREDITS = 9;   /* free play */
     if (in_play()) play_tick();
 }
+
+/* $5A8: `jsr stage_hold` (glue.s) before play starts, at every stage start
+ * (game start, after a death's map, after a stage clear). The arcade draws
+ * the stage over the map for ~37 frames with the game held ($726E calling
+ * $80A0) before play; Genesis draws it at once, so from the end of the map
+ * to Arthur's first step took 15 frames in the port and 41 in the arcade.
+ * Hold the difference: the display is on, the music keeps playing, and the
+ * frame counter keeps counting (interrupts are still off here; the VBlank
+ * handler only counts) so the random source runs on as the arcade's does. */
+#define STAGE_HOLD 26
+void stage_hold(void)
+{
+    int i;
+    for (i = 0; i < STAGE_HOLD; i++) {
+        while (VDP_CTRL & 8) ;
+        while (!(VDP_CTRL & 8)) ;
+        RAM32(0xFF7DFC)++;
+        game_sound_tick();
+    }
+}
