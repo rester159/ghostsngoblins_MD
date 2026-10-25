@@ -203,6 +203,33 @@ def install_features(rom, build_dir):
     # tombstone check ($10442A): the arcade's rules (glue.s tomb_check)
     expect(rom, 0x10442A, bytes.fromhex('4a3900ffc512670c'), 'tombstone check')
     put(rom, 0x10442A, jmp(sym['tomb_check']))
+    # standing up after a crouch: no walk on the stand-up frame, as the
+    # arcade's $9A6C (arthur.s stand_up, walk_gate)
+    expect(rom, 0x7F98, bytes.fromhex('197c0007000c422c000b4e75'), 'crouch stand-up')
+    put(rom, 0x7F98, jmp(sym['stand_up']) + b'\x4e\x71' * 3)
+    expect(rom, 0x8114, bytes.fromhex('4a3900ff94596618'), 'walk gate')
+    put(rom, 0x8114, jmp(sym['walk_gate']))
+    # ... and the crouch-entry frame still walks, as the arcade's ($9305, $940E)
+    expect(rom, 0x7E56, bytes.fromhex('197c0001000b'), 'crouch entry')
+    put(rom, 0x7E56, jsr(sym['crouch_in']))
+    # ladder bottom: off the ladder above the floor he falls the next frame,
+    # as the arcade's, instead of snapping down (arthur.s lad_exit, ground_snap)
+    expect(rom, 0x7E42, bytes.fromhex('422c00080c2c00040009'), 'ladder end')
+    put(rom, 0x7E42, jsr(sym['lad_exit']) + b'\x4e\x71' * 2)
+    expect(rom, 0x8698, bytes.fromhex('610000aa4a80'), 'ground floor snap')
+    put(rom, 0x8698, jsr(sym['ground_snap']))
+    # armor lost on the hit frame (arcade $0158), not at the knockback's
+    # landing; the knockback keeps its own marker (arthur.s kb_*)
+    expect(rom, 0x5FA4, bytes.fromhex('197c00780009'), 'armored hit')
+    put(rom, 0x5FA4, jsr(sym['kb_hit']))
+    expect(rom, 0x5AAE, bytes.fromhex('4a2c00286614'), 'hit dispatch')
+    put(rom, 0x5AAE, jmp(sym['kb_dispatch']))
+    expect(rom, 0x5ADC, bytes.fromhex('4a2c002866000370'), 'knockback armor check')
+    put(rom, 0x5ADC, bytes.fromhex('4a2c004367000370'))     # tst.b 67(a4); beq: the marker
+    expect(rom, 0x5B44, bytes.fromhex('4a2c002867025c40'), 'knockback animation')
+    put(rom, 0x5B44, jsr(sym['kb_anim']) + b'\x4e\x71')
+    expect(rom, 0x5CD4, bytes.fromhex('197c00010028'), 'knockback landing armor')
+    put(rom, 0x5CD4, jsr(sym['kb_land']))
     # ... and its handler pick ($6A88, an 11-compare chain on d4) by table
     expect(rom, 0x6A88, bytes.fromhex('0c44000d67000516'), 'object handler chain')
     put(rom, 0x6A88, jmp(sym['obj_dispatch']))
@@ -233,6 +260,20 @@ def install_features(rom, build_dir):
                         (0x106FF6, '197c000a000b', '197c0006000b')):
         expect(rom, a, bytes.fromhex(old), 'boss hit points')
         put(rom, a, bytes.fromhex(new))
+    # Unicorn (stage 1 boss, handler $706FA): its walk ($70A44) doesn't follow the floor.
+    # The arcade's walk only moves it ($A435-$A449, no floor check); the port
+    # snapped it to the floor within 8 px ($70AE2), so walking off the raised
+    # ground (y 78.6) dropped it to 70.6 just before a jump, and the jump ran
+    # 8 px low.
+    expect(rom, 0x70A70, bytes.fromhex('610000706016'), 'unicorn walk floor snap')
+    put(rom, 0x70A70, b'\x4e\x71\x4e\x71')
+    # stage 1's terrain map window as the arcade's (cam/16 - 15 .. + 16, not
+    # - 8 .. + 23), so the columns past the screen hold what the arcade's do
+    # (arthur.s map_start_*): the unicorn's landing probe at the arena's end
+    for a, reg in ((0x93E0, 'd6'), (0x9454, 'd0')):
+        n = {'d6': 6, 'd0': 0}[reg]
+        expect(rom, a, bytes([0xE8, 0x48 | n, 0x51, 0x40 | n, 0x6A, 0x02, 0x70 | (n << 1), 0x00]), 'stage-1 map window')
+        put(rom, a, jsr(sym['map_start_' + reg]) + b'\x4e\x71')
     # a new game starts with 0 points, as the arcade's: the port's start block
     # ($28EEE, copied to $FFC000 by $7874) gave 600
     expect(rom, 0x28EEE, bytes.fromhex('0000060000010000'), 'start score')
@@ -301,6 +342,12 @@ def install_features(rom, build_dir):
     for a in (0x10F59C, 0x11A3CC, 0x11A5EA):
         expect(rom, a, bytes.fromhex('650272003941001c'), 'platform mover load')
         put(rom, a, jsr(sym['mover_load2']) + b'\x4e\x75')
+    # ... and the rank creeps up with play time (glue.s rank_creep, arcade
+    # $EEB9); a stage clear adds 4 to the base rank ($FFC501, arcade <$61 at
+    # $6C58), not to the crept working rank $FFA208 the stage-end blocks load
+    for a in (0x8A802, 0x117CEC, 0x118272, 0x11929E):
+        expect(rom, a, bytes.fromhex('177900ffa208000e'), 'stage-end rank load')
+        put(rom, a, bytes.fromhex('177900ffc501000e'))
     for a in (0x91D4, 0x9952, 0x104EE6):
         expect(rom, a, bytes.fromhex('41f900014f60'), 'random counter init')
         put(rom, a, jsr(sym['rng_init']))

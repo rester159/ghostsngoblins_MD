@@ -129,6 +129,60 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     so stepping off a tombstone drops at once (-4.25, -4.49, ... ; down in 5 frames from the top). The
     port's tombstone landing (`tomb_check`) stored one gravity step instead, so he eased off (14 frames).
     Now 4.25 as the port's own ground landing; frame for frame the same as the arcade.
+23. **Crouching** (`arthur.s` `stand_up`, `crouch_in`, `walk_gate`; walk gate `$8114`). The arcade's crouch
+    handler (`$91B4`) never walks: on the frame the stand-up countdown runs out (`$0520` 9..0, then back to 7
+    and the crouch flag `$050F` cleared at `$9A6C`) Arthur doesn't move, and he walks from the next one; the
+    port cleared its crouch flag (`$7F98`) and walked in the same update. The other way round, the arcade's
+    standing handler sets the crouch flag (`$9305`) and still walks that frame (`$940E`), so Down+Right from
+    standing steps 1.125 px as he crouches; the port's gate saw the new flag and didn't. Measured (crouch 20
+    frames, then Right): first step on frame 180 in the arcade, 179 in the port, now 180 (Down alone, then
+    Right: 185 / 184, now 185); Down+Right together: a step on the crouch frame in both now. Maximo's control
+    block ignored the walk gate's answer altogether, so he slid along while crouched; it uses it now.
+24. **Ladder bottom** (`lad_exit`, `ground_snap`; `$7E42`, `$8698`). Climbing down, the arcade's ladder ends
+    with Arthur at y 64.90; the standing state's floor check (`$8CA7`) finds no floor at his y, so he goes to
+    the fall state (`$91E1`) with y unchanged, and the next frame falls 4.25 and lands at 62.65 (`$9660`,
+    `$91F1`). The port's ground step snapped him down to the floor within 8 px (`$8744`) in the same update.
+    Now the ladder-bottom update checks only the floor at his own y (`$8784`): 66.39, 65.01, 65.01, 62.76 against
+    the arcade's 66.27, 64.90, 64.90, 62.65 (the 0.11 is the start fraction).
+25. **Stage start** (the same check on a stage's first ground step, set by `stage_hold_entry`). Both games place
+    Arthur 2 px above the ground (y 64.28 / 64.21). The arcade then walks a frame at that height, lands at 62.03
+    the next without walking, and walks on; the port walked and snapped to 62.21 in one update. Now walk at
+    64.21, land at 62.96 without walking, walk: the arcade's sequence, frame for frame.
+26. **Armor flag** (`kb_hit`, `kb_dispatch`, `kb_anim`, `kb_land`; `$5FA4`, `$5AAE`, `$5ADC`, `$5B44`, `$5CD4`).
+    The arcade's `$0158` is set on the hit frame (with the 120-frame invincibility); the port's `$FFC328`
+    (+40 of the physics block `$FFC300`) at the knockback's landing, 33 updates later, because its knockback
+    state machine read it as "an armored hit in progress": the dispatcher `$5A9A` runs the knockback (`$5F70`,
+    `$5AD8`) while it is 0 and the boxers hit (`$5E60`) while it is 1. During those 33 updates everything else
+    that reads it saw armor the arcade had already lost: an armor pickup (the item contexts copy it in and out,
+    `$116472`) and the copy the object routine at `$9B52` takes. Now it is set on the hit frame
+    and the knockback keeps its own marker (`$FFC343`, unused, cleared by the block init `$6456`). Same knockback
+    frame for frame (positions and invincibility identical to the old build's in the same run).
+27. **Rank creeps up with play time** (`glue.s` `rank_creep` in `rng_tick`; stage-end blocks `$8A802` etc.).
+    Every frame of play (also during a knockback or the death animation; not the death sequence, the map or the
+    stage-start hold), when the frame counter's low byte `<$21` is 0, the arcade adds `$006B` to its 16-bit rank
+    `<$9A-$9B` (`$EEB9`, high byte capped at `$3F`): +1 about every 612 frames. Each start sets it back to the base
+    rank `<$61` with a zero fraction (`$6C65`); a stage clear adds 4 to the base (`$6C58`), a death takes 1 off
+    it (`$72BF`). ~28 enemy routines read it. The port had the base (`$FFC501`) and working (`$FFA208`) ranks the
+    same way but no creep, and its stage-end blocks added the 4 to the working rank. From the checkpoint:
+    arcade 6.00, 6.6B, 6.D6, 7.41, ... 8.ED on updates 52, 308, 564, ... 1588; the port stayed at 6; now the same
+    values on the same updates. This was the Unicorn's fireball delay: the shooter's wait comes from `$A324`
+    (`1A 16 14 11 10 0E 0A 06`) by rank / 8 (`$A315`), `$1A` at rank 6, `$16` at rank 8: launch 33 updates
+    after the allocation in the arcade, 37 in the port, now 33.
+28. **Unicorn walk** (`$70A70`). The arcade's walk only moves it (`$A435`-`$A449`, no floor check); the port's
+    snapped it to the floor within 8 px (`$70AE2`), so walking off the raised ground at y 78.57 dropped it to 70.57
+    on the frame it chose to jump, and the jump ran 8 px low (peak 134.68 against 142.68). The walk no longer
+    follows the floor: the jump starts at 78.57 and the arc is the arcade's.
+29. **Stage 1 terrain map** (`arthur.s` `map_start_d6/d0`; `$93E0`, `$9454`). The collision map is a ring of 32
+    columns of 16 px. The arcade's holds cam/16 - 15 .. cam/16 + 16 (a column written as the camera reaches it),
+    the port's cam/16 - 8 .. + 23, so the columns past the screen held the real level in the port and the
+    level 512 px back in the arcade. At the boss arena the camera stops at 3234 and the arcade never loads
+    x 3504 on: the Unicorn, landing at x 3484, finds floor at x + 24 (its second probe, class 4, `$8CA7`; tile
+    `$02` at `$2B6C`) on that old column and stands at 78.34; the port's map had the end wall there (tile `$B1`,
+    attribute `$40`) and the Unicorn fell to 70.91. The window is now the arcade's; the screen is drawn
+    from the same map and looks the same (compared at several scroll positions).
+    With 27-29, the Unicorn fight runs identically in both: 1,640 updates without Arthur attacking, and a fight
+    with a lance every 16 frames: ten hits, every walk, jump, landing and fireball, and the death on the same
+    updates; the key then falls on the same path.
 
 ## Matching (audited)
 
@@ -174,18 +228,17 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
 - **Bonus lives:** the plus build caps lives at 9 (the arcade doesn't).
 - **Continue digit:** the port shows one digit, so the arcade's "10" step shows as 9.
 
-- **Stage start:** the arcade spends a frame landing (y 64.28 -> 62.03) without moving; the port lands and
-  moves in one frame. Start x fraction `$60F5` (arcade) vs `$609C` (port); start y 64.28 vs 64.00.
+- **Stage start fraction:** start x fraction `$60F5` (arcade) vs `$609C` (port); start y 64.28 vs 64.21
+  (leftover RAM in the arcade, `$6D36` sets only the integer bytes).
+- **After the Unicorn dies:** the arcade stops updating and drawing Arthur's weapons and the enemy shots (they
+  stay in their slots until about 130 frames later, so Arthur can't throw either); the port keeps moving them
+  (a fireball goes on 3 px an update) and Arthur keeps throwing. The port also draws a 16x16 sprite (tiles
+  `$798`, object `$FF9780`) next to Arthur while the key falls that the arcade doesn't. The key itself matches.
+- **Terrain map windows in stages 2-6:** the other streamers (`$9600`, `$104C16`, `$10F06C`, ...) start their
+  windows at cam/16 - 8 like stage 1's did; not compared with the arcade's.
 - **Intro:** the arcade's opening shows Arthur and the princess in the graveyard (stage background) for
   ~200 frames before the black-background kidnapping scene; the port's intro starts at the kidnapping.
   Start to play is 557 frames in the arcade, ~335 in the port.
-- **Standing up** after a crouch: the arcade's stand-up frame doesn't walk (counter back to 7, no move); the
-  port walks on it (`$7F98` then its walk in the same update). One frame.
-- **Ladder bottom:** the arcade spends one frame at y 64.90 before 62.65; the port drops straight to 62.
-- **Armor flag** (`$0158` arcade, set on the hit frame) vs the port's `$FFC328` (set on landing, +33 frames).
-- **Unicorn (stage 1 boss):** its fireball (type 4, allocated by `$A3B4`) goes live 33 updates after it's
-  allocated in the arcade, 37 in the port; a jump started from raised ground (y 78.6) restarted at 70.6 in
-  the port, so that arc ran 8 px low. State machine otherwise identical for ~500 updates.
 - **Dropped fire presses:** about every 23 updates the port advances its update counter without moving the
   weapons; a one-frame fire press there is lost (frame pacing, not weapon logic).
 - **Enemies:** with the same input the port's Arthur is hit again ~130 frames after the first tombstone

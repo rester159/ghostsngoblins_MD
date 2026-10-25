@@ -499,9 +499,56 @@ rng_tick:
     move.l  %d0,-(%sp)
     bsr.s   rng_now
     move.b  %d0,6(%a3)
+    bsr.s   rank_creep
     move.l  (%sp)+,%d0
     lea     0xFFB800,%a4
     rts
+
+| The arcade's rank also creeps up with play time: every frame of play
+| ($72A1 -> $E950 -> $EEB9, also during a knockback or the death animation,
+| not in the death sequence, the map or the stage-start hold), when the frame
+| counter's low byte <$21 is 0, the 16-bit rank <$9A-$9B gets $006B added,
+| the high byte capped at $3F; each life or stage start sets it back to the
+| base rank <$61 with a zero fraction ($6C65). That's +1 rank about every
+| 612 frames, and ~28 enemy routines read it (the stage 1 boss's fireball
+| delay $A315: table $A324 by rank / 8, the zombie waits, ...). The port has
+| the base ($FFC501) and working ($FFA208) ranks the same way (the stage inits
+| copy one to the other, $61C0) but no creep. d0 = the new counter; a3 =
+| $FFA200. Runs while $FFC570 is 0 (not the death sequence or the continue
+| countdown). Updates that miss a frame still count a wrap of the counter;
+| after a gap (the map) only a counter of 0 does.
+    .global rank_creep
+rank_creep:
+    tst.w   0xFFC570
+    bne.s   9f
+    movem.l %d1-%d2,-(%sp)
+    move.l  0xFF7DFC,%d1
+    move.l  %d1,%d2
+    sub.l   rank_vbl,%d2
+    move.l  %d1,rank_vbl
+    subq.l  #8,%d2
+    bcs.s   4f
+    tst.b   %d0                     | after a gap: only a counter of 0
+    beq.s   2f
+    bra.s   1f
+4:  move.b  %d0,%d2                 | wrapped since the last update: a borrow
+    sub.b   rank_prev,%d2           | but a small step forward (a step back
+    bcc.s   1f                      | isn't a wrap)
+    bmi.s   1f
+2:  moveq   #0,%d1
+    move.b  8(%a3),%d1
+    lsl.w   #8,%d1
+    move.b  rank_frac,%d1
+    addi.w  #0x6B,%d1
+    move.b  %d1,rank_frac
+    lsr.w   #8,%d1
+    cmpi.b  #0x3F,%d1
+    bls.s   3f
+    moveq   #0x3F,%d1
+3:  move.b  %d1,8(%a3)
+1:  move.b  %d0,rank_prev
+    movem.l (%sp)+,%d1-%d2
+9:  rts
 
 | $91D4, $9952, $104EE6: `jsr rng_init` over `lea $14F60,a0`: the same 12
 | bytes with the counter carried on (the caller copies them to $FFA200)
@@ -512,7 +559,7 @@ rng_init:
     move.l  (%a0)+,(%a1)+
     move.l  (%a0)+,(%a1)+
     move.l  (%a0)+,(%a1)+
-    bsr.s   rng_now
+    bsr.w   rng_now
     move.b  %d0,rng_buf+6
     lea     rng_buf,%a0
     movem.l (%sp)+,%d0/%a1
@@ -643,6 +690,10 @@ stage_hold_entry:
     movem.l %d0-%d1/%a0-%a1,-(%sp)
     jsr     0x103D10                | the stage's time from its table (see below)
     jsr     stage_hold
+    st      0xFF9451                | the first ground step checks the floor
+                                    | at his own y only (arthur.s ground_snap)
+    clr.b   rank_frac               | the rank creep restarts from the base
+                                    | rank ($6C65; rank_creep below)
     movem.l (%sp)+,%d0-%d1/%a0-%a1
     move.l  #0x4C495645,0xFF7FF0
     move.w  #0x2300,%sr
@@ -931,6 +982,9 @@ p2_control:
     PCALLD  0x80DE
     PCALLD  0xBC12
     PCALLD  0x8114
+    move.w  %d0,(%sp)               | the walk gate's answer, as the main loop
+                                    | uses it (no walk while crouching, on a
+                                    | ladder or on the stand-up frame)
     cmpi.w  #2,(%sp)
     bne     2f
     move.b  #1,0xFF9006
