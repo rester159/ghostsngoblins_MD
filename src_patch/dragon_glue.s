@@ -181,18 +181,18 @@ dragon_spawn_pos:
 
 | $114D58: `jmp dragon_wtest` over `cmpi.b #12,10(a4)` / `jmp $105796`, the
 | object pass's way into its weapon test ($1057A0, every other update; $105798,
-| the dragon's own entry, is a nop since every node is a target). For the
-| dragon's nodes and the Satans (types 12 and 6) that aren't both live and on
-| screen (+4 & +5 = 0), the test ($BE3A) only clears its 16-byte hit list and
-| returns nothing; this does what $1057A0-$105838 then do (the same RAM, and
-| d0/d1/d2/d6 as they leave them) without the table set-up, the call and the
-| message loop. Everything else goes to $1057A0 as before.
+| the dragon's own entry, is a nop since every node is a target). For a slot
+| that isn't both live and on screen (+4 & +5 = 0) the test ($BE3A) only clears
+| its 16-byte hit list and returns nothing, whatever the enemy and whatever the
+| weapons are doing (it looks at no weapon before that test); this does what
+| $1057A0-$105838 then do (the same RAM, and d0/d1/d2/d6 as they leave them)
+| without the table set-up, the call and the message loop. Every type but 8,
+| whose test ($7201A) records the slot in RAM and runs its own pass ($71500),
+| so type 8 and every live, on-screen slot go to $1057A0 as before.
 dragon_wtest:
-    cmpi.b  #12,10(%a4)
-    beq.s   1f
-    cmpi.b  #6,10(%a4)
-    bne.s   .Lfull
-1:  move.b  4(%a4),%d1
+    cmpi.b  #8,10(%a4)
+    beq.s   .Lfull
+    move.b  4(%a4),%d1
     and.b   5(%a4),%d1
     bne.s   .Lfull
     tst.b   0xFFC39C                | $1057A0: no weapon tests at all
