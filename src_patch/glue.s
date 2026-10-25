@@ -486,9 +486,17 @@ sound_scan:
 | case) its loop-invariant tests come out of the loop: whether $FF9410 is 1
 | (bit 31 of d4; the loop only ever clears it) and the X/Y offsets d5+20,
 | d7+12 (d2, a0). A tombstone whose x is outside [min(d3,d5)-20,
-| max(d3,d5)+20] can't pass the landing (|d5-x| <= 20) or the stop tests
-| (within 13 of d5 and d3), so one compare skips it (a3 = the low end, a1 =
+| max(d3,d5)+20] can't pass the landing (|d5-x| <= TOMB_LAND) or the stop
+| tests (within TOMB_SIDE of d5 and d3), so one compare skips it (a3 = the low end, a1 =
 | the width). Otherwise the original runs. d2/a0-a1/a3 are kept for the caller.
+|
+| The box is smaller than the port's (patch_gng.py makes the same change in the
+| original routine): a full running jump only rose above the 20 px top for
+| ~28 px of travel and the landing test caught it within 20 px, so no jump
+| could clear a tombstone. Landing top stays at +20 (the graphic's height).
+    .set TOMB_LAND, 11                  | landing: |player x - x| <= this (was 20)
+    .set TOMB_SIDE, 9                   | side stop at x -/+ this (was 13)
+    .set TOMB_HIGH, 14                  | blocks while feet < y + this (was 20)
     .global tomb_check
 tomb_check:
     tst.b   0xFFC512
@@ -507,7 +515,7 @@ tomb_check:
     cmpi.w  #1,0xFF9410
     bne.s   2f
     bset    #31,%d4                 | already landed: no landing tests
-2:  moveq   #20,%d2
+2:  moveq   #TOMB_LAND,%d2
     add.w   %d5,%d2
     moveq   #12,%d0
     add.w   %d7,%d0
@@ -532,9 +540,9 @@ tomb_check:
     bhi.w   8f
     tst.l   %d4
     bmi.s   4f
-    move.w  %d2,%d0                 | d5 - x + 20 <= 40 (unsigned)
+    move.w  %d2,%d0                 | d5 - x + LAND <= 2 LAND (unsigned)
     sub.w   (%a2),%d0
-    cmpi.w  #40,%d0
+    cmpi.w  #2*TOMB_LAND,%d0
     bhi.s   4f
     move.w  2(%a2),%d1
     addi.w  #20,%d1
@@ -553,28 +561,28 @@ tomb_check:
     moveq   #12,%d0
     add.w   %d7,%d0
     movea.w %d0,%a0
-4:  move.w  %a0,%d0                 | d7 - y + 12 <= 31 (unsigned)
+4:  move.w  %a0,%d0                 | d7 - y + 12 <= 12 + HIGH - 1 (unsigned)
     sub.w   2(%a2),%d0
-    cmpi.w  #31,%d0
+    cmpi.w  #12+TOMB_HIGH-1,%d0
     bhi.s   8f
     cmp.w   %d3,%d5
     beq.s   8f
     blt.s   5f
-    move.w  (%a2),%d1               | moving right: stop at x - 13
-    subi.w  #13,%d1
+    move.w  (%a2),%d1               | moving right: stop at x - SIDE
+    subi.w  #TOMB_SIDE,%d1
     cmp.w   %d1,%d5
     blt.s   8f
     move.w  (%a2),%d0
-    addi.w  #13,%d0
+    addi.w  #TOMB_SIDE,%d0
     cmp.w   %d0,%d3
     bge.s   8f
     bra.s   6f
-5:  move.w  (%a2),%d1               | moving left: stop at x + 13
-    addi.w  #13,%d1
+5:  move.w  (%a2),%d1               | moving left: stop at x + SIDE
+    addi.w  #TOMB_SIDE,%d1
     cmp.w   %d1,%d5
     bgt.s   8f
     move.w  (%a2),%d0
-    subi.w  #13,%d0
+    subi.w  #TOMB_SIDE,%d0
     cmp.w   %d0,%d3
     ble.s   8f
 6:  move.w  %d1,%d5

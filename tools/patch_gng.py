@@ -76,6 +76,52 @@ def load_symbols(path):
     return syms
 
 
+MUSIC_ATT = 8          # music volume: total-level steps of 0.75 dB (8 = -6 dB)
+SOUND_TABLE = 0x14CBF8  # 12 bytes per sound id: type, slot, stream offset
+
+
+def attenuate_music(rom, att):
+    """Make the music quieter in the data itself. The music (stage tunes, map
+    and intro themes, jingles) is the sequencer's register streams: per track,
+    per tick a word count and that many (part, register, value) writes; the
+    action sound effects are separate PCM clips. Each carrier operator's total
+    level ($40-$4F; the operators that set the output for the channel's
+    algorithm, $B0-$B2) gets `att` more attenuation. A stream sets its
+    levels and algorithms together at its start, so a tick's algorithm writes
+    count for that tick's level writes; with no algorithm yet, only S4 (a
+    carrier in every algorithm) is changed. No code changes and no run-time
+    cost: the driver's restore of cached registers sends the same values."""
+    rd16 = lambda a: int.from_bytes(rom[a:a + 2], 'big')
+    rd32 = lambda a: int.from_bytes(rom[a:a + 4], 'big')
+    carriers = (8, 8, 8, 8, 0xC, 0xE, 0xE, 0xF)      # bit = $40 S1, $44 S3, $48 S2, $4C S4
+    done = set()
+    for sid in range(64):
+        e = SOUND_TABLE + 12 * sid
+        if rd16(e) not in (1, 2):
+            continue
+        base = SOUND_TABLE + rd32(e + 4)
+        for t in range(rd16(base)):
+            tr = base + 4 + 20 * t
+            p = base + rd32(tr + 12)
+            alg = [None] * 6
+            for _ in range(rd32(tr + 4)):
+                n = rd16(p); p += 2
+                block = [(p + 3 * k, rom[p + 3 * k], rom[p + 3 * k + 1]) for k in range(n)]
+                p += 3 * n
+                for a, part, reg in block:
+                    if 0xB0 <= reg <= 0xB2:
+                        alg[part * 3 + reg - 0xB0] = rom[a + 2] & 7
+                for a, part, reg in block:
+                    if 0x40 <= reg <= 0x4F and reg & 3 != 3 and a not in done:
+                        ch = part * 3 + (reg & 3)
+                        mask = carriers[alg[ch]] if alg[ch] is not None else 8
+                        if mask >> ((reg >> 2) & 3) & 1:
+                            v = rom[a + 2]
+                            rom[a + 2] = (v & 0x80) | min(0x7F, (v & 0x7F) + att)
+                        done.add(a)
+    return len(done)
+
+
 def install_features(rom, build_dir):
     """Menus, modes and QoL code from src_patch/ (built with `make`)."""
     blob = open(build_dir + '/patch.bin', 'rb').read()
@@ -158,6 +204,15 @@ def install_features(rom, build_dir):
     # out of its loop (glue.s tomb_check; tools/re/test_tomb.py checks it)
     expect(rom, 0x10442A, bytes.fromhex('4a3900ffc512670c'), 'tombstone check')
     put(rom, 0x10442A, jmp(sym['tomb_check']))
+    # smaller tombstone box in the original routine too (taken while $FFC512
+    # is set; glue.s TOMB_* explains the sizes): landing |dx| <= 11 (was 20),
+    # blocked while feet < top - 6 (was the top), side stop at x -/+ 9 (was 13)
+    for a, old, new in ((0x10449A, '06400014', '0640000b'), (0x10449E, '0c400028', '0c400016'),
+                        (0x1044EC, '0c40001f', '0c400019'),
+                        (0x1044FC, '0441000d', '04410009'), (0x104506, '0640000d', '06400009'),
+                        (0x104514, '0641000d', '06410009'), (0x10451E, '0440000d', '04400009')):
+        expect(rom, a, bytes.fromhex(old), 'tombstone box')
+        put(rom, a, bytes.fromhex(new))
     # ... and its handler pick ($6A88, an 11-compare chain on d4) by table
     expect(rom, 0x6A88, bytes.fromhex('0c44000d67000516'), 'object handler chain')
     put(rom, 0x6A88, jmp(sym['obj_dispatch']))
@@ -181,6 +236,7 @@ def install_features(rom, build_dir):
     # sound driver request scan: byte-wise instead of 512 single-bit tests
     expect(rom, 0x11CADC, bytes.fromhex('700072003600'), 'sound request scan')
     put(rom, 0x11CADC, jmp(sym['sound_scan']))
+    attenuate_music(rom, MUSIC_ATT)
     # shot-slot art upload: the fireball instead of the lance
     expect(rom, 0x11711E, jsr(0x704BE), 'shot art DMA')
     put(rom, 0x11711E, jsr(sym['hook_shot_dma']))
