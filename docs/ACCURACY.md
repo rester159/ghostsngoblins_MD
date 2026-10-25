@@ -69,6 +69,16 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
 9. **After the second loop's ending** (`loop_again` at `$113A1C`): the arcade plays on from stage 1 with score
    and lives (`$73F3`, `$7446`); the port went to the title. Read in code; the ending wasn't reached in a run.
 
+10. **Zombies coming out of the ground were drawn 8 px low** (`zombie_y` at `$7CF8`). The port draws each
+    enemy frame as one 32x32 image placed at y = 352 + camera - object y, with no per-frame offset; the
+    arcade's frames carry their own. During the rise the zombie's y is 54 (8 below the ground) in both, and
+    the arcade draws the mound and head-and-shoulders frames 8 higher, bottom row on the ground line; the
+    port's images for those frames (13-17) sat in the grass. Drawn rows compared frame by frame over the
+    whole rise (arcade: sprite pieces owned by the slot, `X` at the builder `$F89E`-`$F91D`; port: the
+    frame drawn with and without its sprite-table entry): 189-193, 186-193, 185-193, 182-193, 178-193,
+    then 178-201 and 171-201, now identical. Other enemies may have the same converted-image offset errors;
+    see Open.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -85,6 +95,11 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   crouch entry, landing keeps the y fraction in both.
 
 ## Open
+
+- **Sprite placement of every other enemy, item, weapon and boss frame** (the converted 32x32 images can
+  carry the wrong offset, as the zombie's rise did). A per-frame comparison of drawn pixels against the
+  arcade, as for the zombie. Also a 1 px x difference on the zombie's rise frames relative to its walk
+  (port +1) that needs an absolute reference.
 
 - **Not yet audited:** stages 2-6 enemies and bosses, the stage-1 plants (spit timing), the raft and
   forest, per-enemy hit points and drops beyond stage 1, two-player alternation.

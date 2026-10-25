@@ -603,6 +603,27 @@ loop_again:
     movea.l #0xFFFFFC,%sp
     jmp     0x3F0032
 
+| $7CF8: `jsr zombie_y` + nop over `move.w d7,(a5)` / `move.w #$0F00,2(a5)` in
+| the zombie sprite builder ($7C5A, type-11 objects). The port draws each
+| enemy frame as one 32x32 image at y = 352 + camera - object y; the
+| arcade's frames carry their own offsets. While a zombie comes out of the
+| ground its y is 54, 8 below the ground, and the arcade's mound and
+| head-and-shoulders frames are drawn 8 higher than that (bottom row on the
+| ground line, like a walking zombie's feet); the port's images for those
+| frames (13-17) sat 8 too low, in the grass. Measured row for row against the
+| arcade over the whole rise; frames 18-19 and the walk already matched.
+| d3 = frame * 2 here.
+    .global zombie_y
+zombie_y:
+    cmpi.w  #2*13,%d3
+    bcs.s   1f
+    cmpi.w  #2*17,%d3
+    bhi.s   1f
+    subq.w  #8,%d7
+1:  move.w  %d7,(%a5)
+    move.w  #0x0F00,2(%a5)
+    rts
+
 | $10442A: `jmp tomb_check` over its first instruction. The tombstone check,
 | rewritten from the arcade's ($9FAE in gg3, Capcom `gng` set, called from the
 | walk at $940E/$9435 and the fall at $9638), for the type-1 slots of the 30
