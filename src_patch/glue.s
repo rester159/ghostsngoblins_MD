@@ -1088,3 +1088,42 @@ shot_check:
     movem.l (%sp)+,%d0-%d1/%a0-%a1
     btst    #0,16(%a4)
 1:  rts
+
+| $10F816: `jmp size_shift` over `moveq #0,d0` / `move.b 25(a4),d0`. The
+| stage 4 type-14 enemy's size-class change (+$19 -> d1 from the frame table
+| $248AB0) moves its y by the change in the arcade's shape anchor ($F864: y
+| -16 for class 1, -24 for 8, -32 for 10). The port only allowed 1<->8 and
+| 8<->10 and stopped the game with fault code $8C on anything else; its
+| phase restart ($10F7C4) can go from a class-10 frame straight to frame 3
+| (class 1), so in play the game could halt in stage 4. Now any change
+| between the three classes moves it by the anchor difference (10 -> 1:
+| -16), as the arcade's drawing would; an unknown class still traps.
+    .global size_shift
+size_shift:
+    moveq   #0,%d0
+    move.b  25(%a4),%d0
+    cmp.w   %d1,%d0
+    beq.s   9f
+    move.w  %d1,%d2
+    bsr.s   1f                      | new class's offset
+    move.w  %d2,-(%sp)
+    move.w  %d0,%d2
+    bsr.s   1f                      | old class's offset
+    neg.w   %d2
+    add.w   (%sp)+,%d2
+    jmp     0x10F85C                | y += d2, class = d1
+1:  cmpi.w  #1,%d2
+    bne.s   2f
+    moveq   #0,%d2
+    rts
+2:  cmpi.w  #8,%d2
+    bne.s   3f
+    moveq   #8,%d2
+    rts
+3:  cmpi.w  #10,%d2
+    bne.s   4f
+    moveq   #16,%d2
+    rts
+4:  addq.l  #4,%sp
+    jmp     0x10F880                | the port's fault trap, as before
+9:  rts

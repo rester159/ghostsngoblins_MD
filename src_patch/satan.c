@@ -398,15 +398,15 @@ static void satan_fire(u8 *s)
 
 static Satan *bind(u8 *p, int *fresh)
 {
-    int i, k = -1;
-    for (i = 0; i < NSAT; i++) {
-        if (sat[i].slot == p) { *fresh = 0; return &sat[i]; }
-        if (k < 0 && (!sat[i].slot || sat[i].slot[10] != 6 || !sat[i].slot[4])) k = i;
+    Satan *r, *k = 0;
+    for (r = sat; r < sat + NSAT; r++) {
+        if (r->slot == p) { *fresh = 0; return r; }
+        if (!k && (!r->slot || r->slot[10] != 6 || !r->slot[4])) k = r;
     }
-    if (k < 0) k = 0;
-    sat[k].slot = p;
+    if (!k) k = sat;
+    k->slot = p;
     *fresh = 1;
-    return &sat[k];
+    return k;
 }
 
 /* $110578 / $1105C6 (port states 0 and 1, from hook_satan with a4).
@@ -431,6 +431,19 @@ int satan_update(u8 *p)
         p[11] = 10;                     /* hit points (the arcade's $14,X) */
         p[25] = 4;                      /* size class (-1,X) */
     }
+#ifndef SATAN_TEST
+    if (!born && ST0 == 0 && ST1 == 1) {
+        /* asleep ($BF1E), as satan_step() does it: only the camera is read
+         * (speed: most of the time both stage 6 Satans are like this) */
+        u16 dx = XI - RAM16(0xFFA200), dy = YI - RAM16(0xFFA202);
+        in = &i;                        /* as satan_step() leaves them */
+        counted = 0;
+        ONS = p[5];
+        FL = 0x81;
+        if (dx <= 0x100 && dy <= 0xF0) { ST0 = 1; ST1 = 0; ST2 = 0; FL = 1; }
+        goto out;
+    }
+#endif
     i.ax = RAM16(0xFFA204);
     i.ay = RAM16(0xFFA230);
     i.camx = RAM16(0xFFA200);
@@ -449,6 +462,7 @@ int satan_update(u8 *p)
     }
 #endif
     born = satan_step(s, &i);
+out:
     p[6] = 0;
     p[4] = FL;
     if (ST0 == 3) { p[7] = 3; p[8] = 0; p[9] = 0; }

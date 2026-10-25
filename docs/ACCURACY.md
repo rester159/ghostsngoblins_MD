@@ -266,6 +266,79 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     `tools/re/test_satan.py` runs the same C on every recorded arcade handler call (~50,000 calls, every state
     including the straight dash): 0 mismatches.
 
+33. **Stage 4 halt** (`size_shift` at `$10F816`): a type-14 enemy's size-class change only allowed
+    1<->8 and 8<->10 and otherwise stopped the game (fault code `$8C`). Its phase restart (`$10F7C4`)
+    sets frame 3 (class 1) whatever is showing, so from a class-10 frame the game halted (reproduced in
+    co-op, in the original port's code too). Now any change moves it by the arcade's shape-anchor
+    difference (`$F864`: y -16/-24/-32 for classes 1/8/10); the reproduction plays on, the enemy
+    dropping 16 px on that frame.
+
+34. **After a boss dies** (`stageend.s`; hooks `$6974`, `$1055A4`, `$BC26`, `$C348C`, `$C35E8`, `$102C56`, `$6938`,
+    the sprite-build gates). The boss's removal (`$E844`: `<$B6` to 0, stage index 0-5) sets `<$08 = 2`, and from the
+    next frame the arcade runs its stage-end frame `$72C9` instead of the play frame `$72A1`: input, the stage-end
+    object (`$7557`: the falling key, in weapon slot 0, `$0540`), Arthur (`$744F`, which still calls his normal handler
+    `$90AB`, throws included), the platform/tombstone objects (`$E2B4`) and the scroll (`$8021`); it draws only those
+    objects (`$F811`), Arthur and the key. The weapons (`$9C68`), enemies (`$A0A6`), enemy shots (`$FC57`), the two
+    item/score slots (`$15E2`, `$E612`), the collisions (`$EF17`) and the spawner (`$E950`) no longer run, and their
+    draws (`$F7E5`, `$F7CF`, `$F7FB`, `$F827`) are gone: everything there stops, unseen, and keeps its slot. A weapon
+    slot is only freed by the weapon's handler, so with the key in slot 0 Arthur gets one more lance at most (two
+    slots for the lance, `$9FA9`), which stays where it was thrown. The port ran all of it until the key was taken
+    (`$FFCD7A`, 139 updates later). Now its boss-dead flag `$FFC8D6 = 2` (set by every boss: `$71FFC`, `$118014`,
+    `$1185A6`, `$1195E6`) does the same: the two enemy-pass cores, the weapon pass (except the throw frame it shows on
+    Arthur), the items, stage 1's weapons-against-tombstones and the spawner are skipped; the builds draw with the
+    enemies', shots' and weapons' flags cleared (put back at the next update's start); the first update after it marks
+    weapon slot 0 taken, as the key takes the arcade's on the frame after the removal. Measured on the Unicorn (the
+    stage 1 boss run in lockstep, a lance every 16 frames): both flags on update 2041; the two lances in the air
+    stop at 3411.06/3544.94 (arcade) and 3410.75/3545.25 (port; before: they flew on 4.19 px an update); Arthur's
+    throw on 2049 goes into slot 1 in both (3377.75 / 3377.44) and stays there, and none of the later throws gets a
+    slot in either; the 16x16 sprite at `$FF9780` (tiles `$798`) is the item in the port's first item slot, the
+    arcade's `$15E2` slot it no longer draws: gone. The key, Arthur's walk and the stage-end phases (key taken
+    +139, next stage +320 updates) are unchanged. Every stage (1-6, 1P, co-op, Firebrand) with the flag forced in
+    play: enemies, shots and weapons stop and disappear, moving platforms keep moving, no faults. The final room
+    (index 6, `$736D`) is left as it was.
+
+35. **Weapons off the screen** (`stageend.s` `w_visible`, in the weapon pass; `$115960`). The arcade's weapon slot has
+    two flags, allocated (`-$10`) and on screen (`-$F`): before each move `$8E41` sets the second from the camera
+    (`<$9C`, `<$9E`) and the slot's window class (`$8E67`): class 0 x + 8 - cam <= `$110`, class 2 x + 16 - cam <=
+    `$120`, and y - cam y <= `$100` (unsigned); weapon 1 (the lance) flies in class 2 (`$9E39`), the others and every
+    burst in class 0 (`$9CAC`, `$9D8D`). Off the screen a weapon flies on to the end of its range and keeps its slot
+    but isn't drawn and hits nothing: enemies (`$EF4A`), tombstones (`$F6A2`) and shots (`$F3CE`) all test the
+    on-screen flag. The port's weapon kept its second flag (+9) set from the throw to the end of the range, so it
+    hit enemies, tombstones and shots up to 80 px past the right edge (a lance ends 192 px from Arthur, at screen
+    x 336). Every hit test already takes +8 AND +9 (`$BE68`, `$6B2E`, `$10457E`, `shots.c`), so +9 is now the arcade's
+    flag, set before the move each update, and the build draws by it. Lockstep over the stage 1 boss run (1,700
+    updates per weapon, the weapon poked in both): slot-updates whose flags differ from the arcade's, weapon 1
+    203 -> 6, weapon 4 395 -> 5, weapons 0, 2, 3 2/2/21 (unchanged: they don't leave the screen); the rest are
+    the frames a weapon crosses the edge, a pixel apart because of the fraction below. The Unicorn fight's trace
+    (every update of the boss slot and the score) is the same as before.
+    Spawn fraction (checked, no change): both games keep the slot's leftover x and y fraction at a throw (arcade
+    `$9F76` writes only the two integer bytes; port `$B94A` ORs in the slot's old byte 3), never Arthur's: in 13
+    throws with Arthur's fraction `$B1` the new weapon's fraction was its slot's previous one in both games. The two
+    differ only by the slot's history (in these runs a constant `$50` per slot, from different start states).
+
+36. **The spawner after the scroll** (`stageend.s` `se_spawn`; `$91E`, `$104AD2`, `$104B0C`, `$10EF2E`/`$10EF44`, ...).
+    The arcade's enemies (`$A0A6`) run before the scroll (`$8021`, which moves the camera, `$81C4`, and copies it to
+    `<$9C`, `$815F`), as the port's enemy pass runs before its scroll (`$104382`), so their on-screen and despawn tests
+    see the same camera in both. Its spawner (`$E950` -> `$EA41` -> `$ECD6`, enemies placed at `$EBB1`) runs after the
+    scroll, so it sees this frame's camera and Arthur after his move, and a new enemy first moves the next frame.
+    Stage 1's loop calls the port's (`$26DA`) there too; the eight other loops that call it did so before their enemy
+    pass and the scroll: a spawn the camera triggers came an update late and the new enemy moved in its spawn update. Those calls
+    now come right after the scroll (and not in the stage end). Stage 3 lockstep from the stage start: two spawns on
+    updates 406/477 (camera 245/290, y 572) against the arcade's 405/476 (243/289, 574) now land on 405/476 with the
+    arcade's camera and y; the dragon (stage 3 dragon lockstep) had its head 1 px off on its spawn update, now the
+    same. Stages 2, 5 and 6 over 700 updates: no change (no camera-triggered spawns in them).
+
+37. **Terrain map windows, stages 2-5** (`mapwin.s`; `$11A986`, `$104D16`, `$10F124`, `$11001C`). As in stage 1 (Fixed 29),
+    the arcade writes a terrain column as the camera reaches cam/16 + 16 (stage 3 measured: ring column 31 at cam/16
+    15, 0 at 16, ...), so its 32-column ring holds cam/16 - 15 .. + 16; the port's streamers kept cam/16 - 8 .. + 23.
+    Arthur's floor probe at every 16x16 cell around the camera (columns cam/16 - 24 .. + 31, rows cam y/16 - 12 .. + 19),
+    arcade `$8CA7` against port `$8784`, from lockstep states with the same camera: stage 3, 18 disagreeing cells, 14 of
+    them at the screen's heights (the platforms at row + 8, columns - 15 .. - 9 and + 17 .. + 23), now 18 all above the
+    screen (row + 19); stage 5, 90 cells, now 58, all below the screen; at the screen's heights none are left in either.
+    Each window function now starts at cam/16 - 15 with its stage's clamps (the lower one moved with it). What's left
+    differs by row, not column (see Open). Stages 2 and 4 were only probed near their start, where the clamp gives
+    the same window in both versions (8 and 10 cells there, left of the stage start and below the screen).
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -315,21 +388,24 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   6 -> 10 over the 3,000 frames of the stage 3 dragon run; the port's `$FFC501` stayed at 6. The dragon reads it once,
   at its start (aim threshold `$D5A5[rank >> 4]`), so it only matters there after long stages; other enemies may
   read it more.
-- **Seen while checking the dragon (not traced further):** the port's object pass sees the camera from before the
-  frame's scroll (the arcade's after it), so camera-relative spawns land a scroll step behind (handled for the
-  dragon); the port's lance starts at Arthur's x with its fraction (the arcade drops it); lances live on further
-  past the screen edge in the port; a kill's score is added a frame later in the port.
+- **Seen while checking the dragon (not traced further):** a kill's score is added a frame later in the port.
+  (The camera order, the lance's fraction and lances past the screen edge are Fixed 35 and 36.)
 - **Bonus lives:** the plus build caps lives at 9 (the arcade doesn't).
 - **Continue digit:** the port shows one digit, so the arcade's "10" step shows as 9.
 
 - **Stage start fraction:** start x fraction `$60F5` (arcade) vs `$609C` (port); start y 64.28 vs 64.21
   (leftover RAM in the arcade, `$6D36` sets only the integer bytes).
-- **After the Unicorn dies:** the arcade stops updating and drawing Arthur's weapons and the enemy shots (they
-  stay in their slots until about 130 frames later, so Arthur can't throw either); the port keeps moving them
-  (a fireball goes on 3 px an update) and Arthur keeps throwing. The port also draws a 16x16 sprite (tiles
-  `$798`, object `$FF9780`) next to Arthur while the key falls that the arcade doesn't. The key itself matches.
-- **Terrain map windows in stages 2-6:** the other streamers (`$9600`, `$104C16`, `$10F06C`, ...) start their
-  windows at cam/16 - 8 like stage 1's did; not compared with the arcade's.
+- **Terrain map rows:** after Fixed 37 the floor probes still disagree above and below the screen: the port's
+  streamers hold the 32 rows from cam y/16 up (`$11A9B0`, `$104D34`, `$11003C`, `$110FF4`: d5 = cam y/16, clamped),
+  so nothing below the screen's bottom edge; the arcade's ring holds at least 4 rows below it (stage 5, cam y 512:
+  row - 4 empty in the arcade, the port's row + 28 floor in that slot; stage 6 the same at row - 3) and, in stage 3,
+  not row + 19 above the screen in the columns cam/16 - 16 .. - 8 and + 16 .. + 24. The arcade's row writer
+  (`$8677` and the bg pointers `<$C0-$CE` set at `$802E`) wasn't traced, so the exact window isn't known; a fall
+  below the screen or a probe high above it can find a floor in one game and not the other (hypothesis: matters
+  for pits in stages 5 and 6).
+- **Timer spawns at a stage start:** in the stage 2 and 3 lockstep (from the arcade's restart state and the port's
+  developer launch, aligned on Arthur's first step) the first spawns that don't depend on the camera come 3 (stage 2)
+  and 4 (stage 3) updates later in the port, at the same places; probably the two starts' alignment (not traced).
 - **Intro:** the arcade's opening shows Arthur and the princess in the graveyard (stage background) for
   ~200 frames before the black-background kidnapping scene; the port's intro starts at the kidnapping.
   Start to play is 557 frames in the arcade, ~335 in the port.
