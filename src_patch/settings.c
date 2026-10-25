@@ -19,7 +19,10 @@ static const char *const dlives_vals[] = { "3", "4", "5", "7" };
 static const char *const bonus_vals[] = {
     "20K 70K EVERY 70K", "30K 80K EVERY 80K", "20K 80K", "30K 80K", "NONE",
 };
-static const char *const diff_vals[] = { "EASY", "NORMAL", "HARD", "VERY HARD" };
+/* the arcade's DSW2 difficulty in its own order: starting rank $57 from its
+ * table at $6228, indexed by (~DSW2 & $60) >> 5 */
+static const char *const diff_vals[] = { "NORMAL", "EASY", "DIFFICULT", "VERY DIFFICULT" };
+static const u8 diff_rank[4] = { 0x06, 0x00, 0x18, 0x20 };
 static const char *const onoff_vals[] = { "OFF", "ON" };
 
 const char *const home_names[HOP_N] = { "LIVES", "CONTINUES", "BONUS", "DIFFICULTY" };
@@ -139,16 +142,21 @@ void player_init(void)
 {
     p2_reset();
     LIVES = start_lives();
-    RANK = 0x06 | (difficulty() << 4);
+    RANK = diff_rank[difficulty()];
     RAM8(0xFFC561) = RANK;          /* floor for the per-death rank decrease */
     /* debug launch to a later stage: entered on the first frame of play */
     stage_pending = PERSIST->dev_on && PERSIST->dev_stage > 1 ? PERSIST->dev_stage : 0;
 }
 
-/* $6348: continue */
+/* $6348: continue. As the arcade's ($7882 -> $6C33): lives from the setting,
+ * the score back to 0 and the bonus-life thresholds from the start; the stage
+ * and checkpoint stay. The port kept the score. */
 void continue_lives(void)
 {
     LIVES = start_lives();
+    SCORE = 0;
+    PERSIST->bonus_next = bonus_tab[bonus_setting()][0];
+    PERSIST->bonus_step_i = 1;
 }
 
 /* $7890: score block initialised at game start */
@@ -167,6 +175,7 @@ void score_added(u32 a4)
 {
     Persist *p = PERSIST;
     if (a4 != 0xFFC000 || !p->bonus_next) return;
+    if (SCORE >= 0x1000000) return;         /* the arcade stops at 1,000,000 ($ED95) */
     if (SCORE < p->bonus_next) return;
     if (LIVES < 9) LIVES++;
     {

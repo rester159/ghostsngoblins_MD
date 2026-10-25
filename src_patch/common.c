@@ -7,8 +7,11 @@ static u8 disp_on;
 
 /* With the display disabled the VB status bit stays set, so wait about one
  * frame by time instead. */
+extern u8 menu_frames;               /* glue.s: the random source counts menu time too */
+
 void vsync(void)
 {
+    menu_frames++;
     if (!disp_on) {
         volatile u16 n = 9000;
         while (n--) ;

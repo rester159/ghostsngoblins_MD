@@ -48,16 +48,48 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
    the five direction cases (standing Right+Jump, reversing on the jump frame, ...) give the arcade's
    result (three were wrong before). Up/down already used the two-frame rule in the port (`$7D4C`).
 
+3. **Random source** (`glue.s` `rng_*`). The arcade's is its frame counter (`$20-21`, `INC` in the interrupt
+   at `$65CA`, read as `<$21`: zombie underground waits `$D336` with table `$D347`, rise/walk timers
+   `$D406`/`$D457`); it runs from power-on through title, attract, deaths and the map. The port's (`$FFA206`)
+   stepped once an update, froze while Arthur was dead and was reset to `$96` at every stage and life start
+   (`$91D4`, `$9952`, `$104EE6` copy `$14F60`), so each life replayed the same zombie pattern. Now it follows
+   the VBlank count plus the boot-menu frames. With the counter matched, all 13 stage-1 enemy slots agree
+   with the arcade for 1,460 updates (zombies, crows, slot 6).
+4. **Item-drop cycle** (`item_save`/`item_init`). Every 6th spawn makes an item whose type comes from a
+   7-step cycle, an accumulator and a 5-byte generator (arcade `$7D`, `$7E`, `$78-$7C`, `$EBA4-$EC33`;
+   port `$FFC890` +7..+13). The arcade clears them only at power-on; the port reloaded them every start.
+5. **Difficulty** (`settings.c`): the arcade's four DSW2 settings in its order, NORMAL/EASY/DIFFICULT/VERY
+   DIFFICULT = starting rank `$06/$00/$18/$20` (`$629A`, table `$6228`). The plus build had `$06/$16/$26/$36`.
+6. **Continue** (`continue_lives`, `cont_start`): the score goes back to 0 and the bonus thresholds restart
+   (`$7882` -> `$6C33`); the countdown is 640 frames (BCD from 10, a step per 64 frames, `$785D`); in Arcade
+   mode it takes Start with fire or jump (`$786C`), measured in the arcade. Home keeps Start alone.
+7. **Bonus lives stop at 1,000,000** (`$ED95`: never once the score's top byte is set).
+8. **Checkpoint** (`$103CBE`): the arcade only refills the timer (`$ED73`); the port also stopped the hurry
+   tune and restarted the stage music.
+9. **After the second loop's ending** (`loop_again` at `$113A1C`): the arcade plays on from stage 1 with score
+   and lives (`$73F3`, `$7446`); the port went to the title. Read in code; the ending wasn't reached in a run.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
   offsets, shots on screen 2/3/2/3/3, throw timer 15 with re-throw at <= 5, cancel by a new direction, shots vs
   tombstones (`$F6A2`/`$104546`: |dx| <= 14, dy -8..+4, 15 hits spawn the tombstone's object).
+- **Game rules:** stage timer values (`$6EAD`/`$6EBB` = port `$103E28`/`$103E36`), 64-frame tick, hurry at
+  15 s, time-out death; restart points per stage and checkpoint (`$6CED`/`$6D09` = `$1040CC`); the score
+  table (`$5457` bank 3 = `$28F32`); stage end (key, 1,000 points, waits, rank +4 capped `$3F`); rank -1 per
+  death to the starting floor; final-stage weapon gate; DIP lives and bonus tables.
+- **Stage 1 enemies:** zombie spawn, rise (~91 frames), walk 0.8125 px, direction choice, sinking, despawn;
+  crow wake-up and flights; the item tables (except mask-table bytes past index 4, unused in stage 1).
 - **Arthur:** knockback arc (identical frame by frame), 120-frame invincibility (`$00AD`/`$FFC309`), death in
   boxers, ladders (grab zone, 1.375 px/frame, top/bottom sequences), ledge falls, throw lock 14 frames,
   crouch entry, landing keeps the y fraction in both.
 
 ## Open
+
+- **Not yet audited:** stages 2-6 enemies and bosses, the stage-1 plants (spit timing), the raft and
+  forest, per-enemy hit points and drops beyond stage 1, two-player alternation.
+- **Bonus lives:** the plus build caps lives at 9 (the arcade doesn't).
+- **Continue digit:** the port shows one digit, so the arcade's "10" step shows as 9.
 
 - **Stage start:** the arcade spends a frame landing (y 64.28 -> 62.03) without moving; the port lands and
   moves in one frame. Start x fraction `$60F5` (arcade) vs `$609C` (port); start y 64.28 vs 64.00.

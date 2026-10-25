@@ -479,6 +479,130 @@ sound_scan:
     bra.s   5b
 6:  jmp     0x11CB28
 
+| The game's random source. The arcade's is its frame counter ($20-21, `inc`
+| in the interrupt at $65CA, read as <$21: zombie waits $D336, rise/walk
+| timers $D406/$D457, ...): it runs from power-on through the title, attract,
+| deaths and the map and is never reset. The port's ($FFA206) stepped once a
+| game update, stopped while Arthur was dead, and was set to $96 by the
+| init block copied from $14F60 at every stage and life start ($91D4, $9952,
+| $104EE6), so each life replayed the same zombie pattern. Now it follows the
+| VBlank count ($FF7DFC) plus the frames spent in the boot menus.
+    .global rng_tick, rng_init, item_init, menu_frames
+rng_now:
+    move.b  0xFF7DFF,%d0
+    add.b   menu_frames,%d0
+    rts
+
+| $927C: `jsr rng_tick` + 2 nops over `addq.b #1,6(a3)` and `lea $FFB800,a4`
+rng_tick:
+    move.l  %d0,-(%sp)
+    bsr.s   rng_now
+    move.b  %d0,6(%a3)
+    move.l  (%sp)+,%d0
+    lea     0xFFB800,%a4
+    rts
+
+| $91D4, $9952, $104EE6: `jsr rng_init` over `lea $14F60,a0`: the same 12
+| bytes with the counter carried on (the caller copies them to $FFA200)
+rng_init:
+    movem.l %d0/%a1,-(%sp)
+    lea     0x14F60,%a0
+    lea     rng_buf,%a1
+    move.l  (%a0)+,(%a1)+
+    move.l  (%a0)+,(%a1)+
+    move.l  (%a0)+,(%a1)+
+    bsr.s   rng_now
+    move.b  %d0,rng_buf+6
+    lea     rng_buf,%a0
+    movem.l (%sp)+,%d0/%a1
+    rts
+
+| $25DA: `jsr item_init` over `lea $6EA6A,a0`. Every 6th enemy spawn makes an
+| item; its type comes from a 7-step cycle, an accumulator and a 5-byte
+| generator ($FFC890 +7..+13; arcade $7D, $7E, $78-$7C, logic $EBA4-$EC33).
+| The arcade clears those only at power-on (only the 6-spawn countdown is
+| reset at a stage or life start, $6E0F); the port reloaded them every time.
+| The same 32 bytes, with +7..+13 carried on. They're saved by item_save
+| ($25A8, `jsr item_save` over `lea $FFC700,a0`) before the routine clears
+| $FFC700-$FFC90F.
+    .global item_save
+item_save:
+    movem.l %d0/%a1,-(%sp)
+    lea     0xFFC897,%a0
+    lea     item_keep,%a1
+    moveq   #6,%d0
+1:  move.b  (%a0)+,(%a1)+
+    dbf     %d0,1b
+    movem.l (%sp)+,%d0/%a1
+    lea     0xFFC700,%a0
+    rts
+item_init:
+    movem.l %d0/%a1,-(%sp)
+    lea     0x6EA6A,%a0
+    lea     item_buf,%a1
+    moveq   #7,%d0
+1:  move.l  (%a0)+,(%a1)+
+    dbf     %d0,1b
+    lea     item_keep,%a0
+    lea     item_buf+7,%a1
+    moveq   #6,%d0
+2:  move.b  (%a0)+,(%a1)+
+    dbf     %d0,2b
+    lea     item_buf,%a0
+    movem.l (%sp)+,%d0/%a1
+    rts
+    .lcomm  rng_buf, 12
+    .lcomm  item_buf, 32
+    .lcomm  item_keep, 7
+    .lcomm  menu_frames, 1
+
+| $6328: `jsr cont_start` + `bne` over the continue countdown's Start test
+| (`btst #0,$FF7000` / `bne`). Returns ne when there's no continue this frame.
+| In Arcade mode, as the arcade ($786C/$7882): Start together with fire or
+| jump; Start alone does nothing there. Home keeps Start alone.
+    .global cont_start
+cont_start:
+    btst    #0,0xFF7000             | Start (active low)
+    bne.s   1f
+    movem.l %d0-%d1/%a0-%a1,-(%sp)
+    jsr     is_arcade
+    move.l  %d0,%d1
+    move.b  0xFF7001,%d0
+    not.b   %d0
+    andi.b  #0x30,%d0               | fire or jump
+    tst.l   %d1
+    beq.s   2f                      | Home: Start is enough
+    tst.b   %d0
+    beq.s   3f
+2:  movem.l (%sp)+,%d0-%d1/%a0-%a1
+    ori     #4,%ccr                 | eq: continue
+    rts
+3:  movem.l (%sp)+,%d0-%d1/%a0-%a1
+    andi    #0xFB,%ccr              | ne: not yet
+1:  rts
+
+| $113A1C: `jmp loop_again` after the second loop's ending. The arcade then
+| starts over from stage 1 on a fresh first loop, score and lives kept
+| ($73F3 clears the loop flags, $7446 sets stage 0 and restarts play); the
+| port went back to the title (`jmp $200`). This takes the port's own
+| first-loop path ($1139C2: keep the player state, stage 0, no checkpoint,
+| restart through $2CC) with the loop flag cleared instead of set.
+    .global loop_again
+loop_again:
+    addq.w  #1,0xFF7FD0             | as the port's path
+    jsr     0x113A9C                | keep score and lives across the restart
+    clr.b   0xFF7FC0                | a first loop again
+    move.b  #1,0xFF7FC1
+    clr.b   0xFF7FC2
+    clr.b   0xFFC512
+    clr.b   0xFFC894
+    clr.b   0xFFC521
+    clr.b   0xFFC5FE
+    clr.w   0xFFCD78
+    clr.w   0xFFCD7A
+    movea.l #0xFFFFFC,%sp
+    jmp     0x3F0032
+
 | $10442A: `jmp tomb_check` over its first instruction. The tombstone check,
 | rewritten from the arcade's ($9FAE in gg3, Capcom `gng` set, called from the
 | walk at $940E/$9435 and the fall at $9638), for the type-1 slots of the 30

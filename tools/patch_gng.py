@@ -227,6 +227,33 @@ def install_features(rom, build_dir):
     expect(rom, 0x11CADC, bytes.fromhex('700072003600'), 'sound request scan')
     put(rom, 0x11CADC, jmp(sym['sound_scan']))
     attenuate_music(rom, MUSIC_ATT)
+    # after the second loop's ending: play on from stage 1 (glue.s loop_again)
+    expect(rom, 0x113A1C, bytes.fromhex('527900ff7fd0'), 'second-loop ending')
+    put(rom, 0x113A1C, jmp(sym['loop_again']))
+    # continue countdown: 640 frames shown as frames / 64 (the arcade's BCD
+    # counter from 10, a step every 64 frames: $785D, $78A6), and Start with
+    # fire or jump in Arcade mode (glue.s cont_start)
+    expect(rom, 0x62C2, bytes.fromhex('33fc025800ffc594'), 'continue countdown length')
+    put(rom, 0x62C2, bytes.fromhex('33fc028000ffc594'))
+    expect(rom, 0x6312, bytes.fromhex('80fc003c'), 'continue countdown digit')
+    put(rom, 0x6312, bytes.fromhex('80fc0040'))
+    expect(rom, 0x6328, bytes.fromhex('0839000000ff70006600ffc6'), 'continue start test')
+    put(rom, 0x6328, jsr(sym['cont_start']) + bytes.fromhex('6600ffc8') + b'\x4e\x71')
+    # checkpoint: the arcade only refills the timer ($ED73); the port also
+    # stopped the hurry tune and restarted the stage music with <= 15 s left
+    expect(rom, 0x103CBE, b'\x62\x12', 'checkpoint music restart')
+    put(rom, 0x103CBE, b'\x60\x12')
+    # the random source runs on like the arcade's frame counter (glue.s rng_*),
+    # and the item cycle carries over (item_init)
+    expect(rom, 0x927C, bytes.fromhex('522b000649f900ffb800'), 'random counter step')
+    put(rom, 0x927C, jsr(sym['rng_tick']) + b'\x4e\x71\x4e\x71')
+    for a in (0x91D4, 0x9952, 0x104EE6):
+        expect(rom, a, bytes.fromhex('41f900014f60'), 'random counter init')
+        put(rom, a, jsr(sym['rng_init']))
+    expect(rom, 0x25A8, bytes.fromhex('41f900ffc700'), 'item cycle save')
+    put(rom, 0x25A8, jsr(sym['item_save']))
+    expect(rom, 0x25DA, bytes.fromhex('41f90006ea6a'), 'item cycle init')
+    put(rom, 0x25DA, jsr(sym['item_init']))
     # shot-slot art upload: the fireball instead of the lance
     expect(rom, 0x11711E, jsr(0x704BE), 'shot art DMA')
     put(rom, 0x11711E, jsr(sym['hook_shot_dma']))
