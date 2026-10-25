@@ -279,6 +279,30 @@ def install_features(rom, build_dir):
         n = {'d6': 6, 'd0': 0}[reg]
         expect(rom, a, bytes([0xE8, 0x48 | n, 0x51, 0x40 | n, 0x6A, 0x02, 0x70 | (n << 1), 0x00]), 'stage-1 map window')
         put(rom, a, jsr(sym['map_start_' + reg]) + b'\x4e\x71')
+    # the Satans (stages 5 and 6): the arcade's handler (satan.c) for the port's
+    # states 0 and 1; its death (state 2) and removal/key (state 3) stay
+    for a, old in ((0x110578, '4a2c0005670002c8'), (0x1105C6, '4a2c0005670002' + '7a')):
+        expect(rom, a, bytes.fromhex(old), 'Satan state entry')
+        put(rom, a, jsr(sym['hook_satan']) + b'\x60\x00' + be16(0x110846 - (a + 8)))
+    # ... and the arcade's 22-frame burst before its death's score phase
+    expect(rom, 0x11080E, bytes.fromhex('4a2c00086620'), 'Satan death entry')
+    put(rom, 0x11080E, jsr(sym['hook_satan_die']))
+    expect(rom, 0x11082C, jsr(0xB7F2), 'Satan death sound')
+    put(rom, 0x11082C, b'\x4e\x71' * 3)
+    # the arcade's second random ($68F9, $6E/$6F = $FFC62C, arcrand.c) is seeded
+    # at power-on and game start only: the ten stage inits reloaded $87CD
+    for a in (0x9C0, 0x104728, 0x10EB60, 0x10FA2A, 0x1109D0, 0x111450, 0x11761C,
+              0x118688, 0x118BEC, 0x1196C8):
+        expect(rom, a, bytes.fromhex('42b900ffc62c'), 'random state clear')
+        put(rom, a, bytes.fromhex('423900ffc62f'))         # clr.b $FFC62F (unused) instead
+        expect(rom, a + 14, bytes.fromhex('33fc87cd00ffc62c'), 'random seed')
+        put(rom, a + 14, b'\x4e\x71' * 4)
+        if a == 0x9C0:
+            expect(rom, a + 22, bytes.fromhex('13fc000000ffc62e'), 'random last')
+            put(rom, a + 22, b'\x4e\x71' * 4)
+        else:
+            expect(rom, a + 22, bytes.fromhex('423900ffc62e'), 'random last')
+            put(rom, a + 22, b'\x4e\x71' * 3)
     # a new game starts with 0 points, as the arcade's: the port's start block
     # ($28EEE, copied to $FFC000 by $7874) gave 600
     expect(rom, 0x28EEE, bytes.fromhex('0000060000010000'), 'start score')

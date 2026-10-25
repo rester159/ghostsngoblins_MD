@@ -138,8 +138,11 @@ void fb_frame(void);
 void p2_reset(void);
 
 /* $61A2: player block initialised at game start */
+void arc_rand_seed(void);   /* arcrand.c */
+
 void player_init(void)
 {
+    arc_rand_seed();                /* every game starts from $87CD, as the arcade's */
     p2_reset();
     LIVES = start_lives();
     RANK = diff_rank[difficulty()];

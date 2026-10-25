@@ -163,18 +163,11 @@ static void move(Node *n)               /* $A427 */
     n->x = n->lx >> 8; n->y = n->ly >> 8;
 }
 
-/* the arcade's second random source ($68F9: a shift register at $6E/$6F).
- * In the arcade 34 places in the enemy code step it; here only the dragon
- * does. [0] = $6E, [1] = $6F (the tests set them to the arcade's). */
-u8 dragon_rnd[2];
-static u8 rnd(void)
-{
-    u8 hi = dragon_rnd[0], lo = dragon_rnd[1];
-    u8 c = (u8)~(lo ^ hi) >> 6 & 1;
-    dragon_rnd[0] = hi << 1 | lo >> 7;
-    dragon_rnd[1] = lo = lo << 1 | c;
-    return lo;
-}
+/* the arcade's second random source ($68F9: a shift register at $6E/$6F):
+ * arcrand.c's, one state for the whole game ($FFC62C = $6E:$6F, shared with
+ * the Satans and the port's own copies; tests set it to the arcade's there) */
+u8 arc_rand(void);
+static u8 rnd(void) { return arc_rand(); }
 
 /* direction 0-15 from the node to Arthur ($8FE4) */
 static u8 aim(Node *n, Ctx *c)

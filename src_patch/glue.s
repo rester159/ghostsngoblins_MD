@@ -20,6 +20,7 @@ hook_ramclear:
     move.w  #((0x10000-0x5100)/4)-1,%d1
 2:  move.l  %d0,(%a0)+
     dbra    %d1,2b
+    move.w  #0x87CD,0xFFC62C        | the arcade's random seed at power-on (arcrand.c)
     jmp     12(%a1)                 | -> $2A0, d0 = 0 as the original leaves it
 
 | $B7A: the title routine's entry jumps here; this repeats its prologue.
@@ -718,6 +719,53 @@ mover_load2:
     bcs.s   1f
     moveq   #0,%d1
 1:  move.w  %d1,28(%a4)
+    rts
+
+| $110578 and $1105C6 (the port's Satan handler, states 0 and 1): `jsr
+| hook_satan` + `bra.w $110846` (the handler's exit, which restores d4-a2).
+| The arcade's Satan (satan.c) instead of the port's; a4 = the slot.
+    .global hook_satan, arc_rand_asm
+hook_satan:
+    move.l  %a4,-(%sp)
+    jsr     satan_update
+    addq.l  #4,%sp
+    tst.l   %d0
+    beq.s   1f
+    jsr     0x10E9B6                | the port's boss count (+1)
+1:  rts
+
+| $11080E (the Satan's death, state 2): `jsr hook_satan_die` over `tst.b 8(a4)`
+| + `bne.s $110834`. The arcade first plays the generic enemy burst ($E8A7:
+| 1 + 3 + 18 frames, after $C368's frame) and only then the 63-frame score
+| phase ($C375) that the port's death is; the port went straight to it, so the
+| slot (and the key, which comes with its removal) went 22 frames early. The
+| burst frames count in +9 (cleared by the weapon code at the kill); nothing
+| is drawn for them (the port has no burst frames for the Satan). The death
+| sound moves to the first of them (its own call at $11082C is removed).
+    .global hook_satan_die
+hook_satan_die:
+    tst.b   8(%a4)
+    bne.s   2f                      | the port's countdown is running
+    addq.b  #1,9(%a4)
+    cmpi.b  #23,9(%a4)
+    bcc.s   1f                      | burst done: the port's death from $110814
+    cmpi.b  #1,9(%a4)
+    bne.s   3f
+    jsr     0xB7F2                  | the death sound (arcade $C368 -> $79A1)
+3:  clr.w   30(%a4)                 | nothing drawn
+    addq.l  #4,%sp
+    jmp     0x110846                | the handler's exit
+1:  rts
+2:  addq.l  #4,%sp
+    jmp     0x110834
+
+| The arcade's $68F9 (arcrand.c) for assembly callers: d0 = the next random
+| byte (0-255), every other register kept.
+arc_rand_asm:
+    movem.l %d1/%a0-%a1,-(%sp)
+    jsr     arc_rand
+    andi.l  #0xFF,%d0
+    movem.l (%sp)+,%d1/%a0-%a1
     rts
 
 | $10442A: `jmp tomb_check` over its first instruction. The tombstone check,
