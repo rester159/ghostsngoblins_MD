@@ -49,6 +49,9 @@ typedef struct {
 #define PERSIST_MAGIC 0x4D584D50UL   /* 'MXMP' (layout 2) */
 
 void pads_init(void);
+
+typedef struct { u8 prev_lr, prev_jump, wind, dir; } InFilter;
+u8 arcade_input(u8 raw, InFilter *f, int on_ground);   /* pad.c */
 void screen_init(void);
 void draw_logo(int row);
 void display_on(void);

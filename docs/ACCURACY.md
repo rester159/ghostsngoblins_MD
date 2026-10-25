@@ -39,12 +39,37 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
    top. Port had: top +20, landing ±20 by crossing the top, side stop ±13 in all states (so no jump cleared one).
    Same runs now agree: side stop 244 (arcade 244.01), top y 81 (81), a jump from against it clears it.
 
+2. **Input timing** (`pad.c` `arcade_input`, used for Arthur and Maximo). The arcade reads left/right as
+   (this frame AND last frame) (`$93D0`, inputs `$4B`/`$4C` from `$6920`/`$6930`), and a jump press on the
+   ground takes off two frames later: the press frame still walks, the next stands still (`$9218` latches,
+   `$9542` sets up), the one after moves (`$95C8`), along the walk direction latched at the press (`$9567`
+   reads `$050E`). The port reacted on the press frame and took the jump direction from that frame's stick.
+   Now: running jump walk / stand / take-off with `$80` and `$440` steps on the same frames as the arcade;
+   the five direction cases (standing Right+Jump, reversing on the jump frame, ...) give the arcade's
+   result (three were wrong before). Up/down already used the two-frame rule in the port (`$7D4C`).
+
+## Matching (audited)
+
+- **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
+  offsets, shots on screen 2/3/2/3/3, throw timer 15 with re-throw at <= 5, cancel by a new direction, shots vs
+  tombstones (`$F6A2`/`$104546`: |dx| <= 14, dy -8..+4, 15 hits spawn the tombstone's object).
+- **Arthur:** knockback arc (identical frame by frame), 120-frame invincibility (`$00AD`/`$FFC309`), death in
+  boxers, ladders (grab zone, 1.375 px/frame, top/bottom sequences), ledge falls, throw lock 14 frames,
+  crouch entry, landing keeps the y fraction in both.
+
 ## Open
 
 - **Stage start:** the arcade spends a frame landing (y 64.28 -> 62.03) without moving; the port lands and
   moves in one frame. Start x fraction `$60F5` (arcade) vs `$609C` (port); start y 64.28 vs 64.00.
-- **Landing keeps the y fraction** in the arcade (`$96CA`: only the integer moves); the port's ground
-  landing after a knockback leaves y at 62.00 where the arcade has 62.86.
-- **Knockback path** after the first zombie hit differs by ~3 px (partly the start offset).
+- **Stage start / respawn:** the arcade draws the stage over the map for ~37 frames (`$726E` calling `$80A0`
+  until done) before play (`<$0B` = 1); death to control is 504 frames in the arcade vs 481 in the port.
+- **Standing up** after a crouch: the arcade's stand-up frame doesn't walk (counter back to 7, no move); the
+  port walks on it (`$7F98` then its walk in the same update). One frame.
+- **Ladder bottom:** the arcade spends one frame at y 64.90 before 62.65; the port drops straight to 62.
+- **Armor flag** (`$0158` arcade, set on the hit frame) vs the port's `$FFC328` (set on landing, +33 frames).
+- **Weapons vs enemy projectiles:** the arcade cancels enemy shots with weapons (`$F3CE`, tables `$F452`,
+  `$F498`; the shield/cross cancels types 0-9, others only type 5). Not found in the port yet.
+- **Dropped fire presses:** about every 23 updates the port advances its update counter without moving the
+  weapons; a one-frame fire press there is lost (frame pacing, not weapon logic).
 - **Enemies:** with the same input the port's Arthur is hit again ~130 frames after the first tombstone
   while the arcade's isn't hit for another ~340. Not yet traced (enemy tables to be mapped).

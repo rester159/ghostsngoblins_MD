@@ -17,6 +17,42 @@ static const u8 dir_lut[16] = {
 void coin_inserted(void);
 void play_tick(void);
 
+/* The arcade's input timing (gg3): its player routines read left/right as
+ * (this frame AND last frame) ($93D0, inputs $4B/$4C from $6920/$6930), so a
+ * press counts from its second frame; and a jump press on the ground only
+ * starts the jump two frames later ($9218 latches it at the end of the press
+ * frame, $9542 sets it up the next frame without moving, $95C8 moves from the
+ * one after), along the walk direction latched on the press frame ($9567
+ * reads $050E). The port reacted on the press frame. arcade_input() turns the
+ * raw input byte (arcade format, active low) into what the port's player code
+ * should see so it behaves the same: left/right held two frames, and for a
+ * jump: the press frame as a walk frame, then a frame with no stick, then the
+ * jump with the latched direction. Up/down already use the two-frame rule in
+ * the port ($7D4C). */
+u8 arcade_input(u8 raw, InFilter *f, int on_ground)
+{
+    u8 in = ~raw;                       /* active high */
+    u8 lr = in & 3, held = lr & f->prev_lr;
+    u8 jump = in & 0x20, out;
+    f->prev_lr = lr;
+    out = (in & 0xFC) | held;           /* fire, jump, up/down as they are */
+    if (f->wind == 1) {                 /* the frame between: stand still */
+        out &= ~(0x0F | 0x20);
+        f->wind = 2;
+    } else if (f->wind == 2) {          /* take off */
+        out = (out & ~0x2F) | f->dir | 0x20;
+        f->wind = 0;
+    } else if (jump && !f->prev_jump && on_ground) {
+        f->dir = held;                  /* the walk direction now */
+        f->wind = 1;
+        out &= ~0x20;                   /* this frame is still a walk frame */
+    }
+    f->prev_jump = jump;
+    return ~out;
+}
+
+static InFilter p1f;
+
 static u8 prev_start;
 
 /* Playing (not attract, not the continue countdown at $FFC570 = 2). */
@@ -75,7 +111,7 @@ void pad_update(void)
     p1 = 0xC0 | dir_lut[t1 & 15];
     if (!act4) p1 |= 0x10;
     if (!act5) p1 |= 0x20;
-    G_P1 = p1;
+    G_P1 = in_play() ? arcade_input(p1, &p1f, RAM16(0xFF9408) == 1) : p1;
 
     sys = 0xFF;
     if (coin)  sys &= ~0x40;

@@ -55,6 +55,7 @@ static u32 p2_t, p1_t;
 static u32 p1_dx, p1_dy, p2_dx, p2_dy;   /* last grounded positions */
 static u8  p1_shatter;
 static u8  input;                       /* pad 2 in the arcade input format */
+static InFilter p2f;                    /* the arcade's input timing (pad.c) */
 static u16 sat[4];                      /* y, size|link, attr, x */
 static u32 frame_src, frame_loaded;
 
@@ -309,8 +310,8 @@ void p2_frame(void)
 
     swap_ctx();
     save_in = G_P1;
-    G_P1 = input;
-    RAM16(0xFF9204) = input & 3;
+    G_P1 = arcade_input(input, &p2f, RAM16(0xFF9408) == 1);   /* his context is in now */
+    RAM16(0xFF9204) = G_P1 & 3;
     /* the loop keeps the previous position for the tombstone collision */
     RAM32(0xFF9220) = RAM32(0xFF9000);
     RAM32(0xFF922A) = RAM32(0xFF9400);
