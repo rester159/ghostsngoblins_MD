@@ -7,6 +7,8 @@ CFLAGS  = -m68000 -O2 -ffreestanding -fno-builtin -nostdlib -fomit-frame-pointer
 LIBGCC  = $(shell $(CC) -m68000 -print-libgcc-file-name)
 OBJS    = build/glue.o build/common.o build/pad.o build/boot.o build/title.o build/sram.o build/settings.o build/hiscore.o build/p2.o build/firebrand.o build/swap.o build/pace.o build/intro.o
 
+$(shell mkdir -p build)
+
 all: build/patch.bin build/patch.sym inplace/obj_type.bin inplace/obj_sum.bin
 
 inplace/%.bin: inplace/%.s
