@@ -479,120 +479,122 @@ sound_scan:
     bra.s   5b
 6:  jmp     0x11CB28
 
-| $10442A: `jmp tomb_check` over its first instruction. The tombstone check
-| (lands the player on and stops him against each live type-1 slot of the 30
-| at $FFE000) runs three times an update in co-op stage 1 over 12 tombstones.
-| Same tests, writes and exits as the original; with $FFC512 clear (the usual
-| case) its loop-invariant tests come out of the loop: whether $FF9410 is 1
-| (bit 31 of d4; the loop only ever clears it) and the X/Y offsets d5+20,
-| d7+12 (d2, a0). A tombstone whose x is outside [min(d3,d5)-20,
-| max(d3,d5)+20] can't pass the landing (|d5-x| <= TOMB_LAND) or the stop
-| tests (within TOMB_SIDE of d5 and d3), so one compare skips it (a3 = the low end, a1 =
-| the width). Otherwise the original runs. d2/a0-a1/a3 are kept for the caller.
-|
-| The box is smaller than the port's (patch_gng.py makes the same change in the
-| original routine): a full running jump only rose above the 20 px top for
-| ~28 px of travel and the landing test caught it within 20 px, so no jump
-| could clear a tombstone. Landing top stays at +20 (the graphic's height).
-    .set TOMB_LAND, 11                  | landing: |player x - x| <= this (was 20)
-    .set TOMB_SIDE, 9                   | side stop at x -/+ this (was 13)
-    .set TOMB_HIGH, 14                  | blocks while feet < y + this (was 20)
+| $10442A: `jmp tomb_check` over its first instruction. The tombstone check,
+| rewritten from the arcade's ($9FAE in gg3, Capcom `gng` set, called from the
+| walk at $940E/$9435 and the fall at $9638), for the type-1 slots of the 30
+| at $FFE000 (x word, y word, +4 live, +10 type). The arcade box comes from
+| its table at $A052 for type 1: x -12..+12 of the tombstone, y -19..+19,
+| landing top y + 19. The port had its own: landing within 20 px of x on a
+| top at +20, and a side stop at 13 px that also applied in mid-air, so no
+| jump could clear one (the arcade never blocks a jump; it only lands it).
+|   on the ground ($FF9408 = 1) and moving: probe the old x +/- 1 (low byte,
+|     same high byte) and y + 1; if it's inside a box the move is cancelled
+|     (x back to $FF9220, fraction and all), as the arcade skips its x step.
+|   rising ($FF9410 = 1): no test.
+|   falling: probe (x, y - 1); inside a box and not below its y, land: on top
+|     (y + 19), or where he is if he's within -3..+2 of its y. The y fraction
+|     is kept, as in the arcade; the landing state is the port's ($3D90 etc.).
+| The x and y tests use bytes like the arcade (after a word test that x is
+| within 128). With $FFC512 set the port's original runs.
+    .set TOMB_X, 12                     | $A052 type 1: x reach (E4; E5 = 2 * 12)
+    .set TOMB_Y, 19                     | y reach and landing height (E6; E7 = 2 * 19)
     .global tomb_check
 tomb_check:
     tst.b   0xFFC512
     beq.s   1f
     jmp     0x104432                | the original, from its next instruction
-1:  movem.l %d2/%d4-%d7/%a0-%a3,-(%sp)
-    move.w  0xFF9004,%d7
-    move.l  0xFF922A,%d6
-    lsr.l   #8,%d6
-    move.l  0xFF9220,%d3
-    lsr.l   #8,%d3
+1:  movem.l %d0-%d7/%a2,-(%sp)
     move.l  0xFF9000,%d5
-    lsr.l   #8,%d5
+    lsr.l   #8,%d5                  | x
+    move.w  0xFF9004,%d7            | y
     lea     0xFFE000,%a2
     moveq   #29,%d4
+    cmpi.w  #1,0xFF9408
+    beq.w   tomb_walk
     cmpi.w  #1,0xFF9410
-    bne.s   2f
-    bset    #31,%d4                 | already landed: no landing tests
-2:  moveq   #TOMB_LAND,%d2
-    add.w   %d5,%d2
-    moveq   #12,%d0
-    add.w   %d7,%d0
-    movea.w %d0,%a0
-    move.w  %d3,%d0                 | low end and width of the x window
-    move.w  %d5,%d1
-    cmp.w   %d0,%d1
-    bge.s   7f
-    exg     %d0,%d1
-7:  sub.w   %d0,%d1
-    subi.w  #20,%d0
-    movea.w %d0,%a3
-    addi.w  #40,%d1
-    movea.w %d1,%a1
-3:  tst.b   4(%a2)
+    beq.w   9f                      | rising
+    move.b  %d7,%d6
+    subq.b  #1,%d6                  | probe y - 1
+2:  tst.b   4(%a2)
     beq.w   8f
     cmpi.b  #1,10(%a2)
     bne.w   8f
-    move.w  (%a2),%d0
-    sub.w   %a3,%d0
-    cmp.w   %a1,%d0
-    bhi.w   8f
-    tst.l   %d4
-    bmi.s   4f
-    move.w  %d2,%d0                 | d5 - x + LAND <= 2 LAND (unsigned)
+    move.w  %d5,%d0                 | within 128 (word)
     sub.w   (%a2),%d0
-    cmpi.w  #2*TOMB_LAND,%d0
-    bhi.s   4f
-    move.w  2(%a2),%d1
-    addi.w  #20,%d1
-    cmp.w   %d1,%d6
-    blt.s   4f
-    cmp.w   %d1,%d7
-    bgt.s   4f
-    move.w  %d1,%d7                 | land on it
-    move.w  %d1,0xFF9004
-    andi.l  #0xFFFF,%d1
+    addi.w  #0x80,%d0
+    cmpi.w  #0x100,%d0
+    bhi.s   8f
+    move.b  %d5,%d0
+    sub.b   1(%a2),%d0
+    addi.b  #TOMB_X,%d0
+    cmpi.b  #2*TOMB_X,%d0
+    bhi.s   8f
+    move.b  %d6,%d0
+    sub.b   3(%a2),%d0
+    addi.b  #TOMB_Y,%d0
+    cmpi.b  #2*TOMB_Y,%d0
+    bhi.s   8f
+    move.w  %d7,%d0                 | not below its y
+    sub.w   2(%a2),%d0
+    bmi.s   8f
+    move.b  %d7,%d0                 | near its base: land where he is
+    sub.b   3(%a2),%d0
+    addq.b  #3,%d0
+    cmpi.b  #6,%d0
+    bcs.s   3f
+    move.w  2(%a2),%d7
+    addi.w  #TOMB_Y,%d7             | on top
+3:  move.w  %d7,0xFF9004
+    moveq   #0,%d1
+    move.w  %d7,%d1
     lsl.l   #8,%d1
+    move.l  0xFF9400,%d0
+    andi.l  #0xFF,%d0
+    or.l    %d0,%d1
     move.l  %d1,0xFF9400
     move.l  #0x3D90,0xFF9404
     move.w  #1,0xFF9408
     clr.w   0xFF9410
-    moveq   #12,%d0
-    add.w   %d7,%d0
-    movea.w %d0,%a0
-4:  move.w  %a0,%d0                 | d7 - y + 12 <= 12 + HIGH - 1 (unsigned)
-    sub.w   2(%a2),%d0
-    cmpi.w  #12+TOMB_HIGH-1,%d0
-    bhi.s   8f
-    cmp.w   %d3,%d5
-    beq.s   8f
-    blt.s   5f
-    move.w  (%a2),%d1               | moving right: stop at x - SIDE
-    subi.w  #TOMB_SIDE,%d1
-    cmp.w   %d1,%d5
-    blt.s   8f
-    move.w  (%a2),%d0
-    addi.w  #TOMB_SIDE,%d0
-    cmp.w   %d0,%d3
-    bge.s   8f
-    bra.s   6f
-5:  move.w  (%a2),%d1               | moving left: stop at x + SIDE
-    addi.w  #TOMB_SIDE,%d1
-    cmp.w   %d1,%d5
-    bgt.s   8f
-    move.w  (%a2),%d0
-    subi.w  #TOMB_SIDE,%d0
-    cmp.w   %d0,%d3
-    ble.s   8f
-6:  move.w  %d1,%d5
-    andi.l  #0xFFFF,%d5
-    lsl.l   #8,%d5
-    move.l  %d5,0xFF9000
     bra.s   9f
 8:  lea     48(%a2),%a2
-    dbf     %d4,3b
-9:  movem.l (%sp)+,%d2/%d4-%d7/%a0-%a3
+    dbf     %d4,2b
+    bra.s   9f
+
+tomb_walk:
+    move.l  0xFF9220,%d3
+    lsr.l   #8,%d3                  | old x
+    move.w  %d3,%d2
+    cmp.w   %d3,%d5
+    beq.s   9f                      | not moving
+    bgt.s   4f
+    subq.b  #2,%d2                  | moving left: old x - 1
+4:  addq.b  #1,%d2                  | moving right: old x + 1
+    move.b  %d7,%d6
+    addq.b  #1,%d6                  | probe y + 1
+5:  tst.b   4(%a2)
+    beq.s   7f
+    cmpi.b  #1,10(%a2)
+    bne.s   7f
+    move.w  %d2,%d0
+    sub.w   (%a2),%d0
+    addi.w  #0x80,%d0
+    cmpi.w  #0x100,%d0
+    bhi.s   7f
+    move.b  %d2,%d0
+    sub.b   1(%a2),%d0
+    addi.b  #TOMB_X,%d0
+    cmpi.b  #2*TOMB_X,%d0
+    bhi.s   7f
+    move.b  %d6,%d0
+    sub.b   3(%a2),%d0
+    addi.b  #TOMB_Y,%d0
+    cmpi.b  #2*TOMB_Y,%d0
+    bhi.s   7f
+    move.l  0xFF9220,0xFF9000       | blocked: the move doesn't happen
+    bra.s   9f
+7:  lea     48(%a2),%a2
+    dbf     %d4,5b
+9:  movem.l (%sp)+,%d0-%d7/%a2
     rts
 
 | $6A88: `jmp obj_dispatch`. The object pass ($69A2) then picked its handler

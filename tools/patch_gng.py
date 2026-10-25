@@ -200,19 +200,9 @@ def install_features(rom, build_dir):
     code = open(os.path.join(build_dir, '..', 'inplace', 'obj_sum.bin'), 'rb').read()
     assert len(code) <= 0x1147F8 - 0x114746
     put(rom, 0x114746, code + b'\x4e\x71' * ((0x1147F8 - 0x114746 - len(code)) // 2))
-    # tombstone check ($10442A, 3x an update in co-op stage 1): invariant tests
-    # out of its loop (glue.s tomb_check; tools/re/test_tomb.py checks it)
+    # tombstone check ($10442A): the arcade's rules (glue.s tomb_check)
     expect(rom, 0x10442A, bytes.fromhex('4a3900ffc512670c'), 'tombstone check')
     put(rom, 0x10442A, jmp(sym['tomb_check']))
-    # smaller tombstone box in the original routine too (taken while $FFC512
-    # is set; glue.s TOMB_* explains the sizes): landing |dx| <= 11 (was 20),
-    # blocked while feet < top - 6 (was the top), side stop at x -/+ 9 (was 13)
-    for a, old, new in ((0x10449A, '06400014', '0640000b'), (0x10449E, '0c400028', '0c400016'),
-                        (0x1044EC, '0c40001f', '0c400019'),
-                        (0x1044FC, '0441000d', '04410009'), (0x104506, '0640000d', '06400009'),
-                        (0x104514, '0641000d', '06410009'), (0x10451E, '0440000d', '04400009')):
-        expect(rom, a, bytes.fromhex(old), 'tombstone box')
-        put(rom, a, bytes.fromhex(new))
     # ... and its handler pick ($6A88, an 11-compare chain on d4) by table
     expect(rom, 0x6A88, bytes.fromhex('0c44000d67000516'), 'object handler chain')
     put(rom, 0x6A88, jmp(sym['obj_dispatch']))
