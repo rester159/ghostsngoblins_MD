@@ -228,11 +228,36 @@ def install_features(rom, build_dir):
     put(rom, 0x11CADC, jmp(sym['sound_scan']))
     attenuate_music(rom, MUSIC_ATT)
     # boss hit points as the arcade's: Astaroth 10 ($DB1B; port 6), the Satans 10
-    # ($BEF1; port 4), the stage 6 dragon's head 6 ($D596; port 10)
-    for a, old, new in ((0x111C00, '197c0006000b', '197c000a000b'), (0x110586, '197c0004000b', '197c000a000b'),
-                        (0x106FF6, '197c000a000b', '197c0006000b')):
+    # ($BEF1; port 4); the dragon's head 6 ($D596; port 10) is set by dragon.c
+    for a, old, new in ((0x111C00, '197c0006000b', '197c000a000b'), (0x110586, '197c0004000b', '197c000a000b')):
         expect(rom, a, bytes.fromhex(old), 'boss hit points')
         put(rom, a, bytes.fromhex(new))
+    # the dragon (stages 3, 4, 6) as the arcade's (dragon.c, dragon_glue.s):
+    # its type-12 handler, the spawn position (stage 6: the absolute record in
+    # the tower), every segment open to weapons, the arcade's weapon box, score
+    # index and weapon-2 pass-through, and its fire flying straight along its side
+    expect(rom, 0x106F80, bytes.fromhex('48e70ffe0c2c000c000a'), 'dragon handler')
+    put(rom, 0x106F80, jmp(sym['dragon_entry']))
+    expect(rom, 0x106F10, bytes.fromhex('301306400180348002800000ffffe18825400010'
+                                        '322b000e064100403541000202810000ffffe18925410014'), 'dragon spawn position')
+    put(rom, 0x106F10, jsr(sym['dragon_spawn_pos']) + b'\x60\x24' + b'\x4e\x71' * 18)
+    # the object pass skipped the weapon test for every dragon node but the head
+    expect(rom, 0x105798, bytes.fromhex('4a2c00066600009e'), 'dragon body weapon test')
+    put(rom, 0x105798, b'\x4e\x71' * 4)
+    # weapon-hit table ($2AC94: 5 weapons x 18 kinds x 16 bytes; kind 11 = type 12):
+    # box x +-12, y +-10 (arcade $F0A0; port +-16, +-16), score index 4 (200,
+    # $F0E4; port 9 = 1,000), and weapon 2 passes through (the arcade's $F0EB
+    # is per weapon, 0 for weapon 2 against every enemy; the port stopped it here)
+    for w in range(5):
+        a = 0x2AC94 + (w * 18 + 11) * 16
+        expect(rom, a, bytes.fromhex('0010002000100020f8010901'), 'dragon weapon box')
+        put(rom, a, bytes.fromhex('000c0018000a0014f80104') + (b'\x00' if w == 2 else b'\x01'))
+    # its fire (type 9): no aim at Arthur ($107510 `jsr $7442`, the direction
+    # stays the side set by dragon.c), and 3.125 px/frame straight ahead
+    expect(rom, 0x107510, bytes.fromhex('4eb90000744219400018'), 'dragon fire aim')
+    put(rom, 0x107510, b'\x4e\x71' * 5)
+    expect(rom, 0x107540, bytes.fromhex('43f90005052a'), 'dragon fire speed table')
+    put(rom, 0x107540, b'\x43\xf9' + be32(sym['dragon_fire_vel']))
     # the arcade's stage-draw wait before play (pad.c stage_hold), at the entry
     # of each stage loop (all ten set the sr and 'LIVE' the same way)
     for a in (0x5A8, 0x1046E4, 0x10EB26, 0x10F9F0, 0x110994, 0x111414, 0x1175BA,

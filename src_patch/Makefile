@@ -5,7 +5,7 @@ NM      = m68k-elf-nm
 CFLAGS  = -m68000 -O2 -ffreestanding -fno-builtin -nostdlib -fomit-frame-pointer \
           -fno-pic -Wall -Wno-unused-function -I.
 LIBGCC  = $(shell $(CC) -m68000 -print-libgcc-file-name)
-OBJS    = build/glue.o build/common.o build/pad.o build/boot.o build/title.o build/sram.o build/settings.o build/hiscore.o build/p2.o build/firebrand.o build/swap.o build/pace.o build/intro.o
+OBJS    = build/glue.o build/common.o build/pad.o build/boot.o build/title.o build/sram.o build/settings.o build/hiscore.o build/p2.o build/firebrand.o build/swap.o build/pace.o build/intro.o build/dragon.o build/dragon_glue.o
 
 $(shell mkdir -p build)
 

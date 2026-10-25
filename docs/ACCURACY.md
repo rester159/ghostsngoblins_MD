@@ -97,11 +97,48 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     table's value (120/90/150/150/180/180/120, checkpoint table after the checkpoint).
 15. **Tombstone rules in every stage:** the stage 3 rocks (type 1) kept the port's old box; the arcade's
     check has no stage test. Now a jump from against a rock clears it, as in the arcade.
-16. **Boss hit points:** Astaroth 10 (port 6), the Satans 10 (port 4), the stage 6 dragon's head 6
-    (port 10), from the arcade's inits (`$DB1B`, `$BEF1`, `$D596`).
+16. **Boss hit points:** Astaroth 10 (port 6), the Satans 10 (port 4), the dragon's head 6
+    (port 10; now set by `dragon.c`, item 18), from the arcade's inits (`$DB1B`, `$BEF1`, `$D596`).
 17. **Stage numbers:** the stage index `$FFC512` is the arcade's `$72` (0-5 = stages 1-6, 6 = the final
     room). The developer menu's STAGE n launched index n (so stage 2 was unreachable) and high scores
     recorded the index; both now use index + 1.
+
+18. **The dragon** (stages 3, 4, 6; `dragon.c`, hooks `$106F80`, `$106F10`, `$105798`, `$107510`, `$107540`, table
+    `$2AC94`). The port's type-12 handler homed on Arthur, its re-aim timer byte `+$23` overlapped a counter word at `+$22`
+    (`$107318`/`$107346` add 1 to the word, `$10718A` subtracts 1 from the byte) so it never re-aimed and flew off, and
+    the body replayed the head's position history at 1.13 px/frame. Now the arcade's (`$D518`, `$D6D6`-`$DAD8`):
+    - nine nodes, one slot each (head in the spawner's slot, segments in the next eight free ones, as the arcade's
+      allocation: slots 20, 19..12 in stage 3); segments at +20, +14 each, tail +12 (`$D5A9`); each moves 2 px/frame
+      in 16 directions (`$A427`, `$51B6`); a direction reaches segment 1 after 10 frames, the next after 7, the tail
+      after 6 (`$D955`); one pending direction per node, a newer one replaces it;
+    - the head: uncoiling script `$D789` (six (10, dir) pairs, the head moving only on the step frames), then all nine
+      frozen until on screen, Arthur within 32 px below (`$D7C0`) and 2-5 ticks of 16 frames (`$D7B1`/`$D7B5` by
+      `($21 + slot counter) & 3`); main loop `$D7EE`: mouth and roar every 128 frames (`$5186`, sound `$21`), steering
+      `$D818` at each step's end (random & 15 <= the rank threshold `$D5A5[rank >> 4]` and Arthur 24 px ahead: aim
+      `$8FE4` (8-bit divide `$FED8`, low bytes only), 18 or 40 frames; past Arthur: turn round at `$5A` + 256 (the
+      stage table `$1043E6`) or 94 px past him into `$52C2`/`$52E0` by height; else up/down 36-frame steps `$D943`/`$D947`
+      or on with the script; stage 6 by the start height `$19`, `$D90A`), fire `$D981`;
+    - fire: |dy| <= 72, `($21 + 1) & 31 == 0`, random & 3 == 0, a free projectile slot; 10-frame mouth, a type-9
+      fireball at (x ± 10, y - 5) flying straight along the head's side at 3.125 px/frame (`$FCA8`/`$FEBE`, speed
+      `$5E07`); the port's aimed at Arthur at 2.26 px/frame;
+    - hits (`$EF4A`, `$DA15`): every node is a target (the port tested the head only, `$105798`); box ±12 x ±10 (`$F0A0`;
+      port ±16 x ±16); score index 4 = 200 (`$F0E4`; port 9 = 1,000); weapon 2 passes through (`$F0EB` is per weapon:
+      0 for weapon 2; the port stopped it on the dragon only); a hit segment survives and the tail is lost instead;
+      6 hits on the head kill it and all segments (`$DA54`); head: sound `$0F`, 3 + 18 frames burning, "1000" for 63
+      frames, then `$0C09` (1,000 points) and the removal that starts the stage end (`$DAB7` → `$E844`; port boss count
+      `$10EA0C`, nothing in stage 6); segments: sound `$1B`, 36 frames burning, "200" for 63;
+    - lost when more than 384 px off screen (`$D6DE`), except in stage 3;
+    - spawn: stages 3/4 at camera + (`$180`, `$40`) of the spawn frame, set up the next frame; stage 6 at the absolute
+      (7824, 2016) (`$EB4B`, absolute branch `$EB5B`); the port used the camera offsets in stage 6 too (7808, 1600 at the stage start).
+    Lockstep with the arcade (Arthur's position, `$FFA206`/`<$21` and the shift register `$6E/$6F` copied from the
+    arcade every frame, the stage 3 Red Arremers parked off screen, the emulated 68000 overclocked so the port never
+    lags): stage 3, 3,000 frames of shooting it down segment by segment: every node's x/y (16.8), direction, state and
+    HP, the fireballs and the score identical, the stage-end flag on the same frame (1604), 2,800 points both; stage 4,
+    4,000 frames: the same (stage end frame 1572); stage 6, 4,000 frames of it waking in the tower and flying round
+    Arthur, and a forced head kill: identical, +1,000, no stage end. Left different: the head's position on its spawn
+    frame (set up a frame later in both), fireballs leaving the screen a frame apart (the arcade's fireball fraction is
+    leftover RAM), and the burn-up flames (not in the type-12 sprite set; nothing is drawn for those frames). The old
+    build over the same stage 3 run: 2,785 of 3,000 frames different, no points, no stage end.
 
 ## Matching (audited)
 
@@ -125,15 +162,12 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   arcade, as for the zombie. Also a 1 px x difference on the zombie's rise frames relative to its walk
   (port +1) that needs an absolute reference.
 
-- **AI rewritten in the port (to port from the arcade):** the dragon (stages 3, 4, 6: the arcade's head
-  follows a (frames, direction) script with the body delayed per segment, `$D6D6`/`$D73D`/`$D955`; the
-  port homes, and its re-aim timer byte +$23 overlaps a counter at +$22 so it never re-aims and flies off;
-  the stage 6 dragon also spawns at camera-relative (7808,1600) instead of the arcade's absolute
-  (7825,2015) record), the Satans (`$1105C6`: choices from the rank byte `$FFA208` instead of a random),
+- **AI rewritten in the port (to port from the arcade):** the Satans (`$1105C6`: choices from the rank byte `$FFA208` instead of a random),
   Astaroth (`$DAD9`: walk/pause, rapid-fire mode, high shots; shot motion), the Petite Devils (rise from
   the lava, hover, dive: `$A89C`/`$A8F9`/`$AB4B`), the stage 5 skulls (sleep/wake/hop, `$CC70`/`$CD08`; the
   port fires them as aimed projectiles). The arcade has a second random source, a shift register at
-  `$68F9` (`$6E`/`$6F`), used from 34 places in enemy code; the port has no equivalent.
+  `$68F9` (`$6E`/`$6F`), used from 34 places in enemy code; the port had no equivalent (`dragon.c` has
+  one now, stepped by the dragon only).
 - **Spawn and activation rules:** stage 2 window devils are never rejected off-screen (arcade `$B25E`,
   on-screen test `$B193`); stage 2 crows start 56-64 frames before they're visible (port `$450A` uses
   512 px; arcade `$A72F` waits until on screen, then perches on random timers); stage 2 tower devils
@@ -142,9 +176,16 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
 - **Ending:** the port walks Arthur 240 frames before the text and has no princess scene (arcade: text 1
   frame after Astaroth dies; 131-frame princess scene on the second clear); +1,000 points at the room's
   end that the arcade doesn't give; "Return to starting point" drawn over the room instead of on black.
-- **Smaller:** stage 4 fire pillars one frame early; a stage 5 flying knight drifts after ~600 frames; the
-  dragon's score index and weapon-2 pass-through; Astaroth's shot parks on a blinking Arthur; the stage 2
+- **Smaller:** stage 4 fire pillars one frame early; a stage 5 flying knight drifts after ~600 frames; Astaroth's shot parks on a blinking Arthur; the stage 2
   stone-block edge and elevator walk-step quirks; Big Men 1 px; stage 2 water death y.
+- **Rank over time:** the arcade adds `$6B` to its rank word `$9A` every 256 frames (`$EEB9`, capped at `$3F`):
+  6 -> 10 over the 3,000 frames of the stage 3 dragon run; the port's `$FFC501` stayed at 6. The dragon reads it once,
+  at its start (aim threshold `$D5A5[rank >> 4]`), so it only matters there after long stages; other enemies may
+  read it more.
+- **Seen while checking the dragon (not traced further):** the port's object pass sees the camera from before the
+  frame's scroll (the arcade's after it), so camera-relative spawns land a scroll step behind (handled for the
+  dragon); the port's lance starts at Arthur's x with its fraction (the arcade drops it); lances live on further
+  past the screen edge in the port; a kill's score is added a frame later in the port.
 - **Bonus lives:** the plus build caps lives at 9 (the arcade doesn't).
 - **Continue digit:** the port shows one digit, so the arcade's "10" step shows as 9.
 
