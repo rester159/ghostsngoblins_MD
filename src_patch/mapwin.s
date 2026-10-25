@@ -1,4 +1,4 @@
-| Terrain map windows in stages 2-5 (docs/ACCURACY.md, Fixed 36). Hooks:
+| Terrain map windows in stages 2-5 (docs/ACCURACY.md, Fixed 37). Hooks:
 | tools/patch_gng.py.
 |
 | The collision map ($FF0000) is a ring of 32 x 32 cells of 16 px, like the

@@ -332,6 +332,11 @@ def install_features(rom, build_dir):
     # the object pass skipped the weapon test for every dragon node but the head
     expect(rom, 0x105798, bytes.fromhex('4a2c00066600009e'), 'dragon body weapon test')
     put(rom, 0x105798, b'\x4e\x71' * 4)
+    # speed: the weapon test's set-up and call are skipped for dragon nodes and
+    # Satans that aren't live and on screen (dragon_glue.s dragon_wtest: the
+    # same RAM and registers as the test, which finds nothing for them)
+    expect(rom, 0x114D58, bytes.fromhex('0c2c000c000a') + jmp(0x105796), 'weapon test entry')
+    put(rom, 0x114D58, jmp(sym['dragon_wtest']) + b'\x4e\x71' * 3)
     # weapon-hit table ($2AC94: 5 weapons x 18 kinds x 16 bytes; kind 11 = type 12):
     # box x +-12, y +-10 (arcade $F0A0; port +-16, +-16), score index 4 (200,
     # $F0E4; port 9 = 1,000), and weapon 2 passes through (the arcade's $F0EB
@@ -346,6 +351,10 @@ def install_features(rom, build_dir):
     put(rom, 0x107510, b'\x4e\x71' * 5)
     expect(rom, 0x107540, bytes.fromhex('43f90005052a'), 'dragon fire speed table')
     put(rom, 0x107540, b'\x43\xf9' + be32(sym['dragon_fire_vel']))
+    # stage 4 type-14 enemy: any size-class change moves it by the arcade's
+    # anchor difference (glue.s size_shift); the port trapped on 10 -> 1
+    expect(rom, 0x10F816, bytes.fromhex('7000102c0019'), 'type-14 size class change')
+    put(rom, 0x10F816, jmp(sym['size_shift']))
     # the arcade's stage-draw wait before play (pad.c stage_hold), at the entry
     # of each stage loop (all ten set the sr and 'LIVE' the same way)
     for a in (0x5A8, 0x1046E4, 0x10EB26, 0x10F9F0, 0x110994, 0x111414, 0x1175BA,

@@ -1,4 +1,4 @@
-| After a boss dies: the arcade's stage-end freeze (docs/ACCURACY.md, Fixed 33).
+| After a boss dies: the arcade's stage-end freeze (docs/ACCURACY.md, Fixed 34).
 | Hooks: tools/patch_gng.py.
 |
 | The arcade's boss removal ($E844, <$B6 down to 0) sets <$08 = 2, and from
@@ -75,7 +75,7 @@ se_wmove:
     move.w  0xFF9704,0xFF9206
 2:  rts
 
-| Weapons off the screen (docs/ACCURACY.md, Fixed 34). The arcade's weapon
+| Weapons off the screen (docs/ACCURACY.md, Fixed 35). The arcade's weapon
 | slot has two flags: -$10 allocated, -$F on screen. Every frame, before the
 | weapon moves, $8E41 sets -$F from its position against the camera (<$9C,
 | <$9E) and the window of its class -1,X (table $8E67: class 0 x + 8 - cam
@@ -121,7 +121,7 @@ w_visible:
     movem.l (%sp)+,%d0-%d2/%a0
     rts
 
-| The spawner (docs/ACCURACY.md, Fixed 35). The arcade's ($E950 -> $EA41 ->
+| The spawner (docs/ACCURACY.md, Fixed 36). The arcade's ($E950 -> $EA41 ->
 | $ECD6, records at $EB08, enemies placed at $EBB1) runs once a frame after
 | the enemies ($A0A6) and the scroll ($8021, which also copies the camera
 | to <$9C at $815F), so it sees this frame's camera, Arthur after his move
