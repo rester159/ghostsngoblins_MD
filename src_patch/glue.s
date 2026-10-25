@@ -26,7 +26,7 @@ hook_ramclear:
 hook_title:
     movem.l %d0-%a2,-(%sp)
     jsr     0xBF58                  | pad port init
-    jsr     boot_flow               | d0: 0 = original title, 1 = title w/o splash, 2 = home start
+    jsr     boot_flow               | d0: 0 or 1 = title, 2 = home start
     cmp.w   #1,%d0
     blt.s   3f
     beq.s   4f
@@ -45,7 +45,7 @@ hook_title:
     clr.l   0xFF7FF0
     movem.l (%sp)+,%d0-%a2
     rts
-3:  jmp     0xB84                   | splash + title, as the original
+3:  jmp     0xB88                   | title (the old port's splash at $B84/$CA6 is never shown)
 4:  jmp     0xB88                   | title without splash (menu already shown)
 
 | $BF72: `jmp hook_pad` replaces the pad routine. Keeps every register.
@@ -164,14 +164,6 @@ game_sound_play:
 sound_stop:
     clr.l   0xFF83F8
     bra     game_sound_init
-
-| The game's "ARCADE MACHINE" splash ($CA6, normally `bsr` from $B84).
-    .global game_splash
-game_splash:
-    movem.l %d0-%d7/%a0-%a6,-(%sp)
-    jsr     0xCA6
-    movem.l (%sp)+,%d0-%d7/%a0-%a6
-    rts
 
 | Persistent block: survives the RAM clear above; validated by magic/checksum.
     .global persist, persist_warm

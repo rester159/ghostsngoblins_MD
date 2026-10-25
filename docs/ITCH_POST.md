@@ -34,7 +34,7 @@ Co-op in stages 2 and 5 can still slow down when the screen is busy. I'm still w
 ## And then I added features
 
 **Menus and options**
-- A new boot menu: **HOME** or **ARCADE**.
+- A new boot menu: **ARCADE** or **HOME**.
 - **Arcade** mode plays like the cabinet: insert coins, with real **DIP switches** for coinage (including free play), lives, bonus life, difficulty, demo sound and continues.
 - **Home** mode has options for lives (1-9), continues (0-9 or infinite), bonus life, difficulty, a sound test, and the **English or Japanese (Makaimura) title**.
 - **Pause** with Start during play.

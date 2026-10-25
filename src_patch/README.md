@@ -13,7 +13,7 @@ Without `--features` the patcher produces the compatibility-only ROM.
 
 ## Features so far
 
-- Boot flow: on a cold boot the SEGA and CAPCOM intros, then the game's "ARCADE MACHINE" splash, then **HOME / ARCADE**, with `rester159, 2026` at the bottom.
+- Boot flow: on a cold boot the SEGA and CAPCOM intros, then **ARCADE / HOME**, with `rester159, 2026` at the bottom. The previous port's own splash ("ARCADE MACHINE" and "PROGRAMED BY FRANK", `$CA6`) is never shown.
 - **Intros** (`intro.c`, as in the Black Tiger port): the Revenge of Shinobi SEGA logo with the Sonic 1 "SE-GA" chant, then the SF2' CAPCOM logo with its FM jingle, about 9.5 s; Start skips them. The chant is streamed to the YM2612 DAC at 16 kHz by a small Z80 loop from a 32 KiB ROM bank; the jingle is written by the 68k. Afterwards the game's Z80 program (136 bytes from `$202380`, normally loaded only at power-on) is reloaded and its sound init re-run. On PAL every fifth frame steps twice, so the timing stays at 60 Hz. The logo art, palettes, chant and jingle are Sega's and Capcom's and aren't in this repository: `mkintro.py` reads them from the local intro kits (`SEGA_KIT`, `CHANT_KIT`, `CAPCOM_KIT`) into `build/intro.inc`, and without the kits the build skips the intros.
 - **ARCADE**: the original title and attract loop. C inserts coins, Start starts, A takes over C's old action.
 - **HOME**: 1 PLAYER starts straight into the intro. Start pauses and resumes during play, and music keeps running.
@@ -88,7 +88,7 @@ Without `--features` the patcher produces the compatibility-only ROM.
 | Address | Original | Hook |
 |---|---|---|
 | `$28E` | `lea $FF0000,a0` + RAM clear loop | `hook_ramclear`: clears RAM except `$FF5000–$FF50FF`, reads the VDP control port first |
-| `$B7A` | title prologue (`movem` + `jsr $BF58`) | `hook_title` → `boot_flow` (splash, menus), then the title, or a Home start |
+| `$B7A` | title prologue (`movem` + `jsr $BF58`) | `hook_title` → `boot_flow` (intros, menus), then the title, or a Home start |
 | `$BB8` | `lea $2045E8,a0` (title palette) | `hook_title_pal`: Japanese logo on the title screen |
 | `$BF72` | pad routine | `hook_pad` → `pad_update`: same RAM outputs, per-mode mapping, pause |
 | `$113A28`, `$11CFF0` | `jmp $200` soft restarts | `warm_restart`: marks the restart as warm so it isn't treated as a power-on |

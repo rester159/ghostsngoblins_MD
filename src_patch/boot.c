@@ -1,8 +1,9 @@
-/* Boot flow and menus: splash -> HOME / ARCADE -> (title + attract) or Home. */
+/* Boot flow and menus: intros -> HOME / ARCADE -> (title + attract) or Home.
+ * The previous port's own splash ($CA6: ARCADE MACHINE, PROGRAMED BY FRANK)
+ * is never shown. */
 #include "md.h"
 #include "common.h"
 
-void game_splash(void);         /* glue.s: the game's "ARCADE MACHINE" splash */
 void sound_stop(void);
 int  title_jp(void);
 void draw_jp_logo(int row, int pal);
@@ -10,7 +11,7 @@ void hiscore_defaults(void);
 void vsync_reset_display(void);
 void boot_intros(void);        /* intro.c: SEGA and CAPCOM logos */
 
-enum { FLOW_TITLE_SPLASH = 0, FLOW_TITLE = 1, FLOW_HOME_START = 2 };
+enum { FLOW_TITLE = 1, FLOW_HOME_START = 2 };   /* hook_title: 0 and 1 both start the title */
 #define MENU_BACK  (-1)
 #define MENU_CODE  (-2)
 
@@ -249,18 +250,18 @@ static int arcade_menu(void)
 
 static int boot_menu(void)
 {
-    static const char *const items[] = { "HOME", "ARCADE" };
+    static const char *const items[] = { "ARCADE", "HOME" };
     static const Menu m = { items, 2, 11, 0, 0, 0, 0 };
-    int sel = PERSIST->mode == MODE_ARCADE ? 1 : 0;
+    int sel = PERSIST->mode == MODE_HOME ? 1 : 0;
     for (;;) {
         frame_screen(0);
         display_on();
         sel = menu_run(&m, 14, sel);
-        if (sel == 1) {
+        if (sel == 0) {
             PERSIST->mode = MODE_ARCADE;
             if (arcade_menu()) return FLOW_TITLE;
         }
-        if (sel == 0) {
+        if (sel == 1) {
             PERSIST->mode = MODE_HOME;
             if (home_menu()) return FLOW_HOME_START;
         }
@@ -300,12 +301,11 @@ int boot_flow(void)
         p->dev_on = 0;
     }
 
-    if (warm && p->mode == MODE_ARCADE) return FLOW_TITLE_SPLASH;
+    if (warm && p->mode == MODE_ARCADE) return FLOW_TITLE;
     if (warm && p->mode == MODE_HOME) {
         if (home_menu()) return leave_menus(FLOW_HOME_START);
         return leave_menus(boot_menu());
     }
     boot_intros();
-    game_splash();
     return leave_menus(boot_menu());
 }

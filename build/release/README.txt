@@ -7,7 +7,7 @@ run on real hardware and accurate emulators, faster, with 2-player co-op as
 Maximo and a campaign as Firebrand, the Red Arremer.
 
 File: Ghosts'nGoblinsMD_Alpha_0.5.bin  (4 MiB, regions J/U/E, NTSC and PAL)
-SHA-1: fdabc6593a13450c053a9436881d8c6109efb38c
+SHA-1: 63f2c0ec24af1c1cde46be20bb9ee8a72661c3ad
 
 
 WHERE IT RUNS
@@ -22,7 +22,7 @@ WHERE IT RUNS
 CONTROLS
 --------
 At power-on the SEGA and CAPCOM intros play (Start skips them), then pick
-HOME or ARCADE.
+ARCADE or HOME.
 
 HOME
   B ............ throw
