@@ -5,11 +5,11 @@ NM      = m68k-elf-nm
 CFLAGS  = -m68000 -O2 -ffreestanding -fno-builtin -nostdlib -fomit-frame-pointer \
           -fno-pic -Wall -Wno-unused-function -I.
 LIBGCC  = $(shell $(CC) -m68000 -print-libgcc-file-name)
-OBJS    = build/glue.o build/common.o build/pad.o build/boot.o build/title.o build/sram.o build/settings.o build/hiscore.o build/p2.o build/firebrand.o build/swap.o build/pace.o build/intro.o build/satan.o build/arcrand.o
+OBJS    = build/glue.o build/common.o build/pad.o build/boot.o build/title.o build/sram.o build/settings.o build/hiscore.o build/p2.o build/firebrand.o build/swap.o build/pace.o build/intro.o build/shots.o build/dragon.o build/dragon_glue.o build/satan.o build/arcrand.o
 
 $(shell mkdir -p build)
 
-all: build/patch.bin build/patch.sym inplace/obj_type.bin inplace/obj_sum.bin
+all: build/patch.bin build/intro.bin build/patch.sym inplace/obj_type.bin inplace/obj_sum.bin
 
 inplace/%.bin: inplace/%.s
 	$(CC) -m68000 -c $< -o build/$*.o && $(OBJCOPY) -O binary build/$*.o $@
@@ -44,6 +44,9 @@ build/patch.elf: $(OBJS) link.ld
 
 build/patch.bin: build/patch.elf
 	$(OBJCOPY) -O binary -j .text $< $@
+
+build/intro.bin: build/patch.elf
+	$(OBJCOPY) -O binary -j .intro $< $@
 
 build/patch.sym: build/patch.elf
 	$(NM) $< | sort > $@

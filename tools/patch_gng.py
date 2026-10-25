@@ -128,6 +128,12 @@ def install_features(rom, build_dir):
     sym = load_symbols(build_dir + '/patch.sym')
     assert FEATURE_BASE + len(blob) <= 0x3A0000, 'feature blob runs into the art banks'
     put(rom, FEATURE_BASE, blob)
+    # intro.c's logos, chant and jingle, linked at $350000 (src_patch/link.ld)
+    intro = os.path.join(build_dir, 'intro.bin')
+    if os.path.exists(intro):
+        data = open(intro, 'rb').read()
+        assert 0x350000 + len(data) <= FEATURE_BASE, 'intro data runs into the code blob'
+        put(rom, 0x350000, data)
     jmp = lambda a: b'\x4e\xf9' + be32(a)
 
     # RAM clear that keeps the persistent block (also does the VDP latch read)
@@ -228,9 +234,8 @@ def install_features(rom, build_dir):
     put(rom, 0x11CADC, jmp(sym['sound_scan']))
     attenuate_music(rom, MUSIC_ATT)
     # boss hit points as the arcade's: Astaroth 10 ($DB1B; port 6), the Satans 10
-    # ($BEF1; port 4), the stage 6 dragon's head 6 ($D596; port 10)
-    for a, old, new in ((0x111C00, '197c0006000b', '197c000a000b'), (0x110586, '197c0004000b', '197c000a000b'),
-                        (0x106FF6, '197c000a000b', '197c0006000b')):
+    # ($BEF1; port 4); the dragon's head 6 ($D596; port 10) is set by dragon.c
+    for a, old, new in ((0x111C00, '197c0006000b', '197c000a000b'), (0x110586, '197c0004000b', '197c000a000b')):
         expect(rom, a, bytes.fromhex(old), 'boss hit points')
         put(rom, a, bytes.fromhex(new))
     # the Satans (stages 5 and 6): the arcade's handler (satan.c) for the port's
@@ -257,13 +262,71 @@ def install_features(rom, build_dir):
         else:
             expect(rom, a + 22, bytes.fromhex('423900ffc62e'), 'random last')
             put(rom, a + 22, b'\x4e\x71' * 3)
+    # a new game starts with 0 points, as the arcade's: the port's start block
+    # ($28EEE, copied to $FFC000 by $7874) gave 600
+    expect(rom, 0x28EEE, bytes.fromhex('0000060000010000'), 'start score')
+    put(rom, 0x28EEE, bytes(4))
+    # weapons against enemy shots on odd frames (shots.c, arcade $F3CE)
+    expect(rom, 0x5930, bytes.fromhex('082c000000106600007e'), 'odd-frame shot check')
+    put(rom, 0x5930, jsr(sym['shot_check']))
+    # man-eater plant (arcade type 17, port index 2) hit box as the arcade's
+    # ($EF62 / $F040: +-12 x, +-16 y): no weapon shift of 18 px along its
+    # flight and no 5 px y offset ($6C0E), y range 32 instead of 37
+    expect(rom, 0x6BB8, bytes.fromhex('6606'), 'plant box shift')
+    put(rom, 0x6BB8, bytes.fromhex('6006'))
+    for w in range(5):                  # $2AC94: 5 weapons x 18 kinds x 16 bytes
+        r = 0x2AC94 + (w * 18 + 2) * 16
+        expect(rom, r, bytes.fromhex('000c0018001000'), 'plant box')
+        expect(rom, r + 7, b'\x25', 'plant box y range')
+        put(rom, r + 7, b'\x20')
+    # the dragon (stages 3, 4, 6) as the arcade's (dragon.c, dragon_glue.s):
+    # its type-12 handler, the spawn position (stage 6: the absolute record in
+    # the tower), every segment open to weapons, the arcade's weapon box, score
+    # index and weapon-2 pass-through, and its fire flying straight along its side
+    expect(rom, 0x106F80, bytes.fromhex('48e70ffe0c2c000c000a'), 'dragon handler')
+    put(rom, 0x106F80, jmp(sym['dragon_entry']))
+    expect(rom, 0x106F10, bytes.fromhex('301306400180348002800000ffffe18825400010'
+                                        '322b000e064100403541000202810000ffffe18925410014'), 'dragon spawn position')
+    put(rom, 0x106F10, jsr(sym['dragon_spawn_pos']) + b'\x60\x24' + b'\x4e\x71' * 18)
+    # the object pass skipped the weapon test for every dragon node but the head
+    expect(rom, 0x105798, bytes.fromhex('4a2c00066600009e'), 'dragon body weapon test')
+    put(rom, 0x105798, b'\x4e\x71' * 4)
+    # weapon-hit table ($2AC94: 5 weapons x 18 kinds x 16 bytes; kind 11 = type 12):
+    # box x +-12, y +-10 (arcade $F0A0; port +-16, +-16), score index 4 (200,
+    # $F0E4; port 9 = 1,000), and weapon 2 passes through (the arcade's $F0EB
+    # is per weapon, 0 for weapon 2 against every enemy; the port stopped it here)
+    for w in range(5):
+        a = 0x2AC94 + (w * 18 + 11) * 16
+        expect(rom, a, bytes.fromhex('0010002000100020f8010901'), 'dragon weapon box')
+        put(rom, a, bytes.fromhex('000c0018000a0014f80104') + (b'\x00' if w == 2 else b'\x01'))
+    # its fire (type 9): no aim at Arthur ($107510 `jsr $7442`, the direction
+    # stays the side set by dragon.c), and 3.125 px/frame straight ahead
+    expect(rom, 0x107510, bytes.fromhex('4eb90000744219400018'), 'dragon fire aim')
+    put(rom, 0x107510, b'\x4e\x71' * 5)
+    expect(rom, 0x107540, bytes.fromhex('43f90005052a'), 'dragon fire speed table')
+    put(rom, 0x107540, b'\x43\xf9' + be32(sym['dragon_fire_vel']))
     # the arcade's stage-draw wait before play (pad.c stage_hold), at the entry
     # of each stage loop (all ten set the sr and 'LIVE' the same way)
     for a in (0x5A8, 0x1046E4, 0x10EB26, 0x10F9F0, 0x110994, 0x111414, 0x1175BA,
               0x11864C, 0x118BB0, 0x11968C):
         expect(rom, a, bytes.fromhex('46fc230023fc4c49564500ff7ff0'), 'stage loop entry')
         put(rom, a, jsr(sym['stage_hold_entry']) + b'\x4e\x71' * 4)
-    # zombies coming out of the ground: frames 13-17 8 px higher (glue.s zombie_y)
+    # Arthur's weapons drawn 8 px low: their builder used y = 360 + camera - y,
+    # every other builder 352 (all five weapons and their burst frames)
+    expect(rom, 0x115994, bytes.fromhex('06410168'), 'weapon sprite y')
+    put(rom, 0x115994, bytes.fromhex('06410160'))
+    # final-room flames (type 10, builder $AF4A): frames 1-30 had their left and
+    # right 16 px halves swapped (records at $125620 via $123B3E)
+    for f in range(1, 31):
+        a = 0x125620 + struct.unpack('>h', rom[0x123B3E + 2 * f:0x123B40 + 2 * f])[0]
+        expect(rom, a, b'\x00\x04', 'flame pieces')
+        for i in range(4):
+            r = a + 2 + 6 * i
+            dx = rom[r:r + 2]
+            expect(rom, r, dx if dx in (b'\xff\xf0', b'\x00\x00') else b'?', 'flame piece x')
+            put(rom, r, b'\x00\x00' if dx == b'\xff\xf0' else b'\xff\xf0')
+    # zombies coming out of the ground or sinking: the arcade's 1- and 2-piece
+    # frames 8 px higher (glue.s zombie_y)
     expect(rom, 0x7CF8, bytes.fromhex('3a873b7c0f000002'), 'zombie sprite y')
     put(rom, 0x7CF8, jsr(sym['zombie_y']) + b'\x4e\x71')
     # after the second loop's ending: play on from stage 1 (glue.s loop_again)
