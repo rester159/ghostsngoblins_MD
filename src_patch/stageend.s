@@ -254,7 +254,8 @@ se_pace:
     bne.s   6f
     st      se_slot0
     move.b  #1,WEAPONS+8
-6:  movem.l (%sp)+,%d0/%a0-%a1
+6:  jsr     frac_keep               | hud.s: Arthur's fraction for a restart
+    movem.l (%sp)+,%d0/%a0-%a1
     jmp     pace_hook
 
     .lcomm  se_save, 49

@@ -404,6 +404,13 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     at the same spot and the camera settled at y 1153, the same jump (Arthur to 1334): the arcade's camera stayed at 1153,
     the port's went 1153 -> 1192 -> 1153; now it stays at 1153 on every frame.
 
+46. **A restart keeps Arthur's sub-pixel fraction** (`hud.s` `frac_keep`/`frac_x`/`frac_y`; `se_pace`, `$103E98`, `$103EA6`):
+    the arcade's placement (`$6D36`) writes only the integer bytes of x and y, so Arthur restarts with the fraction he had
+    when the last life ended (stage 1: died at x `$112B5`, y `$36B0`, restarted at `$60B5`, `$40B0`). The port restores
+    its physics block from a copy before its placement (`$103E44`, which also keeps the low byte), so every restart got
+    the same `$9C`/`$35`. Now the live fraction is remembered at each update's start and put in at the placement (died at
+    `$111C0`/`$3668`, restarted at `$60C0`/`$4068`). The first start of a game still takes what each machine's attract left.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -449,8 +456,6 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
 - **Smaller:** stage 4 fire pillars one frame early; a stage 5 flying knight drifts after ~600 frames; Astaroth's shot parks on a blinking Arthur; the stage 2
   stone-block edge and elevator walk-step quirks; Big Men 1 px; stage 2 water death y.
 
-- **Stage start fraction:** start x fraction `$60F5` (arcade) vs `$609C` (port); start y 64.28 vs 64.21
-  (leftover RAM in the arcade, `$6D36` sets only the integer bytes).
 - **Terrain map rows:** after Fixed 37 the floor probes still disagree above and below the screen: the port's
   streamers hold the 32 rows from cam y/16 up (`$11A9B0`, `$104D34`, `$11003C`, `$110FF4`: d5 = cam y/16, clamped),
   so nothing below the screen's bottom edge; the arcade's ring holds at least 4 rows below it (stage 5, cam y 512:

@@ -124,3 +124,30 @@ cam_air:
     rts
 1:  move.b  #1,1(%a3)
     rts
+
+| A restart keeps Arthur's sub-pixel fraction as the arcade's does: its
+| placement ($6D36) writes only the integer bytes of x and y, so the
+| fraction is what he had when the last life ended (at the game's start,
+| what the attract left). The port restores its physics block from a copy
+| first, so its placement ($103E44: `andi.l #$FF`, then the integer ORed
+| in) kept the same $9C/$35 every time (x 96.61, y 64.21; the arcade, e.g.,
+| 96.96 / 64.28 at the first start, then the last life's). frac_keep
+| (se_pace, every update's start) remembers the live fraction ($FF9003,
+| $FF9403); $103E98 / $103EA6: `jsr frac_x` / `jsr frac_y` + nop over the
+| two `andi.l #$FF` put it in.
+    .global frac_x, frac_y, frac_keep
+frac_keep:
+    move.b  0xFF9003,last_fx
+    move.b  0xFF9403,last_fy
+    rts
+frac_x:
+    clr.l   48(%a4)
+    move.b  last_fx,51(%a4)
+    rts
+frac_y:
+    clr.l   52(%a4)
+    move.b  last_fy,55(%a4)
+    rts
+
+    .lcomm  last_fx, 1
+    .lcomm  last_fy, 1

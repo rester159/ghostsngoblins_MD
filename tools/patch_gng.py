@@ -557,6 +557,10 @@ def install_hud(rom, sym):
     # the camera doesn't climb while Arthur is airborne (the arcade's <$99; hud.s cam_air)
     expect(rom, 0x104392, bytes.fromhex('177900ffc3240001'), 'camera airborne flag')
     put(rom, 0x104392, jsr(sym['cam_air']) + b'\x4e\x71')
+    # a restart keeps Arthur's live sub-pixel fraction (the arcade sets only the integer bytes)
+    for a, name, off in ((0x103E98, 'frac_x', '0030'), (0x103EA6, 'frac_y', '0034')):
+        expect(rom, a, bytes.fromhex('02ac000000ff' + off), 'restart fraction mask')
+        put(rom, a, jsr(sym[name]) + b'\x4e\x71')
     # the VBlank handler also latches pad presses between updates (hud.s vb_isr)
     expect(rom, 0x78, be32(0x113E56), 'VBlank vector')
     put(rom, 0x78, be32(sym['vb_isr']))
