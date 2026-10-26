@@ -164,6 +164,20 @@ out.append('#define SAT_ART_BLOCK(f) (sat_frames[f].art)')
 # the Satan's shot: the star, sprites $1D7/$1DF (colour 3), 4 frames each
 emit_words('star_art', piece(0x1D7, PM_STAR) + piece(0x1DF, PM_STAR))
 
+# --- stage 5's skulls and Petite Devils (colour 3, drawn with line 0) --------
+# The port's own conversions of the same characters fix most pens: its skull
+# tiles ($4A0-$4B3: $A7, $A2-$A5) and its devil frames ($10D526: $F0-$FC).
+SKULL_FIXED = {0: 0xF, 1: 1, 2: 9, 3: 0xD, 4: 0xB, 5: 0xE, 0xC: 9, 0xD: 0xB, 0xE: 0xE}
+DEVIL_FIXED = {0: 0xF, 1: 1, 2: 9, 3: 0xB, 4: 0xB, 5: 0xE, 6: 0xA, 8: 2, 9: 2, 0xA: 3, 0xB: 7}
+PM_SKULL = penmap(ARC_SPR[3], PORT_L0_S56, 15, SKULL_FIXED)
+PM_DEVIL = penmap(ARC_SPR[3], PORT_L0_S56, 15, DEVIL_FIXED)
+# the skull standing up (class 3, $CE1A: A8 A0 A9 A1, AA A2 AB A3, AC A4 AD A5; the
+# port has A2-A5): A0 A1 A8 A9 AA AB AC AD, in tiles $524-$543
+emit_words('skull_art', sum((piece(c, PM_SKULL) for c in (0xA0, 0xA1, 0xA8, 0xA9, 0xAA, 0xAB, 0xAC, 0xAD)), []))
+# the fireball ($F7) and the carrier's wing poses with it ($FD-$FF)
+emit_words('fire_art', piece(0xF7, PM_DEVIL))
+emit_words('pd_art', sum((piece(c, PM_DEVIL) for c in (0xFD, 0xFE, 0xFF)), []))
+
 # --- stage 2's windows (the devils' $B457: bg tiles $2F0-$2FF, colour 7) -------
 # Each step writes 2x2 bg tiles: $Fn top left, $Fn+8 below it, $Fn+1 and $Fn+9
 # to the right ($B495 opening F0 F2 F4 F6, $B4A9 closing F6 F4 F2 F0). The port

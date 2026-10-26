@@ -482,6 +482,26 @@ def install_bossart(rom, sym):
     put(rom, 0xC48, jsr(sym['intro_hook']) + b'\x4e\x71')
     expect(rom, 0xE92, bytes.fromhex('6100004a45f900210088'), 'intro step loop')
     put(rom, 0xE92, jmp(sym['intro_loop']) + b'\x4e\x71\x4e\x71')
+    # stage 5's skulls drawn as the arcade's (type 9 there), and both their and
+    # the devils' deaths with the burst
+    expect(rom, 0x107626, bytes.fromhex('4a2c0004670000ac'), 'type 9 draw')
+    put(rom, 0x107626, jmp(sym['skull_draw_hook']) + b'\x4e\x71')
+    expect(rom, 0x11C15E, bytes.fromhex('0c39000100ffc512'), 'type 2 draw')
+    put(rom, 0x11C15E, jmp(sym['pd_draw_hook']) + b'\x4e\x71')
+    # the devils' frames 41-46 (the fireball carrier's $FD-$FF) after the port's 41
+    for a in (0x11C256, 0x11C09E):
+        reg = 0 if a == 0x11C256 else 2
+        expect(rom, a, bytes([0xB0 | (reg << 1), 0x79]) + be32(0x10E9A6), 'devil frame count')
+        put(rom, a, bytes([0xB0 | (reg << 1), 0x7C, 0x00, 47, 0x4E, 0x71]))
+    expect(rom, 0x11C26E, bytes.fromhex('c0fc008041f90010d526d1c0'), 'devil frame art')
+    put(rom, 0x11C26E, jsr(sym['pd_src_hook']) + b'\x4e\x71' * 3)
+    # ... and the stage loops' copy of the upload ($10CDE2)
+    expect(rom, 0x10CE00, bytes.fromhex('b07a1ba4'), 'devil frame count (2)')
+    put(rom, 0x10CE00, bytes.fromhex('b07c002f'))
+    expect(rom, 0x10CE16, bytes.fromhex('c0fc008041fa070ad1c0'), 'devil frame art (2)')
+    put(rom, 0x10CE16, jsr(sym['pd_src_hook']) + b'\x4e\x71' * 2)
+    expect(rom, 0x11C0A8, bytes.fromhex('d44245f90010d392343220' + '0045f90010d3e4d4c2'), 'devil frame entry')
+    put(rom, 0x11C0A8, jsr(sym['pd_entry_hook']) + b'\x4e\x71' * 7)
 
 
 def install_stage_end(rom, sym):

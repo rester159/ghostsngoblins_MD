@@ -19,13 +19,13 @@
  *       ($8CA7 from phase $E0), 6 frames, then 1/1 again
  *   out of range of the camera in state 1: removed ($8F62).
  * It draws no random. Dying lasts the arcade's 21 frames (sound $14, then the
- * burst, which isn't drawn); the removal is the port's.
+ * burst, drawn by bossart.c); the removal is the port's.
  *
  * As petite.c, the arcade's slot image (s[n] = X-$10+n) is kept per skull;
  * the port slot gets x/y, the size class (+25: the port's floor probe,
  * $107ED6 = $8CA7, and on-screen boxes are by class as the arcade's) and the
- * state. The port has no art for them: they are drawn with its type-9 frames
- * (0 asleep, 1/2 awake). */
+ * state. They are drawn by bossart.c (skull_draw) with the port's skull
+ * tiles ($A7, $A2-$A5) and the arcade's standing pieces it adds. */
 #include "md.h"
 
 typedef struct {
@@ -358,7 +358,7 @@ void skull_update(u8 *p, const u8 *a)
     if (p[7] == 2) {
         /* dying ($CF07): sound $14 ($79B5), then the generic burst ($E85B),
          * 21 frames in all before the removal (the port went to it at once;
-         * nothing is drawn for the burst: the frame stays) */
+         * bossart.c draws the burst from +9) */
         if (p[9] == 0) sk_sound2(0x14);
         if (++p[9] >= 21) { p[7] = 3; p[8] = 0; p[9] = 0; }
         return;
@@ -387,8 +387,10 @@ void skull_update(u8 *p, const u8 *a)
     wr16(p + 2, YI);
     p[24] = DIR;
     p[25] = CLS;
-    /* the port's type-9 frames (no skull art): 0 asleep, 1/2 by the script */
+    /* the frames (bossart.c skull_draw): 0 asleep ($A7), 1/2 rising ($A2,
+     * $A4), 3-5 standing ($A8, $AA, $AC first in the entry) */
     code = ab(rd16(&X(3)));
-    wr16(p + 30, CLS == 0 ? 0 : (code == 0xa8 || code == 0xa2 ? 1 : 2));
+    wr16(p + 30, CLS == 0 ? 0 : CLS == 2 ? (code == 0xa2 ? 1 : 2) :
+                 code == 0xa8 ? 3 : code == 0xaa ? 4 : 5);
 }
 #endif

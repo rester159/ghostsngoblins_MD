@@ -48,7 +48,13 @@ sat_load_tail:
 | d2, d7 and a2 are free here (set again at $117238).
     .global star_sel
 star_sel:
-    move.l  %a1,%d7
+    cmpi.b  #0xD8,8(%a1)            | a Petite Devil's fireball in stage 5: $F7
+    bne.s   0f
+    cmpi.b  #4,0xFFC512
+    bne.s   0f
+    lea     fire_frame,%a2
+    jmp     0x117238
+0:  move.l  %a1,%d7
     subi.l  #0xFFC100,%d7
     bcs.s   8f
     divu    #48,%d7
@@ -119,3 +125,116 @@ intro_loop:
     addq.w  #1,%d3
     bra.s   1b
 9:  jmp     0xED4
+
+| draw hooks with the Spr record (as sat_draw_hook): call the C function in a1
+| with (a4, a3, &spr); d0/d1 out. C returns nonzero when it drew (or chose to
+| draw nothing); zero -> the original goes on (a0 = where).
+art_call:
+    movem.l %a0-%a1,-(%sp)
+    lea     -12(%sp),%sp
+    move.l  %a5,(%sp)
+    move.w  %d0,4(%sp)
+    move.w  %d1,6(%sp)
+    clr.l   8(%sp)
+    pea     (%sp)
+    move.l  %a3,-(%sp)
+    move.l  %a4,-(%sp)
+    jsr     (%a1)
+    lea     12(%sp),%sp
+    movea.l (%sp),%a5
+    moveq   #0,%d0
+    moveq   #0,%d1
+    move.w  8(%sp),%d0
+    move.w  10(%sp),%d1
+    lea     12(%sp),%sp
+    movem.l (%sp)+,%a0-%a1
+    rts
+
+| $107626 (the type-9 draw): `jmp skull_draw_hook` + nop over `tst.b 4(a4)`
+| + `beq.w $1076D8`. Stage 5 (skulls): skull_draw; elsewhere the port's.
+    .global skull_draw_hook
+skull_draw_hook:
+    tst.b   4(%a4)
+    beq.s   9f
+    cmpi.b  #4,0xFFC512
+    bne.s   1f
+    tst.b   5(%a4)
+    beq.s   9f
+    movem.l %a1,-(%sp)
+    lea     skull_draw,%a1
+    bsr.s   art_call
+    movem.l (%sp)+,%a1
+    rts
+1:  jmp     0x10762E
+9:  jmp     0x1076D8
+
+| $11C15E (the type-2 draw, stages 3-6): `jmp pd_draw_hook` + nop over
+| `cmpi.b #1,$FFC512`. A dying devil in stage 5: the burst (pd_burst).
+    .global pd_draw_hook
+pd_draw_hook:
+    cmpi.b  #4,0xFFC512
+    bne.s   1f
+    cmpi.b  #2,7(%a4)
+    bne.s   1f
+    tst.b   4(%a4)
+    beq.s   1f
+    tst.b   5(%a4)
+    beq.s   1f
+    movem.l %d7/%a1,-(%sp)
+    lea     pd_burst,%a1
+    bsr.s   art_call_r
+    tst.w   %d7
+    movem.l (%sp)+,%d7/%a1          | (flags kept)
+    bne.s   8f
+1:  cmpi.b  #1,0xFFC512
+    bne.s   2f
+    jmp     0x11C168
+2:  jmp     0x11C176
+8:  rts
+
+| as art_call, and d7 = C's result (d0/d1 untouched when it's 0)
+art_call_r:
+    movem.l %a0-%a1,-(%sp)
+    lea     -12(%sp),%sp
+    move.l  %a5,(%sp)
+    move.w  %d0,4(%sp)
+    move.w  %d1,6(%sp)
+    clr.l   8(%sp)
+    pea     (%sp)
+    move.l  %a3,-(%sp)
+    move.l  %a4,-(%sp)
+    jsr     (%a1)
+    lea     12(%sp),%sp
+    move.w  %d0,%d7
+    beq.s   1f
+    movea.l (%sp),%a5
+    moveq   #0,%d0
+    moveq   #0,%d1
+    move.w  8(%sp),%d0
+    move.w  10(%sp),%d1
+1:  lea     12(%sp),%sp
+    movem.l (%sp)+,%a0-%a1
+    rts
+
+| $11C26E (the devil frame upload): `jsr pd_src_hook` + 3 nops over `mulu.w
+| #128,d0` / `lea $10D526,a0` / `adda.l d0,a0`: a0 = the frame's art.
+    .global pd_src_hook, pd_entry_hook
+pd_src_hook:
+    movem.l %d1/%a1,-(%sp)
+    move.l  %d0,-(%sp)
+    jsr     pd_src
+    addq.l  #4,%sp
+    movea.l %d0,%a0
+    movem.l (%sp)+,%d1/%a1
+    rts
+
+| $11C0A8 (its draw): `jsr pd_entry_hook` + nops over the frame lookup
+| ($10D392 -> $10D3E4): a2 = the frame's entry, d2 = the frame on entry.
+pd_entry_hook:
+    movem.l %d0-%d1/%a0-%a1,-(%sp)
+    move.l  %d2,-(%sp)
+    jsr     pd_entry
+    addq.l  #4,%sp
+    movea.l %d0,%a2
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+    rts

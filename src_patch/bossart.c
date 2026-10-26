@@ -9,9 +9,11 @@
  * tiles) in the Satan's own tiles ($500 and $524, two Satans at most: stage 6
  * has two, stage 5 one) and the pieces of its current pose are uploaded into
  * it when the pose changes, at the sprite-table DMA of the frame that shows
- * the new sprites (so tiles and sprites change together). The score frame
- * moves to tiles $6D0-$6D7 and the shot's star to $5F4-$5FB, both unused in
- * stages 5 and 6 (docs/ACCURACY.md has the survey).
+ * the new sprites (so tiles and sprites change together); the score (the
+ * port's 2 pieces) goes into the buffer too. Stage 5 has one Satan, so there
+ * the second buffer holds the skulls' standing poses and the Petite Devils'
+ * fireball. The shot's star goes to $5F4-$5FB, a block an unused loader once
+ * filled ($6434, unreachable) and nothing reads in stages 5 and 6.
  *
  * The shot (the port's type-6 shot, its orb) is drawn as the arcade's star
  * (sprites $1D7/$1DF, 4 frames each from the shot's first frame) when a
@@ -25,13 +27,14 @@ void dma_vram(u32 src, u16 bytes, u16 vram);
 
 #define SAT_BUF0  0x500
 #define SAT_BUF1  0x524
-#define SCORE_T   0x6D0         /* the port's score frame (its tiles $544-$54B) */
 #define STAR_T    0x5F4
-#define SCORE_SRC 0x255B74      /* the port's ROM copy of tiles $544-$54B */
+#define SCORE_SRC 0x255B74      /* the port's ROM copy of its score tiles ($544-$54B) */
+#define SKULL_T   0x524         /* stage 5: the skulls' 8 standing pieces */
+#define FIRE_T    0x544         /* stage 5: the devils' fireball */
 
 static u8 *sb_owner[2];         /* the Satan slot each buffer is drawn for */
-static u16 sb_want[2];          /* art offset + 1 of the pose last drawn (0 none) */
-static u16 sb_have[2];          /* ... and of what the buffer holds (0 unknown) */
+static const u16 *sb_want[2];   /* the art of the pose last drawn (0 none) */
+static const u16 *sb_have[2];   /* ... and what the buffer holds (0 unknown) */
 static u8 sb_nart[2];
 u8 star_tag[6];                 /* shot slots $FFC100 + 48n fired by a Satan */
 u8 star_t0[6];                  /* ... the update counter ($FFA206) at the shot */
@@ -58,9 +61,11 @@ void sat_art_init(void)
     sb_want[0] = sb_want[1] = 0;
     sb_have[0] = sb_have[1] = 0;
     for (b = 0; b < 6; b++) star_tag[b] = 0;
-    if (stage_has_satans()) {
-        vram_copy((const u16 *)SCORE_SRC, 8 * 16, SCORE_T);
+    if (stage_has_satans())
         vram_copy(star_art, 8 * 16, STAR_T);
+    if (RAM8(0xFFC512) == 4) {
+        vram_copy(skull_art, 8 * 64, SKULL_T);
+        vram_copy(fire_art, 64, FIRE_T);
     }
 }
 
@@ -160,7 +165,7 @@ void sat_vblank(void)
     win_vblank(&win[1], 1);
     for (b = 0; b < 2; b++) {
         if (sb_want[b] && sb_want[b] != sb_have[b]) {
-            dma_vram((u32)(sat_art + sb_want[b] - 1), (u16)sb_nart[b] * 128, (b ? SAT_BUF1 : SAT_BUF0) * 32);
+            dma_vram((u32)sb_want[b], (u16)sb_nart[b] * 128, (b ? SAT_BUF1 : SAT_BUF0) * 32);
             sb_have[b] = sb_want[b];
         }
     }
@@ -172,7 +177,7 @@ static int buffer_for(u8 *p)
     u8 *q;
     for (b = 0; b < 2; b++)
         if (sb_owner[b] == p) return b;
-    for (b = 0; b < 2; b++) {
+    for (b = 0; b < (RAM8(0xFFC512) == 4 ? 1 : 2); b++) {
         q = sb_owner[b];
         if (!q || !q[4] || q[10] != 6) { sb_owner[b] = p; return b; }
     }
@@ -208,17 +213,19 @@ void sat_draw(u8 *p, const u16 *cam, Spr *o)
     int b, k;
     if (f >= SAT_NFRAMES) f = 0;
     fr = &sat_frames[f];
-    if (fr->art == 0xFFFF) {                    /* the score, as the port's frame 5 */
-        put(o, p, cam, -16, 8, SCORE_T);
-        put(o, p, cam, 0, 8, SCORE_T + 4);
-        return;
-    }
-    if (!fr->npc) return;
+    if (!fr->npc && fr->art != 0xFFFF) return;
     b = buffer_for(p);
     if (b < 0) return;
-    sb_want[b] = fr->art + 1;
-    sb_nart[b] = fr->nart;
     base = b ? SAT_BUF1 : SAT_BUF0;
+    if (fr->art == 0xFFFF) {                    /* the score, as the port's frame 5 */
+        sb_want[b] = (const u16 *)SCORE_SRC;
+        sb_nart[b] = 2;
+        put(o, p, cam, -16, 8, base);
+        put(o, p, cam, 0, 8, base + 4);
+        return;
+    }
+    sb_want[b] = sat_art + fr->art;
+    sb_nart[b] = fr->nart;
     for (k = 0; k < fr->npc; k++) {
         const SatPiece *c = &fr->pc[k];
         put(o, p, cam, c->dx, c->dy, (base + c->slot * 4) | (u16)c->flip << 8);
@@ -298,3 +305,76 @@ int intro_scene(void)
     }
     return 0;
 }
+
+/* ---- stage 5's skulls and Petite Devils ----------------------------------
+ * The burst both die in ($E85B for class 3: 2 x 2 pieces, 5 poses after 3
+ * frames of the last pose, 4 frames each, the last 3) is the port's own
+ * enemy burst, resident in stage 5 at tiles $320-$36B (line 2, the frames at
+ * $14C57A; the same art as the arcade's $1C0-$1D9). j = the frames since
+ * the death (1-20, the 21-frame death count of each). */
+static const u16 BURST[5][4] = {                /* (-16,16) (-16,0) (0,16) (0,0), */
+    { 0x4B28, 0x4B2C, 0x4B20, 0x4B24 }, { 0x4B38, 0x4B3C, 0x4B30, 0x4B34 },     /* each mirrored */
+    { 0x4B48, 0x4B4C, 0x4B40, 0x4B44 }, { 0x4B58, 0x4B5C, 0x4B50, 0x4B54 },     /* (attribute $54) */
+    { 0x4B68, 0x4B2C, 0x4B60, 0x4B24 } };
+
+static int burst(Spr *o, const u8 *p, const u16 *cam, int j)
+{
+    const u16 *t;
+    if (j < 2) return 0;                        /* the pose stays */
+    t = BURST[j < 18 ? (j - 2) >> 2 : 4];
+    put(o, p, cam, -16, 16, t[0]);
+    put(o, p, cam, -16, 0, t[1]);
+    put(o, p, cam, 0, 16, t[2]);
+    put(o, p, cam, 0, 0, t[3]);
+    return 1;
+}
+
+/* $107626 in stage 5 (type 9 = the skulls): frames from skull.c (+30):
+ * 0 asleep ($A7), 1/2 rising ($A2 $A3 / $A4 $A5), 3-5 standing; the port's
+ * tiles $4A0-$4B3 have $A7 and $A2-$A5, SKULL_T the rest */
+void skull_draw(u8 *p, const u16 *cam, Spr *o)
+{
+    static const u16 ST[3][4] = {               /* (-16,16) (-16,0) (0,16) (0,0) */
+        { SKULL_T + 8, SKULL_T, SKULL_T + 12, SKULL_T + 4 },
+        { SKULL_T + 16, 0x4A4, SKULL_T + 20, 0x4A8 },
+        { SKULL_T + 24, 0x4AC, SKULL_T + 28, 0x4B0 } };
+    u16 f = p[31];
+    if (p[7] == 2 && burst(o, p, cam, p[9])) return;
+    if (f == 0) put(o, p, cam, -8, 8, 0x4A0);
+    else if (f <= 2) {
+        put(o, p, cam, -16, 8, f == 1 ? 0x4A4 : 0x4AC);
+        put(o, p, cam, 0, 8, f == 1 ? 0x4A8 : 0x4B0);
+    } else if (f <= 5) {
+        const u16 *t = ST[f - 3];
+        put(o, p, cam, -16, 16, t[0]);
+        put(o, p, cam, -16, 0, t[1]);
+        put(o, p, cam, 0, 16, t[2]);
+        put(o, p, cam, 0, 0, t[3]);
+    }
+}
+
+/* $11C15E in stage 5, a dying devil (the port's count +36: 21 down to 1) */
+int pd_burst(u8 *p, const u16 *cam, Spr *o)
+{
+    u16 n = p[36] << 8 | p[37];
+    return burst(o, p, cam, n ? 21 - n : 0);
+}
+
+/* the port's devil frames ($10D392/$10D3E4, art $10D526, 41 frames) and the
+ * carrier's wing poses with the fireball after them: 41-43 $FD-$FF facing
+ * right, 44-46 left */
+#define PD_N0 41
+static const s16 PD_ENT[2][4] = { { 1, -8, 8, 0x03B0 }, { 1, -8, 8, 0x0BB0 } };
+const u16 *pd_src(u16 f)
+{
+    if (f < PD_N0) return (const u16 *)(0x10D526 + (u32)f * 128);
+    return pd_art + ((f - PD_N0) % 3) * 64;
+}
+const s16 *pd_entry(u16 f)
+{
+    if (f < PD_N0) return (const s16 *)(0x10D3E4 + RAM16(0x10D392 + f * 2));
+    return PD_ENT[f >= PD_N0 + 3];
+}
+
+/* a devil's fireball (type-6 shot, +8 = $D8) in stage 5: $F7 */
+const s16 fire_frame[4] = { 1, -8, 8, FIRE_T };
