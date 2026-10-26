@@ -103,3 +103,24 @@ vb_isr:
 
     .lcomm  pad_latch_on, 1
     .lcomm  pad_lat, 4                  | pad 1 TH=1, TH=0, pad 2 TH=1, TH=0
+
+| The camera doesn't climb while Arthur is in the air. The arcade's vertical
+| scroll ($86C4) skips its scroll-up part while <$99 is set: set when a jump
+| or fall starts ($9544, $95B4) and at a hit's knockback ($9BE8), cleared on
+| landing ($96F7) and when the death sequence ends ($9C32). The port's copy
+| of it ($104392: `move.b $FFC324,1(a3)` into the camera object $FFF420) read
+| a byte nothing writes, so its camera followed every jump up (stage 5,
+| Arthur 158 px above the camera at the jump's top: the camera rose 1153 ->
+| 1192 and back; the arcade's stayed at 1153). $104392: `jsr cam_air` + nop.
+    .global cam_air
+cam_air:
+    tst.w   0xFF9410                    | jump phase: 1 rising, 2 falling
+    bne.s   1f
+    tst.b   0xFFC343                    | KB_ARMOR (arthur.s): an armored knockback
+    bne.s   1f
+    tst.b   0xFFC571                    | dying
+    bne.s   1f
+    clr.b   1(%a3)
+    rts
+1:  move.b  #1,1(%a3)
+    rts

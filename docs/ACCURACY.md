@@ -395,6 +395,15 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     3,400 frames: 92 presses, 89 lances before (3 lost), 92 now. Directions and Start aren't latched (the two-frame
     left/right rule and the pause stay as they were).
 
+45. **The camera doesn't climb while Arthur is in the air** (`hud.s` `cam_air`, `$104392`): the arcade's vertical scroll
+    (`$86C4`) skips its scroll-up part while `<$99` is set: set when a jump or fall starts (`$9544`, `$95B4`) and at a hit's
+    knockback (`$9BE8`), cleared on landing (`$96F7`) and when the death sequence ends (`$9C32`). The port's camera object
+    (`$FFF420`, `$10414A`) has the same thresholds (143/147/152 above, 142/137/132 below) and the same skip, but its copy
+    of the flag read `$FFC324`, which nothing writes, so the camera followed every jump up. Now the flag is the jump phase
+    (`$FF9410` non-zero), an armored knockback (`KB_ARMOR`) or a death in progress. Stage 5, both games with Arthur placed
+    at the same spot and the camera settled at y 1153, the same jump (Arthur to 1334): the arcade's camera stayed at 1153,
+    the port's went 1153 -> 1192 -> 1153; now it stays at 1153 on every frame.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -428,8 +437,8 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   and its shot (a star, sprites `$D7/$DF`) is drawn with the port's type-6 shot art (a small orb). The
   arcade's spawn leaves the x fraction from RAM (stage 6's second Satan starts at 7696.06; the port's at .00),
   which can move a drift step by a frame.
-- **Stage 5 boss room camera:** with the same jump, the port's camera follows Arthur up (y 1475 -> 1512) while
-  the arcade's stays at 1475; while it scrolls the port lost an update (one frame).
+- **Vertical scroll speed:** while the camera catches up a long way vertically (stage 5, 50 frames of 5 px steps) the port
+  loses an update (the row streaming runs past the frame); the camera's moves are the arcade's (Fixed 45).
 - **Stage 2's devils, what's left** (Fixed 39): the window tiles opening and closing aren't drawn (the port has no window
   art; their 20-frame timing is kept); sound `$12` at the opening is played by id, not compared by ear; the change into a Red
   Arremer after 1200-3600 frames and the subtype 0/2 states (no such spawn records seen in stage 2) are translated but weren't
