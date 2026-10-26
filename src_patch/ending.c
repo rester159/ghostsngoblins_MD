@@ -1,142 +1,295 @@
-/* The end of the final room, as the arcade's (docs/ACCURACY.md).
+/* The end of the final room, as the arcade's (docs/ACCURACY.md). Replaces
+ * the port's ending routine ($113916, each update of the final room).
  *
- * Arcade: Astaroth's removal ($DDA3 -> $E844, stage index 6: no sound, no
- * points) switches the top level to its stage-end mode (<$08 = 2), and from
- * the next frame that mode runs the ending ($736D by <$7F, the clear count):
- *  - first clear (<$7F = 0, $73FE): the room is cleared to black ($F788),
- *    only Arthur is drawn, "THIS ROOM IS AN ILLUSION ..." ($022C) for 300
- *    frames; then <$7F = 1 and the game goes back to stage 1;
- *  - second clear (<$7F = 1, $7EDC): the princess scene. Arthur's target is
- *    his x + (princess x - his x, low byte) / 3 ($7F21, $FED8); from the frame
- *    after he walks 1.125 px/frame until he reaches it ($7F45, $9477 with
- *    $9553); the princess (the object at $15C2, x 8179 in the room) walks
- *    1.125 px/frame towards him ($7FDC) until she is within 16 px of his
- *    target; then they embrace ($7C86) and four hearts rise above Arthur, one
- *    on each frame with <$21 & 15 = 0 ($7F61, $7F95: fg tile $60, attribute 5,
- *    one row up each time); then <$7F = 2 ($7FB5) and the next frame
- *    "CONGRATULATION" ($022D) with 50,000 points ($0C15), 540 frames; ...
- * The port instead waited 240 frames after the removal with the game running
- * (Arthur could walk about), gave 1,000 points and played sound $3F (its
- * stage-end block at $10EA5A), drew the first clear's text over the room and
- * had no princess scene.
+ * Arcade: Astaroth's removal ($DDA3 -> $E844 at stage index 6: no sound, no
+ * points) switches the top level to its stage-end mode (<$08 = 2); from the
+ * next frame that mode runs the ending ($736D, by the clear count <$7F):
+ *  - first clear (<$7F = 0, $73FE): the screen cleared to black ($0E00; the
+ *    HUD, its TIME and the lives stay), no sprites, "THIS ROOM IS AN
+ *    ILLUSION ..." ($022C), 300 frames counting the first; then <$7F = 1 and
+ *    stage 1 from its map (<$72 = 0, <$08 = 0: the map, 302 frames, then
+ *    play), score and lives kept;
+ *  - second clear (<$7F = 1, $7EDC): the princess scene. Frame 1 sets up
+ *    the princess (the object at $15C2, x 8179) and clears Arthur's state;
+ *    frame 2: Arthur's target is his x + (princess x - his x, low byte) / 3
+ *    ($7F21, $FED8), his y $0A4E, facing right; he walks 1.125 px a frame
+ *    ($7F45, $9477 with $9553) until his x reaches it, then stands. The
+ *    princess walks 1.125 px a frame towards him from frame 2 ($7FDC) until
+ *    she is within 16 px of his target; then both take their embrace frames
+ *    ($7C86, $7F8D) and a heart rises above Arthur on each frame with <$21 &
+ *    15 = 0 (fg char $60 colour 5, one row up each time, $7F95), four; the
+ *    frame after the fourth <$7F = 2 ($7FB5), and the next "CONGRATULATION
+ *    / THIS STORY IS HAPPY END" ($022D, writing over the top heart) with
+ *    50,000 points ($0C15) over the room and the embrace, 540 frames; then
+ *    the TIME display erased ($011A) and "BEING THE WISE AND COURAGEOUS
+ *    KNIGHT ..." ($022F), 420 frames; then black ($0E00) with the TIME erased,
+ *    no sprites ($68DF), "RETURN TO STARTING POINT / CHALLENGE AGAIN !"
+ *    ($0230), 180 frames; then <$7F = 0 and the game starts over from the
+ *    opening scene of stage 1 ($73F3, $7446), score and lives kept.
+ * The port waited 240 frames after the removal with the game running (Arthur
+ * could walk about), gave 1,000 points and sound $3F (its stage-end block at
+ * $10EA5A, hook_room_end), drew the first clear's text over the room with
+ * the last frame's sprites frozen on it (Arthur in the font's tiles), went
+ * back to stage 1 through the game start (the opening scene, no map, the
+ * random reseeded) after the first clear, had no princess scene, drew
+ * "RETURN TO STARTING POINT" over the room, and each text ran a frame long.
  *
- * The port's art has no standing, walking or embracing princess (only the
- * seated one of the opening), so here the princess is not drawn: her walk is
- * kept invisibly, so Arthur's walk, the hearts and the text come on the
- * arcade's frames. The hearts are the port's text layer's character $60.
- */
+ * The port has no art for the standing, walking or embracing princess (only
+ * the seated one of its opening) nor Arthur's embrace: those frames are the
+ * arcade's own sprites converted to Genesis tiles (mkprincess.py, in the
+ * port's palette line 0), put in the VRAM Astaroth's art used ($A000), drawn
+ * as sprites here. Arthur's walk is the port's own art and animation. */
 #include "md.h"
 
 #define LOOPED   RAM8(0xFF7FC0)         /* the arcade's <$7F: 1 after the first clear */
-#define TEXT_ON  RAM8(0xFF7FC2)         /* the port's ending text running */
-#define TEXT_PH  RAM8(0xFF7FC3)
-#define FONT_LD  RAM8(0xFF7FC6)
-#define TBUF     ((volatile u8 *)0xFFD000)  /* 32 x 32 text buffer, rows 9-20 shown as rows 7-18 */
-#define ART_X    RAM32(0xFF9000)
-#define ART_FR   RAM16(0xFF9206)
-#define ART_FRT  RAM16(0xFF9208)
-#define ART_DIR  RAM16(0xFF920A)
-#define C21      RAM8(0xFFA206)
+#define TEXT_ON  RAM8(0xFF7FC2)         /* the port's text layer is shown (uploaded each frame) */
+#define FONT_LD  RAM8(0xFF7FC6)         /* the text font goes to VRAM $6000 at the next upload */
+#define TBUF     ((volatile u8 *)0xFFD000)  /* the text layer: 32 x 32, rows 9-20 shown as screen rows 7-18 */
+#define STAGE    RAM8(0xFFC512)
+#define ART_X    RAM32(0xFF9000)        /* x 16.8 in the low 3 bytes */
+#define ART_Y    RAM16(0xFF9004)
+#define ART_POSE RAM16(0xFFC30E)        /* the pose $52C6 shows: $0C standing, $0D-$12 walking */
+#define ART_WF   RAM16(0xFF9206)        /* walk phase (0-6) */
+#define ART_WT   RAM16(0xFF9208)        /* its timer (2, 1, 0) */
+#define ART_DIR  RAM16(0xFF920A)        /* 0 right, 8 left */
+#define CAM_X    RAM16(0xFFA200)
+#define CAM_Y    RAM16(0xFFA202)
+#define SPR      ((volatile u16 *)0xFFB500) /* sprite buffer: y, size | link, attributes, x */
+#define SPR_LAST RAM16(0xFFB20C)        /* its length in words - 1 */
 
-static u8 phase;                        /* 0 idle, 1 princess scene, 2 its text is on */
-static u8 t, astate, hearts, hrow, hcol, prin_walk;
-static u16 target;
+#define TILE     0x500                  /* VRAM $A000: mkprincess.py's tiles */
+#define T_WALK0  (TILE + 0)
+#define T_WALK1  (TILE + 8)
+#define T_HUG_P  (TILE + 16)
+#define T_HUG_A  (TILE + 32)
+#define T_HEART  (TILE + 48)
+
+extern u8 menu_frames;                  /* glue.s: the frame counter <$21 is $FF7DFF + this */
+int  end_trigger(void);                 /* ending_glue.s: the port's $10EAA4 (the room is over) */
+void end_text(int id);                  /* the port's text id into the text layer ($4EBA, $113A88) */
+void end_black(void);                   /* planes cleared, the HUD rows and the lives kept */
+void end_time_off(void);                /* the TIME display erased */
+void end_50k(void);                     /* 50,000 points ($0C15) */
+void end_sound(int id);
+void end_to_map(void);                  /* stage 1 from its map (no return) */
+void end_restart(void);                 /* stage 1 from its opening scene (glue.s loop_again) */
+int  fb_on(void);                       /* firebrand.c */
+
+/* the scene's state */
+static u8 phase;                        /* 0 waiting, 1 first clear's text, 2 princess scene, 3 its texts */
+static u16 t;                           /* frames since the ending began (1 = the arcade's frame 1) */
+static u16 count;                       /* the arcade's <$09 */
+static u8 tx;                           /* which text of the second clear */
+static u8 ast, pst, hearts, hug, black; /* Arthur's -$D,X; the princess's <$0E; ... */
+static u8 stopped;                      /* Arthur's $6,X */
+static u16 target, hx, hy;
 static u32 px;                          /* the princess's x, 16.8 */
+u8 end_upload;                          /* ending_glue.s: the tiles go to VRAM at the next upload */
 
 void end_reset(void) { phase = 0; }
-void end_black(void);                   /* astaroth_glue.s: planes B and A (rows 3-24) cleared */
 
-/* Hide every enemy and enemy shot (the arcade's stage-end mode draws only
- * Arthur and, in the final room, the princess). */
-static void hide_objects(void)
+static u8 c21(void) { return RAM8(0xFF7DFF) + menu_frames; }
+
+static void arthur_walk_anim(void)
 {
-    int i;
-    for (i = 0; i < 40; i++) RAM8(0xFFB800 + 48 * i + 4) = 0;
-    for (i = 0; i < 6; i++) RAM8(0xFFC100 + 48 * i + 4) = 0;
+    if (ART_WT) ART_WT--;
+    else { ART_WT = 2; if (++ART_WF > 6) ART_WF = 1; }
+    ART_POSE = 0x0D + (ART_WF % 6);
 }
 
-static void put_hearts(int n)
+/* Second clear, one arcade frame of $7EDC: Arthur ($7EF9), then the
+ * princess ($7FBC). */
+static void scene_frame(void)
 {
-    int k;
-    for (k = 0; k < n; k++) {
-        int row = hrow - k;
-        if (row >= 7 && row <= 18) TBUF[(row + 2) * 32 + hcol] = 0x60;
-    }
-}
-
-/* $11392A (the port's ending starts: its text is set up next). The first
- * clear's text is on black: the room's planes are cleared (B at $C000; A at
- * $E000 holds the throne and the text, the HUD is on the window plane). */
-void end_start(void)
-{
-    hide_objects();
-    if (!LOOPED) end_black();
-}
-
-/* At the start of the port's ending routine ($113916). Returns 1 while the
- * princess scene runs (the routine is skipped and the game update with it),
- * 0 to go on with the routine. */
-int end_frame(int (*trigger)(void))
-{
-    if (phase == 2) {                   /* the text is on: keep the hearts */
-        if (TEXT_ON && TEXT_PH == 0) put_hearts(4);
-        return 0;
-    }
-    if (phase == 0) {
-        if (TEXT_ON || !LOOPED || RAM8(0xFFC512) != 6) return 0;
-        if (!trigger()) return 0;       /* $10EAA4: the frame after the removal */
-        phase = 1; t = 0; astate = 0; hearts = 0; prin_walk = 1;
-        px = 8179UL << 8;
-        hide_objects();
-        TEXT_ON = 1; TEXT_PH = 0;       /* the text layer is uploaded each frame */
-        FONT_LD = 1;
-        {   int i; for (i = 0; i < 1024; i++) TBUF[i] = ' '; }
-    }
-    t++;
-    switch (astate) {
+    u16 ax = (u16)(ART_X >> 8);
+    switch (ast) {
     case 0:                             /* $7F21 */
-        if (t == 2) {
-            u16 ax = ART_X >> 8;
-            target = ax + (u8)((u8)(8179 - ax) / 3);
-            ART_DIR = 0;
-            astate = 1;
-        }
+        target = ax + (u8)((u8)((u16)(px >> 8) - ax) / 3);
+        ART_Y = 0x0A4E;
+        ART_DIR = 0;
+        stopped = 0;
+        ART_WF = 0; ART_WT = 2;
+        ast = 1;
         break;
-    case 1:                             /* $7F45: walk to the target */
-        if ((u16)(ART_X >> 8) < target) {
-            ART_X += 0x120;
-            if (ART_FRT) ART_FRT--;
-            else { if (++ART_FR >= 7) ART_FR = 1; ART_FRT = 2; }
-        } else ART_FR = 0;
+    case 1:                             /* $7F45 */
+        if (stopped) break;
+        if (ax < target) { ART_X += 0x120; arthur_walk_anim(); }
+        else { stopped = 1; ART_POSE = 0x0C; }
         break;
-    case 2:                             /* $7F61 */
-        ART_FR = 0;
-        hrow = (u8)(0xE0 - (u8)(RAM32(0xFF9400) >> 8)) >> 3;
-        hcol = (u8)(ART_X >> 8) >> 3;
-        astate = 3;
+    case 2:                             /* $7F61: the embrace, the hearts' place */
+        hug = 1;
+        hearts = 0;
+        hx = (ax & 0xFF) >> 3;
+        hy = ((0xE0 - (ART_Y & 0xFF)) & 0xF8) >> 3;
+        ast = 3;
         break;
     case 3:                             /* $7F95: a heart on each 16th frame */
-        if ((C21 & 15) == 0) {
-            put_hearts(++hearts);
-            if (hearts == 4) astate = 4;
-        }
+        if ((c21() & 15) == 0 && ++hearts == 4) ast = 4;
         break;
-    case 4:                             /* $7FB5: the text from the next frame */
-        astate = 5;
+    case 4:                             /* $7FB5: <$7F = 2, the texts from the next frame */
+        phase = 3; tx = 0; count = 0;
         break;
-    default:
-        phase = 2;
-        TEXT_ON = 0;                    /* the port's routine starts its text now */
-        return 0;
     }
-    /* the princess ($7FDC, after Arthur in the arcade's frame): from the
-     * frame after her set-up, towards Arthur's target */
-    if (t >= 2 && prin_walk) {
+    switch (pst) {                      /* the princess */
+    case 0:                             /* $7FCC: set up (frame 1) */
+        pst = 1;
+        break;
+    case 1:                             /* $7FDC: towards Arthur's target */
         if ((u16)(target + 16) < (u16)(px >> 8)) px -= 0x120;
-        else {
-            prin_walk = 0;
-            astate = 2;                 /* Arthur: the embrace, from the next frame */
+        else { ast = 2; pst = 2; }
+        break;
+    case 2:                             /* $7FF8: her embrace frame */
+        pst = 3;
+        break;
+    }
+}
+
+/* the second clear's texts ($7389) */
+static void text_start(void)
+{
+        switch (tx) {
+        case 0:                         /* $7399 */
+            end_text(45);
+            end_50k();
+            count = 540;
+            break;
+        case 1:                         /* $73B4 */
+            end_time_off();
+            end_text(47);
+            end_sound(26);              /* the port's own (the arcade's text queue has none) */
+            count = 420;
+            break;
+        case 2:                         /* $73CF */
+            black = 1;
+            end_black();
+            end_time_off();
+            end_text(48);
+            end_sound(26);
+            count = 180;
+            break;
         }
+        TEXT_ON = 1;
+        FONT_LD = 1;
+}
+
+/* each text's first frame counts (the arcade's state falls through into its
+ * countdown), and the next one starts on the frame the last one ends */
+static void texts_frame(void)
+{
+    if (count == 0) text_start();
+    if (--count == 0) {
+        if (++tx == 3) end_restart();   /* $73F3 */
+        text_start();
+        count--;
+    }
+}
+
+/* $113916: one update of the final room. Returns 1 while the ending runs
+ * (the stage loop then skips the game update and only draws). */
+int end_update(void)
+{
+    if (phase == 0) {
+        if (STAGE != 6 || !end_trigger()) return 0;
+        t = 0;
+        black = 0; hug = 0; hearts = 0;
+        if (!LOOPED) {                  /* $73FE */
+            phase = 1;
+            black = 1;
+            end_black();
+            end_text(44);
+            TEXT_ON = 1;
+            FONT_LD = 1;
+            count = 300;
+        } else {                        /* $7EDC */
+            phase = 2;
+            ast = 0; pst = 0;
+            px = 8179UL << 8;
+            ART_POSE = 0x0C;
+            end_upload = 1;
+        }
+    }
+    t++;
+    switch (phase) {
+    case 1:
+        if (--count == 0) {             /* $743E */
+            LOOPED = 1;
+            end_to_map();
+        }
+        break;
+    case 2:
+        if (t == 1) pst = 1;            /* frame 1: the princess set up ($7FCC), Arthur's state cleared */
+        else scene_frame();
+        break;
+    case 3:
+        texts_frame();
+        break;
     }
     return 1;
+}
+
+/* ---- sprites ------------------------------------------------------------ */
+
+static int put(int n, int x, int y, int size, int tile)
+{
+    volatile u16 *e = SPR + 4 * n;
+    e[0] = 128 + y;
+    e[1] = size << 8;
+    e[2] = tile;
+    e[3] = 128 + x;
+    return n + 1;
+}
+
+/* the scene's sprites from entry n on; returns the new count */
+static int scene_sprites(int n)
+{
+    int k, top = 224 + CAM_Y - 0x0A4E;
+    int cx = CAM_X;
+    if (phase < 2 || black) return n;
+    for (k = 0; k < hearts; k++) {      /* fg chars in the arcade: over the sprites */
+        int row = hy - k, col = hx;
+        int trow = row - 2;             /* the arcade's fg row r is screen row r - 2 */
+        /* a text character written over the heart replaces it, as the arcade's */
+        if (TEXT_ON && trow >= 7 && trow <= 18 && TBUF[(trow + 2) * 32 + col] != ' ') continue;
+        n = put(n, col * 8, trow * 8, 0, 0x8000 | T_HEART);
+    }
+    if (hug) {
+        n = put(n, (int)(px >> 8) - cx - 16, top, 15, T_HUG_P);
+        if (!fb_on()) n = put(n, (int)(u16)(ART_X >> 8) - cx - 16, top, 15, T_HUG_A);
+    } else {
+        /* script $7C7C: the first frame until frame 5, then 3 frames each */
+        int f = t < 5 ? 0 : !(((t - 5) / 3) & 1);
+        n = put(n, (int)(px >> 8) - cx - 8, top, 7, f ? T_WALK1 : T_WALK0);
+    }
+    return n;
+}
+
+static void link_all(int n)
+{
+    int i;
+    for (i = 0; i < n; i++) SPR[4 * i + 1] = (SPR[4 * i + 1] & 0xFF00) | (i + 1 < n ? i + 1 : 0);
+}
+
+/* $1118BC (the final room's sprites while the text layer is shown): the
+ * buffer is clear; the scene's sprites, or one off-screen sprite so the old
+ * table doesn't stay on screen. */
+void end_text_sprites(void)
+{
+    int n = scene_sprites(0);
+    if (!n) n = put(0, -128, -128, 0, 0);
+    link_all(n);
+    SPR_LAST = 4 * n - 1;
+}
+
+/* after the final room's sprite build ($111922; not on a skipped build):
+ * the scene's sprites after the port's (Arthur first), Arthur hidden while
+ * the embrace is drawn. */
+void end_build_sprites(void)
+{
+    int n;
+    if (phase != 2 || STAGE != 6) return;
+    n = (SPR_LAST + 1) / 4;
+    if (hug && !fb_on()) SPR[0] = 0;    /* entry 0 is Arthur ($5302) */
+    n = scene_sprites(n);
+    link_all(n);
+    SPR_LAST = 4 * n - 1;
 }

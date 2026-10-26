@@ -5,7 +5,7 @@ NM      = m68k-elf-nm
 CFLAGS  = -m68000 -O2 -ffreestanding -fno-builtin -nostdlib -fomit-frame-pointer \
           -fno-pic -Wall -Wno-unused-function -I.
 LIBGCC  = $(shell $(CC) -m68000 -print-libgcc-file-name)
-OBJS    = build/glue.o build/common.o build/pad.o build/boot.o build/title.o build/sram.o build/settings.o build/hiscore.o build/p2.o build/firebrand.o build/swap.o build/pace.o build/intro.o build/shots.o build/dragon.o build/dragon_glue.o build/arthur.o build/satan.o build/arcrand.o build/stageend.o build/mapwin.o build/tdevil.o build/tdevil_glue.o build/hud.o build/astaroth.o build/astaroth_glue.o build/ending.o
+OBJS    = build/glue.o build/common.o build/pad.o build/boot.o build/title.o build/sram.o build/settings.o build/hiscore.o build/p2.o build/firebrand.o build/swap.o build/pace.o build/intro.o build/shots.o build/dragon.o build/dragon_glue.o build/arthur.o build/satan.o build/arcrand.o build/stageend.o build/mapwin.o build/tdevil.o build/tdevil_glue.o build/hud.o build/astaroth.o build/astaroth_glue.o build/ending.o build/ending_glue.o
 
 $(shell mkdir -p build)
 
@@ -18,6 +18,10 @@ build/font.inc: mkfont.py ../rom/gg1.bin
 	python3 -I mkfont.py ../rom/gg1.bin $@
 
 build/common.o: build/font.inc
+
+build/princess.inc: mkprincess.py ../rom/gg12.bin ../rom/gg1.bin
+	python3 -I mkprincess.py ../rom $@
+build/ending_glue.o: build/princess.inc
 build/intro.o: build/intro.inc
 
 # The SEGA/CAPCOM logos come from intro kits outside this repo (SEGA_KIT,
