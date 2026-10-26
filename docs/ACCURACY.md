@@ -411,6 +411,18 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     the same `$9C`/`$35`. Now the live fraction is remembered at each update's start and put in at the placement (died at
     `$111C0`/`$3668`, restarted at `$60C0`/`$4068`). The first start of a game still takes what each machine's attract left.
 
+47. **The random counter steps once per update** (`hud.s` `rng_lag_step`, `glue.s` `rng_now`): the arcade's frame counter
+    `<$21` counts its interrupts, and since it never misses a frame that's also its update count; the port's (`$FFA206`)
+    follows the VBlank count, so an update that ran two frames moved it two and every later draw read one ahead. Now the
+    frames past the first in a 2-7 frame update are counted and subtracted (longer gaps, the map, the stage-start hold, a
+    pause, count whole as the arcade's counter runs on through them). Stage 1 from the first step, right held, the counter
+    and random lined up at the first step: the first hit at +90 (x 196/197) in both; after the port's first long update
+    (between +100 and +200) its counter was `$70` against `$6F`, the zombie at x 147 woke at +434 against +467, Arthur was
+    pushed over the tombstone 33 frames early and died at +630 against +667. Now the counter is the arcade's on every
+    sample, that zombie wakes at +467, the next spawns at +578 in both (x 388 against 389, waking a frame apart) and the
+    death is at +667 in both. (This was the Open "Enemies" item: the ~130/340-frame gap came from runs whose counters
+    weren't lined up.)
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -472,5 +484,3 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
 - **Intro:** the arcade's opening shows Arthur and the princess in the graveyard (stage background) for
   ~200 frames before the black-background kidnapping scene; the port's intro starts at the kidnapping.
   Start to play is 557 frames in the arcade, ~335 in the port.
-- **Enemies:** with the same input the port's Arthur is hit again ~130 frames after the first tombstone
-  while the arcade's isn't hit for another ~340. Not yet traced (enemy tables to be mapped).

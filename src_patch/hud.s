@@ -151,3 +151,32 @@ frac_y:
 
     .lcomm  last_fx, 1
     .lcomm  last_fy, 1
+
+| The random counter steps once per update in play, as the arcade's frame
+| counter does (the arcade never misses a frame, so its <$21 is its update
+| count): the port's ($FFA206, rng_now in glue.s) follows the VBlank count,
+| so an update that ran two frames moved it two and every later draw read
+| one ahead of the arcade's (stage 1 from the first step with both lined up:
+| equal until the port's update 200, then $70 against the arcade's $6F; the
+| zombie at x 147 woke at +434 against +467). rng_lag_step (rng_tick, once
+| an update) counts the frames past the first in a 2-7 frame update; rng_now
+| subtracts them. Longer gaps (the map, the stage-start hold, a pause) count
+| whole, as the arcade's counter runs on through them.
+    .global rng_lag_step, rng_lag
+rng_lag_step:
+    movem.l %d0-%d1,-(%sp)
+    move.l  0xFF7DFC,%d0
+    move.l  %d0,%d1
+    sub.l   rng_vbl,%d1
+    move.l  %d0,rng_vbl
+    subq.l  #2,%d1                  | frames past the first
+    bcs.s   9f
+    cmpi.l  #6,%d1                  | a 2-7 frame update
+    bcc.s   9f
+    addq.l  #1,%d1
+    add.b   %d1,rng_lag
+9:  movem.l (%sp)+,%d0-%d1
+    rts
+
+    .lcomm  rng_vbl, 4
+    .lcomm  rng_lag, 1

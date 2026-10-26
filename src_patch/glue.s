@@ -492,12 +492,14 @@ sound_scan:
 rng_now:
     move.b  0xFF7DFF,%d0
     add.b   menu_frames,%d0
+    sub.b   rng_lag,%d0             | hud.s: frames lost by long updates in play
     rts
 
 | $927C and the seven other stage loops' copies (patch_gng.py): `jsr rng_tick`
 | + 2 nops over `addq.b #1,6(a3)` and `lea $FFB800,a4`
 rng_tick:
     move.l  %d0,-(%sp)
+    jsr     rng_lag_step            | hud.s
     bsr.s   rng_now
     move.b  %d0,6(%a3)
     bsr.s   rank_creep
