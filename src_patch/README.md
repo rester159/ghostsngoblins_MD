@@ -114,7 +114,9 @@ Without `--features` the patcher produces the compatibility-only ROM.
 - **Crows, stage 2's devils and the Red Arremers' first state** (all modes; `tdevil.c`, `tdevil_glue.s`, patches in `install_crow_tdevil`; evidence in `docs/ACCURACY.md`, Fixed 38-40):
   - **Crows:** the crows of stage 2's last stretch (arcade subtype 3) perch until on screen and wait on random timers (`$A755`: `$A66F`, `$A775`, `$A796`), then fly at Arthur (`$A7DE`), as in the arcade; the port gave them subtype 4's entry (`$A72F`: flying in from off the screen at double speed), drew no randoms and held them back until 512 px from the camera (`$452C`). Stage 1, 3 and 5 crows were already the arcade's.
   - **Stage 2's window devils** (type 4, `$B146`): states 0 and 1 translated whole in place of the port's (`$107A48`): the window opening (20 frames, sound `$12`; the window tiles aren't drawn), the 10-frame wait and the leap at Arthur in a falling arc, walking 16-160 frames (random), hopping 32/48 px (random) along a sine, gliding 60-180 frames (random), coming down, walking off ledges into a hop, dodging a weapon that comes at it from its side of Arthur (`$B630`), removal as soon as it is off the screen (`$B25E`), and the change into a Red Arremer after 1200-3600 frames by rank (`$B245`). Dying and removal stay the port's; the port's own scripts draw it.
-  - **Red Arremers** start in the arcade's first state for their subtype (`$B66C`): subtype 0 is awake at once, so stage 3's Arremer from after the checkpoint follows Arthur into the dragon fight (two there, as in the arcade; the port's slept where it was spawned).
+  - **Red Arremers** start in the arcade's first state for their subtype (`$B66C`): subtype 0 is awake at once, so stage 3's Arremer from after the checkpoint follows Arthur into the dragon fight (two there, as in the arcade; the port's slept where it was spawned). The rest of their AI (`$B64E`) was already a faithful transliteration in the port (audited routine by routine and frame-locked with the arcade: `docs/ACCURACY.md`, Matching (audited)).
+- **Enemy slot fractions** (all modes; `slotfrac.s`, `install_slot_fraction`; Fixed 44): at a stage or life start each enemy slot keeps the x/y fractions of what was in it before, as in the arcade (`$6DA5`), instead of the prebuilt image's .00, so an enemy restarted after a death (the Red Arremer, the Satans) starts on the arcade's sub-pixel.
+- **Big Men** (stages 2 and 5, all modes; `install_big_man`; Fixed 45): the arcade's size class 3 (its on-screen box wakes them, its floor probe 16 px down) in both stages, so they stand on the arcade's line and walk the arcade's floors; the port's x 5200-5808 clamp and assumed floor for stage 2's are gone.
 
 ## Engine hooks
 
@@ -168,6 +170,9 @@ Without `--features` the patcher produces the compatibility-only ROM.
 | `$452C` | `cmpi.b #1,$FFC512` / `bne.s` (stage 2 subtype-3 crows held back past 512 px) | `bra.s $4552` |
 | `$107A5E` | type-4 handler state dispatch (`moveq #0,d0` / `move.b 7(a4),d0` / `beq.w`) | `jmp tdevil_entry`: states 0 and 1 -> `tdevil_update` (`tdevil.c`), 2 and 3 the port's |
 | `$4278` | Red Arremer first state: subtype 2 -> 2, else 1 | subtype & 3, 0 -> 3 (arcade `$B66C`) |
+| `$9180`, `$98FE`, `$104E90`, `$10F1D4`, `$110172`, `$111128`, `$111A82` | the stage inits' slot image copy (`move.w #479,d0` / `move.l (a0)+,(a1)+` / `dbf`) | `jsr slot_copy` + 2 nops: the same copy keeping each slot's `+19`/`+23` (x/y fractions) |
+| `$11BA2C`, `$11B7A8` | Big Man size class 10 (outside stage 2); its floor probe box `$14E82` | class 3; the port's class 3 box `$6D612` |
+| `$11B746`, `$11B7D0` | stage 2 Big Men: x clamp 5200-5808 with a turn; assumed floor there | `bra.s` past both |
 | `$62CA`, `$630A`, `$11D260` | continue count start (9), its digit (timer / 64, at most 9), its draw after the text | `hud.s`: 10, timer / 64 + 1, `cont_draw`: two red digits on the line below (arcade `$785D`) |
 
 Engine variables used: `$FFC000` score (BCD), `$FFC004` TOP SCORE, `$FFC500` lives,

@@ -386,6 +386,29 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     loop's drain), their count added to `$FFC04C` as the drains do. Stage 1 and stage 3 (the other pass) runs: every kill
     scores in its hit update; the kill count `$FFC04C`, the item slots and the totals are as before.
 
+44. **Enemy slots keep their x/y fractions over a stage or life start** (`slotfrac.s`; `$9180`, `$98FE`, `$104E90`,
+    `$10F1D4`, `$110172`, `$111128`, `$111A82`). The arcade's stage/life start (`$6DA5`) clears only each slot's flags,
+    states and type (`-$10`..`-$B`, `+5`), and the initial spawns write only the x and y high:pixel bytes, so a new enemy
+    starts with the x/y fractions of whatever was in its slot before. The port's seven stage inits copy a prebuilt
+    image of all 40 slots from ROM over `$FFB800` (fractions .00). Now the copy keeps each slot's `+19`/`+23`. Measured:
+    stage 1, Arthur drowned at x 1675 with the Red Arremer flying (x 1629.98, fraction bytes in hex): after the restart
+    its new Arremer is at 1472.98 in both (port before: 1472.00). Stage 6's second Satan (`satan.c` copies the port slot's fractions when
+    it is born) now starts with its slot's leftover fraction as the arcade's does (7696.06 after a life in which that
+    slot held the same Satan); at a game's first stage start the leftovers come from each game's own attract and earlier
+    play, so they agree only where that history agrees.
+45. **Big Men** (type 10, stages 2 and 5; port handler `$11B1BC`, arcade `$CF36`): the arcade's Big Man is size class 3
+    in every stage (`$CF54`): its on-screen box (`$8E67`: y within 240 of the camera) wakes it, its floor probe (`$8CA7`,
+    `$8DA6`) looks 16 px below its y. The port set class 10 (box 248) outside stage 2 (`$11BA2A`) and probed with its own
+    box 32 px below (`$11B7A6`, `$14E82` = class 10's), so a Big Man stood 1-2 px high and could walk off a floor the
+    arcade's stays on; the port then confined stage 2's to x 5200-5808, turning them there (`$11B746`), and assumed a
+    floor in that stretch when the probe found none (`$11B7D0`). Now class 3 everywhere, the probe with the port's
+    class 3 entry (`$6D612`), and neither stand-in. Lockstep (stage 2 from the checkpoint, the same walk, random state and
+    Arthur's y fraction lined up): before, the first Big Man to wake stood at y 160 (arcade 158) from frame 378 and turned
+    at x 5200 (the arcade's walks on); now every Big Man is identical (states, x, y, facing) until another enemy's draw
+    from the shared random parts the two games (frame 1111, a Big Man's `$D09A` facing). Stage 5 (Arthur raised to them
+    1 px a frame): the first one wakes on the arcade's frame (437; before 430) and settles at the arcade's 1055.
+    Hits to kill weren't compared (the port gives stage 5's 0 hit points at `+11`, stage 2's 10; not traced).
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -397,6 +420,23 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   death to the starting floor; final-stage weapon gate; DIP lives and bonus tables.
 - **Stage 1 enemies:** zombie spawn, rise (~91 frames), walk 0.8125 px, direction choice, sinking, despawn;
   crow wake-up and flights; the item tables (except mask-table bytes past index 4, unused in stage 1).
+- **Red Arremers** (type 5, `$B64E`; port `$3420`, states `$4214`/`$364A`/`$3588`, all stages): the port's handler is a
+  line-by-line transliteration of the arcade's, checked routine by routine (state 0's wake-ups `$B67D`/`$B6D5`/`$B734`,
+  state 1's seven sub-states `$B802`, `$B9FC`, `$BB2A`, `$BBA5`, `$BC20`, `$BC76`, `$BD4D` with the moves `$B7AA`/`$B85A`,
+  timers `$B936`/`$B957`/`$B975`/`$B9E7`, the reach test `$B9C7`, the dodge `$B87E`, the swoop sines `$4140`/`$41C0`, the
+  hit flash `$B901`, the shot `$BB57` as the port's type 7) and every table: the speeds (`$B7D2`, `$BA21`, `$BC02`,
+  `$BD41`, `$BE8A` = `$502C0`), amplitudes `$BA2D`, rest times `$BBEC`, the rank windows `$B8C8`/`$B996`, the return
+  states `$BB93`, and the four rank-indexed timer sequences (`$4A00`, `$4A34`, `$4A47`, `$4A61` = the port's linked lists
+  at `$50164`, `$50226`, `$50256`, `$50114`, including the arcade's reads of the next byte, end marker 0 too). It draws no
+  random (the arcade's choices come from the frame counter plus the slot counter). One table differs: the dodge window
+  in sub-state 5 is two of the arcade's jump-table entries read as numbers (`U` still `$BC8D`: `$BC99`/`$BCD9`); the port
+  has `$BCA9`/`$BCE9`, which differ only for Arthur 17,239-17,254 px away. Lockstep (stage 1, the same walk to x 1300,
+  then 2,600 frames of random fire/jump/crouch/short walks; the port's skipped updates taken out): the Arremer and all
+  131 frames of its shots identical frame for frame through its wake-up, walking, flying, firing, both swoops, the lance
+  hits, death (frame 1636) and removal (1737). The devil-to-Arremer change (`tdevil.c`, `$B245`, forced with the life
+  timer in both games): the arcade zeroes all three state bytes as `tdevil.c` does, and both games then flicker in
+  state 0/2 for 240 frames per step (530 frames in the arcade, 532 in the port with the devil spawned an update later).
+  Stage 3's two Arremers at the dragon: Fixed 40.
 - **Arthur:** knockback arc (identical frame by frame), 120-frame invincibility (`$00AD`/`$FFC309`), death in
   boxers, ladders (grab zone, 1.375 px/frame, top/bottom sequences), ledge falls, throw lock 14 frames,
   crouch entry, landing keeps the y fraction in both.
@@ -416,20 +456,26 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   from the arcade's (the lockstep runs above set the state at its wake-up).
 - **The Satans, what's left:** nothing is drawn for the 22-frame burst before the score (the port has no burst
   frames for it); the arcade's hovering pose with the wings open has no port frame (drawn as the flying pose),
-  and its shot (a star, sprites `$D7/$DF`) is drawn with the port's type-6 shot art (a small orb). The
-  arcade's spawn leaves the x fraction from RAM (stage 6's second Satan starts at 7696.06; the port's at .00),
-  which can move a drift step by a frame.
+  and its shot (a star, sprites `$D7/$DF`) is drawn with the port's type-6 shot art (a small orb). Their spawn
+  fractions: Fixed 44.
 - **Stage 5 boss room camera:** with the same jump, the port's camera follows Arthur up (y 1475 -> 1512) while
   the arcade's stays at 1475; while it scrolls the port lost an update (one frame).
 - **Stage 2's devils, what's left** (Fixed 39): the window tiles opening and closing aren't drawn (the port has no window
   art; their 20-frame timing is kept); sound `$12` at the opening is played by id, not compared by ear; the change into a Red
   Arremer after 1200-3600 frames and the subtype 0/2 states (no such spawn records seen in stage 2) are translated but weren't
-  reached in a run. The Red Arremers' own AI (`$B64E`) is still the port's (Fixed 40 only fixes their first state).
+  reached in a run (the change into an Arremer was since forced in both games: Matching (audited), Red Arremers).
 - **Ending:** the port walks Arthur 240 frames before the text and has no princess scene (arcade: text 1
   frame after Astaroth dies; 131-frame princess scene on the second clear); +1,000 points at the room's
   end that the arcade doesn't give; "Return to starting point" drawn over the room instead of on black.
-- **Smaller:** stage 4 fire pillars one frame early; a stage 5 flying knight drifts after ~600 frames; Astaroth's shot parks on a blinking Arthur; the stage 2
-  stone-block edge and elevator walk-step quirks; Big Men 1 px; stage 2 water death y.
+- **Smaller:** stage 4 fire pillars one frame early; Astaroth's shot parks on a blinking Arthur; the stage 2
+  stone-block edge and elevator walk-step quirks (not measured). "A stage 5 flying knight drifts after ~600 frames"
+  wasn't reproduced: no flying knight (type 3, `$AFFC`) spawns in stage 5 (every slot listed with Arthur held at each
+  height from y 600 to 1800 and x 7100/7380: crows, Petite Devils, the Arremer, the Satan, skulls and Big Men only); the
+  stage 1 knight's handler (`$1E8C`) matches the arcade's instruction for instruction (phase reset to 0 at each half
+  cycle, velocity table `$B057` = `$6EB08`, sine `$4140` = `$6EB28`); the likeliest source was stage 5's Big Men (Fixed
+  45). Stage 2's water death y (24 in the arcade, 25 in the port) is the restart's y fraction (79.1A vs 79.F5, see the
+  stage start fraction below): with the port's poked to the arcade's, the fall and the death are identical (y 79, 74,
+  ... 29, 24).
 
 - **Stage start fraction:** start x fraction `$60F5` (arcade) vs `$609C` (port); start y 64.28 vs 64.21
   (leftover RAM in the arcade, `$6D36` sets only the integer bytes).
