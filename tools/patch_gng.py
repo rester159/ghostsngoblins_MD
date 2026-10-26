@@ -445,6 +445,7 @@ def install_features(rom, build_dir):
         put(rom, a, jsr(sym[name]))
     install_stage_end(rom, sym)
     install_crow_tdevil(rom, sym)
+    install_slot_fraction(rom, sym)
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)
@@ -524,6 +525,17 @@ def install_crow_tdevil(rom, sym):
     # sleeping like subtype 1 until Arthur is within 48 px of its height
     expect(rom, 0x4278, bytes.fromhex('0c2c00020006670a197c0001000860000236197c000200086000022c'), 'Red Arremer first state')
     put(rom, 0x4278, bytes.fromhex('102c000602000003660270031940000860000234') + b'\x4e\x71' * 2)
+
+
+SLOT_COPIES = (0x9180, 0x98FE, 0x104E90, 0x10F1D4, 0x110172, 0x111128, 0x111A82)
+
+
+def install_slot_fraction(rom, sym):
+    """The seven stage inits' copy of the prebuilt enemy slot image keeps each slot's x/y fraction
+    (slotfrac.s; the arcade's stage/life start $6DA5 leaves them)."""
+    for a in SLOT_COPIES:
+        expect(rom, a, bytes.fromhex('303c01df22d851c8fffc'), 'slot image copy')
+        put(rom, a, b'\x4e\xb9' + be32(sym['slot_copy']) + b'\x4e\x71\x4e\x71')
 
 
 FRAME = 0x200                  # 32x32 4bpp, 16 tiles column-major
