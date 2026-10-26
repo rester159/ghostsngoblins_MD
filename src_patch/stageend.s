@@ -49,12 +49,14 @@ se_objpass:
     bsr.s   se_active
     bne.s   9f
     jsr     0x69A2
+    jsr     score_now                   | hud.s: this update's kill scores
     movem.l %a0/%a3-%a5,-(%sp)
     jmp     0x697C
 se_objpass2:
     bsr.s   se_active
     bne.s   9f
     jsr     0x1055D4
+    jsr     score_now
     movem.l %a0/%a3-%a5,-(%sp)
     jmp     0x1055AC
 9:  rts
