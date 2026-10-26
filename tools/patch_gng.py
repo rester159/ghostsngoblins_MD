@@ -445,6 +445,7 @@ def install_features(rom, build_dir):
         put(rom, a, jsr(sym[name]))
     install_stage_end(rom, sym)
     install_crow_tdevil(rom, sym)
+    install_hud(rom, sym)
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)
@@ -543,6 +544,16 @@ INTERMISSION = [('A', 0, 0xC0400), ('A', 1, 0xC0600), ('A', 2, 0xC0800),
                 ('B', 44, 0xC1600)]
 BANK_C = [0xC0200]
 
+
+
+def install_hud(rom, sym):
+    """The continue countdown as the arcade's: 10 to 01 on its own line (src_patch/hud.s)."""
+    expect(rom, 0x62CA, bytes.fromhex('33fc003900ffc596'), 'continue count start')
+    put(rom, 0x62CA, bytes.fromhex('33fc003a00ffc596'))
+    expect(rom, 0x630A, bytes.fromhex('70003039 00ffc594 80fc0040 0c400009 63027009 06400030'.replace(' ', '')), 'continue digit')
+    put(rom, 0x630A, jsr(sym['cont_digit']) + b'\x60' + bytes([0x6322 - 0x6312]) + b'\x4e\x71' * 8)
+    expect(rom, 0x11D260, bytes.fromhex('7000303900ffc596044000300640825032003 3c100c000004cdf010f'.replace(' ', '')), 'continue digit draw')
+    put(rom, 0x11D260, jsr(sym['cont_draw']) + b'\x4e\x71' * 9)
 
 def install_maximo(rom, art_dir):
     """Replace Arthur's sprite frames with art/maximo/maximo_bank{A,B,C}.bin (same

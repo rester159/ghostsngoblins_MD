@@ -366,6 +366,17 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     after the checkpoint (subtype 0, x 1344) never woke in the port and stayed where it was spawned, so the dragon fight had one
     Arremer instead of the arcade's two. From the checkpoint to the dragon (2,400 frames): two Arremers at the dragon in both.
 
+41. **Bonus lives past 9** (`settings.c` `score_added`): the arcade's bonus adds a life with `INC <$60` (`$EDF1`), no cap;
+    the plus build stopped at 9. Now no cap. The lives row is the same in both at every count tried (5: 4 heads, 7: 6,
+    9 to 11: 7, 20: none, the arcade's row drawn by `$7A3E` and the port's by its HUD), so only the counter changed.
+
+42. **The continue countdown** (`hud.s`; `$62CA`, `$630A`, `$11D260`): the arcade prints "CONTINUE PLAY ?" with the count on
+    its own line below, two red digits from 10 down to 01 (BCD `<$0A` from `$10`, a step per 64 frames, `$785D`), at row
+    13, columns 15-16 under the text at row 9, column 10. The port counted 9 down to 0 (its 640-frame timer `$FFC594` / 64,
+    capped at 9) in one digit after the "?", one behind the arcade all the way. Now the arcade's count (timer / 64 + 1) in
+    two digits at its place, in the port's digit tiles with the palette whose colour 15 is red. Compared screen by screen:
+    "10" for the first 64 frames, "06" and "02" at the same frames as the arcade's run; on timing out both go to the title.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -410,14 +421,8 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   end that the arcade doesn't give; "Return to starting point" drawn over the room instead of on black.
 - **Smaller:** stage 4 fire pillars one frame early; a stage 5 flying knight drifts after ~600 frames; Astaroth's shot parks on a blinking Arthur; the stage 2
   stone-block edge and elevator walk-step quirks; Big Men 1 px; stage 2 water death y.
-- **Rank over time:** the arcade adds `$6B` to its rank word `$9A` every 256 frames (`$EEB9`, capped at `$3F`):
-  6 -> 10 over the 3,000 frames of the stage 3 dragon run; the port's `$FFC501` stayed at 6. The dragon reads it once,
-  at its start (aim threshold `$D5A5[rank >> 4]`), so it only matters there after long stages; other enemies may
-  read it more.
 - **Seen while checking the dragon (not traced further):** a kill's score is added a frame later in the port.
   (The camera order, the lance's fraction and lances past the screen edge are Fixed 35 and 36.)
-- **Bonus lives:** the plus build caps lives at 9 (the arcade doesn't).
-- **Continue digit:** the port shows one digit, so the arcade's "10" step shows as 9.
 
 - **Stage start fraction:** start x fraction `$60F5` (arcade) vs `$609C` (port); start y 64.28 vs 64.21
   (leftover RAM in the arcade, `$6D36` sets only the integer bytes).

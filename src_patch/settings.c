@@ -180,7 +180,7 @@ void score_added(u32 a4)
     if (a4 != 0xFFC000 || !p->bonus_next) return;
     if (SCORE >= 0x1000000) return;         /* the arcade stops at 1,000,000 ($ED95) */
     if (SCORE < p->bonus_next) return;
-    if (LIVES < 9) LIVES++;
+    LIVES++;                                /* no cap: the arcade's INC <$60 ($EDF1) */
     {
         const u32 *t = bonus_tab[bonus_setting()];
         if (p->bonus_step_i == 1) p->bonus_next = t[1];
