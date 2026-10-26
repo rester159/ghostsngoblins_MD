@@ -9,7 +9,7 @@ OBJS    = build/glue.o build/common.o build/pad.o build/boot.o build/title.o bui
 
 $(shell mkdir -p build)
 
-all: build/patch.bin build/intro.bin build/patch.sym inplace/obj_type.bin inplace/obj_sum.bin
+all: build/patch.bin build/intro.bin build/patch.sym inplace/obj_type.bin inplace/obj_sum.bin inplace/spr12.bin
 
 inplace/%.bin: inplace/%.s
 	$(CC) -m68000 -c $< -o build/$*.o && $(OBJCOPY) -O binary build/$*.o $@

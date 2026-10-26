@@ -599,6 +599,11 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   building and past it (teleported to x 5488/5632/5760 and walking on, ~6,000 frames) every one was drawn whenever the
   game ran; the only frames without were the 8 paused, blank frames of the section change above. The Big Men's own
   stand-ins in that area (a clamp to x 5200-5808 and a floor assumed where the probe found none) were removed with Fixed 54.
+- **Co-op speed:** with the enemies now behaving as the arcade's (devils staying on the screen as long, skulls, Big Men)
+  and the per-update fixes above, co-op runs slower than the last install (seed 1: stage 2 0.70, stage 5 0.89, stage 6
+  0.82 updates per frame; 1P and Firebrand stay 0.92-1.0). On identical RAM the per-update fixes cost ~3 scanlines of
+  ~165; the rest is the arcade's enemies on the screen. The big costs are the port's own stage 2 enemy pass (`$99C0`,
+  ~22 lines) and sprite build (`$B258`, ~12), and Maximo's context swaps (~12).
 - **Terrain map edges:** after Fixed 49 a few cells on the ring's edge columns still differ at a stage start (stage 5: 8
   of 1,792 probed, stage 6: 10), where the arcade's first fill left them as they were; not traced.
 

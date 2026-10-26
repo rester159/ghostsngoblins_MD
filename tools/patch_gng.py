@@ -206,6 +206,13 @@ def install_features(rom, build_dir):
     code = open(os.path.join(build_dir, '..', 'inplace', 'obj_sum.bin'), 'rb').read()
     assert len(code) <= 0x1147F8 - 0x114746
     put(rom, 0x114746, code + b'\x4e\x71' * ((0x1147F8 - 0x114746 - len(code)) // 2))
+    # stage 1-2 sprite build ($B258): the 12-compare type chain as a table
+    # (src_patch/inplace/spr12.s; tools/re/test_ab.py checks it)
+    expect(rom, 0xB2B4, bytes.fromhex('0c2c0007000a6700010c'), 'sprite build type chain start')
+    expect(rom, 0xB320, bytes.fromhex('0c2c000a000a6600007c4ebafbf2603a'), 'sprite build type chain end')
+    code = open(os.path.join(build_dir, '..', 'inplace', 'spr12.bin'), 'rb').read()
+    assert len(code) <= 0xB330 - 0xB2B4
+    put(rom, 0xB2B4, code + b'\x4e\x71' * ((0xB330 - 0xB2B4 - len(code)) // 2))
     # tombstone check ($10442A): the arcade's rules (glue.s tomb_check)
     expect(rom, 0x10442A, bytes.fromhex('4a3900ffc512670c'), 'tombstone check')
     put(rom, 0x10442A, jmp(sym['tomb_check']))
