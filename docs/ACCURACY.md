@@ -443,7 +443,7 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     pillar was offset by its slot (slot 38, the first one on screen from the checkpoint: a frame early; slot 24: 15 frames).
     From the stage 4 checkpoint (the port started there by copying the restart entry for the test) with the counters lined
     up, slot 38's 62 size changes over 700 frames: before, every one a frame early; now 61 on the arcade's update, one (the
-    sequence's restart step) 2 frames late.
+    sequence's restart step) 2 frames late (Fixed 57).
 
 51. **The Petite Devils** (type 2, stages 2 and 5; `petite.c`, `petite_glue.s`, hooks `$10C99A`, `$72B6`, `$72F2`,
     `$11AFF0`; arcade `$A89C`-`$AEC0`). The port's (`$3416AA` in stage 2, `$11AEE2` elsewhere) homed on Arthur in 8
@@ -565,8 +565,34 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     out lilac), uploaded to VRAM `$A000` (Astaroth's art, free after his removal) and drawn as sprites. The heart is red
     (no pink in the line). Not as the arcade: the texts are the port's font in one colour and appear whole (the
     arcade's are coloured and typed out); the 50,000 points can give a bonus life at once (the arcade gives it on the
-    next play frame, 40 frames into stage 1); the opening after the second clear is the port's own picture sequence
+    next play frame, 40 frames into stage 1) (Fixed 58); the opening after the second clear is the port's own picture sequence
     (`$E0C`, ~315 frames; the arcade's runs 517 in the graveyard).
+
+57. **A fire pillar's size at a step of its count** (`pillar.s` `pillar_step`, hook `$10F7C4`; arcade `$DE65`-`$DE89`): when
+    a stage 4 pillar's 32-frame count runs out the arcade restarts its animation with `LDU #$54FB / LDB ,U / STU $8,X /
+    JSR $8EBF`, setting the first entry's size class (1, with its y offset) on the step frame without advancing the
+    pointer, so the same entry is read again when the 2-frame timer (`$2,X` = 2) runs out. The port's step set the
+    animation index (`$248BAA`) and the timer only, so its first size change came with that second read, 2 frames late,
+    visible when the step cut into an animation not at class 1 (the restart step of Fixed 50). Now the step also calls
+    the size change (`size_shift`) with that entry's class. Measured from the stage 4 checkpoint (the port started there
+    by a test copy of the restart entry, frames keyed on the update counter so the port's 2-frame updates don't count),
+    slot 38 over 3,000 frames: 267 size changes and 94 count steps; before, 4 size changes 2 frames late (frames 330,
+    1162, 1738, 2570, once a cycle of the count sequence), now all 267 on the arcade's update.
+
+58. **The ending's bonus life comes in play** (`bonus.c`, `settings.c` `bonus_give`/`score_added`, `ending.c`, `glue.s`
+    `rng_tick`): the arcade checks for a bonus life only in its play loop (`$E962` -> `$ED96`), on frames with `<$21 & 7`
+    = 0 while Arthur isn't dead (`<$90` = 0) and below 1,000,000 points, one life a check (`$EDEA`-`$EDF1`). The 50,000
+    points of the second clear (`$0C15`, on the CONGRATULATION frame) are added in the stage-end mode, so their life comes
+    in stage 1: measured (the second clear forced in a final-room state with 49,000 points, so the 50,000 cross both the
+    20,000 and 70,000 thresholds), mode 1 from the opening's end, play (`<$0B` = 1) 39 frames later, the first life on
+    the next frame (`<$21` = `$10`, 40 frames into stage 1), the second 8 frames later. The port gave one life at once
+    with the points (`score_added`, `$779A`), and only one. Now `ending.c` marks its score add, `score_added` then only
+    sets `bonus_pending`, and `rng_tick` (once a play update, `$FFA206` = `<$21`) calls `bonus_tick` while it is set:
+    the arcade's check on updates with `$FFA206 & 7` = 0 and `$FFC570` = 0, one life a check until none is due. Port,
+    the same forced run (`tools/lockstep/port_end.py`, `SCORE=00049000`): no life at the 50,000 (frame 146 after the
+    end), stage 1's first play update with `$FFA206` = `$B7`, the first life on the next one (`$B8`), the second 8 updates
+    later (`$C0`); before, one life on frame 146. Points scored in play still give their life at once (see Open: the
+    arcade's comes 0-7 frames later).
 
 ## Matching (audited)
 
@@ -605,16 +631,19 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   the first timer spawns come 104 (stage 2, type 2 at x 3656) and 74 (stage 3, type 11 at x 176) updates after it in both,
   then every 151 updates. The 3- and 4-update gaps seen before came from the old alignment and the spawner order (Fixed 36).
 
+- **The shared random in the stage 5 boss room** (`tools/lockstep/arc_rand.py`, `port_rand.py`): every draw of the second
+  random (`$68F9`, Fixed 31) by frame and caller, both games started in the room at a life start (the stage 5 restart
+  entry pointed at the room in both: the arcade's RAM table `$6CED`, a test copy of the port's `$1040CC`), the frame
+  counters lined up (`rng_lag`): standing where the Satan wakes at once, 52 draws over 1,600 frames, and walking in from
+  x 7100 so it wakes on frame 151, 51 draws: identical in both (frame, count, state). The crows (type 1, `$A66F`) draw
+  three in both on the update after their set-up at the life start and none as the Satan wakes; the rest are the Satan's
+  (`$C066`, `$BFD2`, `$C147`). The old note (the port's crows missing three draws at the wake-up) predates Fixed 38.
+
 ## Open
 
 - **Sprite placement not checked:** the final-room boss (no pixel-identical piece to pair; its shots use the port's flame art), `$B110` frames
   1-4 (ambiguous). Stage 2 zombie walk frames 26-29 matched arcade images 1-2 px apart, possibly the
   streamed art arriving an update late (hypothesis).
-
-- **The shared random in the stage 5 boss room:** the arcade's second random (`$68F9`, see Fixed 31) is shared by all
-  its callers; the arcade's crows (type 1, `$A66F`) draw three as the Satan wakes and the port's crows (`$105472`)
-  didn't in the same run, so in play the Satan's numbers differ from the arcade's (the lockstep runs above set the
-  state at its wake-up).
 
 - **Petite Devils and skulls, what's left** (Fixed 51, 52): the skulls have no port art (drawn with the type-9 frames,
   a blue orb); the devils' fireball is the port's orb, not sprite `$F7`, and the carrier's wing poses `$FD`-`$FF` show
@@ -638,17 +667,24 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   reached in a run (the change into an Arremer was since forced in both games: Matching (audited), Red Arremers).
 
 - **Ending, what's left** (Fixed 56): the texts in the port's one-colour font, shown whole; the princess's colours
-  from Arthur's palette line; the bonus life from the 50,000 points comes at once instead of in stage 1; the port's
+  from Arthur's palette line; the port's
   own opening after the second clear.
 
-- **Smaller:** a stage 4 fire pillar's restart step, once a 256-frame cycle, 2 frames late (Fixed 50); the stage 2
-  stone-block edge and elevator walk-step quirks (not measured). "A stage 5 flying
+- **Smaller:** the stage 2 stone-block edge and elevator walk-step quirks (not measured). "A stage 5 flying
   knight drifts after ~600 frames" wasn't reproduced: no flying knight (type 3, `$AFFC`) spawns in stage 5 (every slot
   listed with Arthur held at each height from y 600 to 1800 and x 7100/7380: crows, Petite Devils, the Arremer, the Satan,
   skulls and Big Men only); the stage 1 knight's handler (`$1E8C`) matches the arcade's instruction for instruction; the
   likeliest source was stage 5's Big Men (Fixed 54). Stage 2's water death y (24 in the arcade, 25 in the port) came from
   the restart's y fraction (Fixed 46): with the fractions equal the fall and the death are identical (y 79, 74, ... 24).
 
+- **Bonus lives in play:** the arcade checks on frames with `<$21 & 7` = 0 (`$ED96`; Fixed 58), so a life comes 0-7
+  frames after the points that earn it (a score poked to 20,000 on a frame with `<$21` = `$70`: the life on `$78`), and
+  points crossing two thresholds give their lives 8 frames apart; the port's comes with the points (`score_added`), one
+  at most. Left as it was (only the ending's waits for the check).
+- **Stage 5 room, Arthur:** walking right from x 7008 on the top floor the arcade's Arthur stands still for a frame where
+  the floor steps down a pixel (x 7048, y 1615 -> 1614) and the port's doesn't, so he is a frame ahead from there; the
+  ladder up from the floor at y 1455 is climbed from x 7200 in the arcade (Arthur put at x 7200 on it) and from x 7196 in
+  the port (put at x 7184; up at x 7200 doesn't take it). Not traced.
 - **Camera snaps (only after a debug teleport):** when Arthur is put far ahead of the camera (stage 2: x 5961 with the
   camera held at 5578) both games snap the camera to the next section (5833); the port blanks the display and refills
   the whole plane (`$93D6`, 32 columns, ~830 scanlines of work) over 8 paused frames where the arcade shows it on the next
