@@ -15,7 +15,23 @@ skull_entry:
     bne.s   1f
     cmpi.b  #3,7(%a4)
     bcc.s   1f
-    move.l  %a6,sk_a6
+    cmpi.b  #0x5A,8(%a4)            | asleep ($CC70), set by skull_update:
+    bne.s   2f                      | the wake test here, without the C
+    tst.b   7(%a4)
+    bne.s   2f
+    tst.b   5(%a4)
+    beq.s   9f                      | not on the screen
+    move.w  (%a4),%d0
+    sub.w   4(%a3),%d0
+    addi.w  #0x20,%d0
+    cmpi.w  #0x40,%d0
+    bhi.s   9f                      | Arthur more than 32 px away in x
+    move.w  2(%a4),%d0
+    sub.w   48(%a3),%d0
+    addi.w  #0x20,%d0
+    cmpi.w  #0x40,%d0
+    bhi.s   9f                      | ... or in y
+2:  move.l  %a6,sk_a6
     move.l  %a0,sk_ctx+12            | the terrain map (the pass's a0)
     move.l  %a0,-(%sp)
     move.l  %a3,-(%sp)              | context

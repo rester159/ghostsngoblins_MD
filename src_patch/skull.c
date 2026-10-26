@@ -379,7 +379,8 @@ void skull_update(u8 *p, const u8 *a)
     ONS = p[5];
     skull_step(p);
     p[7] = ST0;
-    p[8] = 0; p[9] = 0;
+    p[8] = ST0 == 0 && ST1 == 1 ? 0x5A : 0;  /* asleep: skull_entry's own wake test */
+    p[9] = 0;
     p[16] = 0; p[17] = s[6]; p[18] = s[7]; p[19] = s[8];
     p[20] = 0; p[21] = s[9]; p[22] = s[10]; p[23] = s[11];
     wr16(p, XI);
