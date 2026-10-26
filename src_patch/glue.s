@@ -505,7 +505,12 @@ rng_tick:
     jsr     rng_lag_step            | hud.s
     bsr.s   rng_now
     move.b  %d0,6(%a3)
-    bsr.s   rank_creep
+    tst.b   bonus_pending           | bonus.c: a life earned outside play
+    beq.s   1f
+    movem.l %d0-%d1/%a0-%a1,-(%sp)
+    jsr     bonus_tick
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+1:  bsr.s   rank_creep
     move.l  (%sp)+,%d0
     lea     0xFFB800,%a4
     rts

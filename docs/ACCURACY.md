@@ -67,7 +67,8 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
 8. **Checkpoint** (`$103CBE`): the arcade only refills the timer (`$ED73`); the port also stopped the hurry
    tune and restarted the stage music.
 9. **After the second loop's ending** (`loop_again` at `$113A1C`): the arcade plays on from stage 1 with score
-   and lives (`$73F3`, `$7446`); the port went to the title. Read in code; the ending wasn't reached in a run.
+   and lives (`$73F3`, `$7446`); the port went to the title. Run in Fixed 56: after the second clear's texts the
+   opening, then stage 1 with score, lives and the random kept.
 
 10. **Zombies coming out of the ground were drawn 8 px low** (`zombie_y` at `$7CF8`). The port draws each
     enemy frame as one 32x32 image placed at y = 352 + camera - object y, with no per-frame offset; the
@@ -442,7 +443,7 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     pillar was offset by its slot (slot 38, the first one on screen from the checkpoint: a frame early; slot 24: 15 frames).
     From the stage 4 checkpoint (the port started there by copying the restart entry for the test) with the counters lined
     up, slot 38's 62 size changes over 700 frames: before, every one a frame early; now 61 on the arcade's update, one (the
-    sequence's restart step) 2 frames late.
+    sequence's restart step) 2 frames late (Fixed 57).
 
 51. **The Petite Devils** (type 2, stages 2 and 5; `petite.c`, `petite_glue.s`, hooks `$10C99A`, `$72B6`, `$72F2`,
     `$11AFF0`; arcade `$A89C`-`$AEC0`). The port's (`$3416AA` in stage 2, `$11AEE2` elsewhere) homed on Arthur in 8
@@ -509,7 +510,96 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     1 px a frame): the first one wakes on the arcade's frame (437; before 430) and settles at the arcade's 1055.
     Hits to kill weren't compared (the port gives stage 5's 0 hit points at `+11`, stage 2's 10; not traced).
 
-57. **The Satans' art** (stages 5 and 6; `bossart.c`, `bossart_glue.s`, art by `src_patch/mkart.py`; hooks `$11086A`, `$11051A`,
+55. **Astaroth** (final room, type 13; `astaroth.c`, `astaroth_glue.s`, hooks in `install_astaroth`; arcade handler `$DAD9`:
+    init `$DAF3`, wait `$DB29`, walk `$DB8E`, pause `$DBCB`, fire control `$DC06`-`$DD11`, shot `$DD12`). The port's
+    (`$111B9C`) walked and paused on timers from its own tables picked by the rank byte and the frame counter, fired one
+    low shot every 12-180 frames as its type-10 enemy (the stage 2/5 fire creature: a walker that stopped on Arthur, so
+    the shot parked on a blinking Arthur and hit him when his invincibility ran out) and had no rapid-fire mode or high
+    shots. Now the arcade's handler for states 0 and 1, on an image of its 48-byte slot as in `satan.c` (the port keeps
+    its drawing: frames 1/3 walking, 2/4 the open mouth in rapid fire): walk 0.18 or 0.41 px/frame (`$53F2`/`$53FA` by
+    `$DBF2[random & 15]`) between camera + `$60` and + `$E0` for 1-1023 frames, pauses of `$DBC7[rank]` + random &
+    `$2F`, shots on gaps from `$5402` by rank, a rapid-fire mode every 256-767 frames for 64-191 frames (gaps `$5422`,
+    high or low at random), high shots 3 times in 4 when Arthur is 80 px or more away, the ten random draws (`$68F9`,
+    Fixed 31 table) at the arcade's places. Its shots are the arcade's projectile type `$0A` in the port's shot pool
+    (`$FFC100`, the arcade's `<$A7/<$A8`) as type 10: set up on the frame they're made (`$FD17`), then a straight line at
+    the rank's speed (`$5E0F`: 1.43-1.79 px/frame forward, 0.59-0.73 down, `$FEA3`), gone 128 px past the screen's
+    sides, 64 below it or in the floor (`$8CA7`, the port's `$85D2`); tested against Arthur by the pool's own code on
+    odd frames (box `$F5A2` = port `$4BC8C`), weapons pass through them (`$F452` has no entry for `$0A`); drawn by an
+    enemy slot of type 10 with no collisions using the port's flame art (`hook_ast_shot`). Its death: the arcade's
+    sounds and 22-frame burst (`$DD67`, `$E8D0`) before the 63-frame phase the port's death is (`hook_ast_die`).
+    `tools/re/test_astaroth.py` (the same C on every recorded handler call from `arc_start.py 6 0`/`6 1`, with random
+    walking, jumping and crouching): 4 runs x 7,127 calls (1,653-1,718 in rapid fire, 98-106 shots, 21-29 high), 0
+    mismatches. Lockstep from the arcade's final-room restart against the port's (developer launch with the stage poked
+    to the final room; `<$21`, the random and Astaroth's fractions copied at its init; Genesis Plus GX at 200% CPU so the
+    port doesn't drop updates): Arthur standing, invincible: Astaroth's x/y, state, rapid-fire flag and every shot equal
+    on every frame for 7,830 frames (to the port's time-out); old build: Astaroth differs from frame 4. Jumping and
+    throwing the axe: 10 hits on the same 10 frames (112-466), death on 466, removal on 551 in both, 10,000 points in
+    both (old build: Astaroth not killed in 1,200 frames with the same input). Arthur not invincible: hit by a shot on
+    frame 206 in both, the shots then pass through the blinking Arthur in both. Arthur's y fraction after a knockback
+    differs (.01 against .11-.14; Arthur's code, not traced).
+
+56. **The end of the final room** (`ending.c`, `ending_glue.s`, `mkprincess.py`; hooks in `install_ending`). Arcade:
+    Astaroth's removal (`$E844` at stage index 6: no sound, no points) switches to the stage-end mode and from the next
+    frame `$736D` runs by the clear count `<$7F`. First clear (`$73FE`): the screen black (`$0E00`; the HUD with TIME,
+    the lives and the weapon stay), no sprites, "THIS ROOM IS AN ILLUSION ..." (`$022C`) for 300 frames, then `<$7F` = 1
+    and stage 1 from its map (`$7446`), score, lives and random kept. Second clear (`$7EDC`): the princess (object
+    `$15C2`, x 8179) set up on frame 1, Arthur's target x + (her x - his x, low byte) / 3 (`$7F21`) and y `$0A4E` on
+    frame 2; both walk 1.125 px a frame (`$9477`), she until within 16 px of his target, then both take their embrace
+    frames, four hearts rise above Arthur on the frames with `<$21` & 15 = 0 (`$7F95`), then "CONGRATULATION / THIS
+    STORY IS HAPPY END" (`$022D`, over the top heart) and 50,000 points over the room for 540 frames, "BEING THE WISE
+    AND COURAGEOUS KNIGHT ..." (`$022F`; TIME and hearts erased, `$011A`) for 420, "RETURN TO STARTING POINT /
+    CHALLENGE AGAIN !" (`$0230`) on black, no lives or sprites, for 180, then the game starts over from its opening
+    scene (`$73F3`, `$7446`), score, lives and random kept. Each text's first frame counts and the next starts on the
+    frame the last ends. The port waited 240 frames after the removal with the game running, gave 1,000 points and
+    sound `$3F`, drew the first text over the room with the last frame's sprites frozen on it (Arthur in the font's
+    tiles), went back to stage 1 through the game start (no map, the random reseeded), had no princess scene, drew
+    "RETURN TO STARTING POINT" over the room, ran each text a frame long and, after the second clear, played stage 1
+    without its opening. Now, measured in lockstep from the frame after the removal (`end.py`-style runs, both clears):
+    the first text on frame 2 and stage 1 on frame 301 in both, the map then play (the arcade's play from 604, the
+    port's 606), random `eb04` kept in both; second clear: Arthur's x equal on every frame of the walk (8024 -> 8076 on
+    frame 49), embrace on 82, hearts on 89/105/121/137, CONGRATULATION and the 50,000 points on 139, the next texts on
+    678 and 1097, the restart on 1276 in both, random kept. The princess and both embrace frames aren't in the port's
+    art: they are the arcade's sprites (`gg12`-`gg17`: walk 566/574 and 567/575, embrace 550-559, Arthur's 629-638;
+    the heart char `$60` of `gg1`) converted at build time to Genesis tiles in the port's palette line 0 (Arthur's
+    colours, which are the arcade's: his frame converts exactly; the princess's purples have no match there and come
+    out lilac), uploaded to VRAM `$A000` (Astaroth's art, free after his removal) and drawn as sprites. The heart is red
+    (no pink in the line). Not as the arcade: the texts are the port's font in one colour and appear whole (the
+    arcade's are coloured and typed out); the 50,000 points can give a bonus life at once (the arcade gives it on the
+    next play frame, 40 frames into stage 1) (Fixed 58); the opening after the second clear is the port's own picture sequence
+    (`$E0C`, ~315 frames; the arcade's runs 517 in the graveyard).
+
+57. **A fire pillar's size at a step of its count** (`pillar.s` `pillar_step`, hook `$10F7C4`; arcade `$DE65`-`$DE89`): when
+    a stage 4 pillar's 32-frame count runs out the arcade restarts its animation with `LDU #$54FB / LDB ,U / STU $8,X /
+    JSR $8EBF`, setting the first entry's size class (1, with its y offset) on the step frame without advancing the
+    pointer, so the same entry is read again when the 2-frame timer (`$2,X` = 2) runs out. The port's step set the
+    animation index (`$248BAA`) and the timer only, so its first size change came with that second read, 2 frames late,
+    visible when the step cut into an animation not at class 1 (the restart step of Fixed 50). Now the step also calls
+    the size change (`size_shift`) with that entry's class. Measured from the stage 4 checkpoint (the port started there
+    by a test copy of the restart entry, frames keyed on the update counter so the port's 2-frame updates don't count),
+    slot 38 over 3,000 frames: 267 size changes and 94 count steps; before, 4 size changes 2 frames late (frames 330,
+    1162, 1738, 2570, once a cycle of the count sequence), now all 267 on the arcade's update.
+
+58. **The ending's bonus life comes in play** (`bonus.c`, `settings.c` `bonus_give`/`score_added`, `ending.c`, `glue.s`
+    `rng_tick`): the arcade checks for a bonus life only in its play loop (`$E962` -> `$ED96`), on frames with `<$21 & 7`
+    = 0 while Arthur isn't dead (`<$90` = 0) and below 1,000,000 points, one life a check (`$EDEA`-`$EDF1`). The 50,000
+    points of the second clear (`$0C15`, on the CONGRATULATION frame) are added in the stage-end mode, so their life comes
+    in stage 1: measured (the second clear forced in a final-room state with 49,000 points, so the 50,000 cross both the
+    20,000 and 70,000 thresholds), mode 1 from the opening's end, play (`<$0B` = 1) 39 frames later, the first life on
+    the next frame (`<$21` = `$10`, 40 frames into stage 1), the second 8 frames later. The port gave one life at once
+    with the points (`score_added`, `$779A`), and only one. Now `ending.c` marks its score add, `score_added` then only
+    sets `bonus_pending`, and `rng_tick` (once a play update, `$FFA206` = `<$21`) calls `bonus_tick` while it is set:
+    the arcade's check on updates with `$FFA206 & 7` = 0 and `$FFC570` = 0, one life a check until none is due. Port,
+    the same forced run (`tools/lockstep/port_end.py`, `SCORE=00049000`): no life at the 50,000 (frame 146 after the
+    end), stage 1's first play update with `$FFA206` = `$B7`, the first life on the next one (`$B8`), the second 8 updates
+    later (`$C0`); before, one life on frame 146. Points scored in play: Fixed 59.
+
+59. **A bonus life in play comes on the arcade's check frame** (`settings.c` `score_added`, `bonus.c`): the arcade's
+    life for points scored in play comes 0-7 frames after them, on the next frame with `<$21 & 7` = 0 (`$ED96`; a score
+    poked to 20,000 at `<$21` = `$70`: the life at `$78`), and points crossing two thresholds give their lives 8 frames
+    apart. The port gave one life with the points (`$779A`). Now `score_added` only sets `bonus_pending` for every score,
+    and the check of Fixed 58 gives the lives. Port, stage 1 with the score poked to 19,900 and a lance at the zombies:
+    20,100 at `$FFA206` = `$BA` (update 828), the life at `$C0` (update 834); before, the life with the points.
+60. **The Satans' art** (stages 5 and 6; `bossart.c`, `bossart_glue.s`, art by `src_patch/mkart.py`; hooks `$11086A`, `$11051A`,
     `$11721C`, `hook_sat_dma`, `hook_satan_die`). The port drew 2 poses (flying, wings closed: tiles `$500`-`$543`, loaded once by
     `$1104FC`), nothing for the burst, and the shot as its type-6 orb. Now the arcade's: the hovering pose with the wings open
     (`$4C6D`: 4 entries of 11 frames, poses A B C B, restarted by `$906B` at `$BF95`/`$C049`/`$C32E` with the facing of that
@@ -529,7 +619,7 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     the star alternates every 4 frames from its shot as the arcade's (the port's shot is first drawn a frame later than the
     arcade's, as before). Side by side: hover poses, burst and star match the arcade's frames.
 
-58. **Stage 2's windows** (`bossart.c` `win_step`/`win_vblank`, from `tdevil.c`'s `window_tiles`; arcade `$B457`, tables
+61. **Stage 2's windows** (`bossart.c` `win_step`/`win_vblank`, from `tdevil.c`'s `window_tiles`; arcade `$B457`, tables
     `$B495`/`$B4A9`). The arcade's devil writes 2x2 bg tiles at its window (code `$Fn` + `$F8`.. with attribute `$87`: tiles
     `$2F0`-`$2FF`, colour 7) every 5 frames: opening F0 F2 F4 F6, closing F6 F4 F2 F0; the port drew nothing. The port's stage 2
     bg is plane B (`$C000`, 64 x 32, line 3; a window at the devil's x, y is at column ((x >> 4) - 1) * 2, row 30 - 2 * (y >> 4),
@@ -541,7 +631,7 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     stage's end. Side by side from the checkpoint (both 30 frames after the restart, walking right): the window's poses on
     the same frames (frames 127-180: opening, the devil, closing, closed).
 
-59. **The opening** (`bossart.c` `intro_scene`, `intro_waits`; hooks `$C48`, `$E92`, Home start in `glue.s`). After Start the
+62. **The opening** (`bossart.c` `intro_scene`, `intro_waits`; hooks `$C48`, `$E92`, Home start in `glue.s`). After Start the
     arcade draws stage 1's graveyard at camera 0 with the HUD's top rows, Arthur sitting in his boxers, the princess and the
     armour (frames 806-998 with coin at 700 and Start at 800), fades the bg palettes at 871 and 935 (Arthur turns his head at
     955), and goes on on black from 999; the port's intro (`$E0C`: 155 steps of plane writes, 2 frames each) was only the
@@ -555,7 +645,7 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     step 559 frames in both (the picture ends 5 frames early because the port's stage start takes 4 frames more). Start
     skips both parts from the 21st frame as before; the Home start shows them too; Firebrand's Quest skips them as before.
 
-60. **Stage 5's skulls and Petite Devils, their art** (`bossart.c`, `petite.c`'s frames, `skull.c`'s frames; type-9 draw tables
+63. **Stage 5's skulls and Petite Devils, their art** (`bossart.c`, `petite.c`'s frames, `skull.c`'s frames; type-9 draw tables
     `$107642`/`$10764E`/`$107658`, devil frames `$11C256`/`$11C09E`/`$10CE00`/`$11C26E`/`$10CE16`/`$11C0A8`, `$11C15E`, `$11721C`).
     The port had the skull asleep and rising (its type-9 tiles `$4A0`-`$4B3`: `$A7`, `$A2`-`$A5`) and drew the standing skull
     with them; no art for the carrier's wing poses with the fireball (`$FD`-`$FF`, shown as `$FA`-`$FC`) or the fireball (`$F7`,
@@ -607,57 +697,64 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   the first timer spawns come 104 (stage 2, type 2 at x 3656) and 74 (stage 3, type 11 at x 176) updates after it in both,
   then every 151 updates. The 3- and 4-update gaps seen before came from the old alignment and the spawner order (Fixed 36).
 
+- **The shared random in the stage 5 boss room** (`tools/lockstep/arc_rand.py`, `port_rand.py`): every draw of the second
+  random (`$68F9`, Fixed 31) by frame and caller, both games started in the room at a life start (the stage 5 restart
+  entry pointed at the room in both: the arcade's RAM table `$6CED`, a test copy of the port's `$1040CC`), the frame
+  counters lined up (`rng_lag`): standing where the Satan wakes at once, 52 draws over 1,600 frames, and walking in from
+  x 7100 so it wakes on frame 151, 51 draws: identical in both (frame, count, state). The crows (type 1, `$A66F`) draw
+  three in both on the update after their set-up at the life start and none as the Satan wakes; the rest are the Satan's
+  (`$C066`, `$BFD2`, `$C147`). The old note (the port's crows missing three draws at the wake-up) predates Fixed 38.
+
 ## Open
 
-- **Sprite placement not checked:** the final-room boss (no pixel-identical piece to pair), `$B110` frames
+- **Sprite placement not checked:** the final-room boss (no pixel-identical piece to pair; its shots use the port's flame art), `$B110` frames
   1-4 (ambiguous). Stage 2 zombie walk frames 26-29 matched arcade images 1-2 px apart, possibly the
   streamed art arriving an update late (hypothesis).
 
-- **AI rewritten in the port (to port from the arcade):** Astaroth (`$DAD9`: walk/pause, rapid-fire mode, high shots; shot
-  motion). The arcade's second random (`$68F9`, see Fixed 31) is shared by all its callers, so it has to draw from it
-  (`arc_rand`) exactly when the arcade does, or the numbers everyone else gets shift: in the stage 5 boss room the
-  arcade's crows (type 1, `$A66F`) draw three as the Satan wakes and the port's crows (`$105472`) didn't in the same
-  run, so in play the Satan's numbers differ from the arcade's (the lockstep runs above set the state at its wake-up).
-
-- **Petite Devils and skulls, what's left** (Fixed 51, 52; their art: Fixed 60): the port's own enemy burst (used for
-  them and its other enemies) is drawn mirrored relative to the arcade's in its own frame tables (`$14C57A`; Fixed 60
+- **Petite Devils and skulls, what's left** (Fixed 51, 52; their art: Fixed 63): the port's own enemy burst (used for
+  them and its other enemies) is drawn mirrored relative to the arcade's in its own frame tables (`$14C57A`; Fixed 63
   draws the arcade's way for these two). Stage 4's devils (subtype 1) weren't met in
   a play run (checked on placed devils only). The spawner leaves the spawn's x/y fractions from RAM in both games, and
   the slots it picks differ, so a devil can start a fraction apart (the lockstep runs set them equal). Co-op stage 2 runs
   at 0.73 updates per frame (was 0.81): the devils now stay on the screen as long as the arcade's, and drawing them is
   the cost (the same build with the devils not drawn: 0.88); co-op stage 5 0.98 -> 0.93 (skulls and devils on the screen).
 
-- **The Satans, what's left** (art: Fixed 57): the burst's last pose shows 2 frames (arcade 3), as the port's score
+- **The Satans, what's left** (art: Fixed 60): the burst's last pose shows 2 frames (arcade 3), as the port's score
   phase starts a frame earlier; the arcade's small burst leaves the flying pose's right column on the screen for its 3
   frames (its sprite list isn't cleared; not drawn here). (Their spawn fractions: Fixed 53.)
 
 - **Vertical scroll speed:** while the camera catches up a long way vertically (stage 5, 50 frames of 5 px steps) the port
   loses an update (the row streaming runs past the frame); the camera's moves are the arcade's (Fixed 45).
 
-- **Stage 2's devils, what's left** (Fixed 39; the windows: Fixed 58): a window whose devil dies before it closes keeps its
+- **Stage 2's devils, what's left** (Fixed 39; the windows: Fixed 61): a window whose devil dies before it closes keeps its
   slot until another opens (the arcade leaves it open); sound `$12` at the opening is played by id, not compared by ear; the change into a Red
   Arremer after 1200-3600 frames and the subtype 0/2 states (no such spawn records seen in stage 2) are translated but weren't
   reached in a run (the change into an Arremer was since forced in both games: Matching (audited), Red Arremers).
 
-- **Ending:** the port walks Arthur 240 frames before the text and has no princess scene (arcade: text 1
-  frame after Astaroth dies; 131-frame princess scene on the second clear); +1,000 points at the room's
-  end that the arcade doesn't give; "Return to starting point" drawn over the room instead of on black.
+- **Ending, what's left** (Fixed 56): the texts in the port's one-colour font, shown whole; the princess's colours
+  from Arthur's palette line; the port's
+  own opening after the second clear.
 
-- **Smaller:** a stage 4 fire pillar's restart step, once a 256-frame cycle, 2 frames late (Fixed 50); Astaroth's shot
-  parks on a blinking Arthur; the stage 2 stone-block edge and elevator walk-step quirks (not measured). "A stage 5 flying
+- **Smaller:** the stage 2 stone-block edge and elevator walk-step quirks (not measured). "A stage 5 flying
   knight drifts after ~600 frames" wasn't reproduced: no flying knight (type 3, `$AFFC`) spawns in stage 5 (every slot
   listed with Arthur held at each height from y 600 to 1800 and x 7100/7380: crows, Petite Devils, the Arremer, the Satan,
   skulls and Big Men only); the stage 1 knight's handler (`$1E8C`) matches the arcade's instruction for instruction; the
   likeliest source was stage 5's Big Men (Fixed 54). Stage 2's water death y (24 in the arcade, 25 in the port) came from
   the restart's y fraction (Fixed 46): with the fractions equal the fall and the death are identical (y 79, 74, ... 24).
 
-- **Section changes:** where the camera jumps to the next section (stage 2 town, 5578 -> 5833, the arcade's jump too) the
-  port blanks the display and refills the whole plane (`$93D6`, 32 columns) over 8 frames with the game paused; the
-  arcade's jump shows the new section on the next frame.
+- **Stage 5 room, Arthur:** walking right from x 7008 on the top floor the arcade's Arthur stands still for a frame where
+  the floor steps down a pixel (x 7048, y 1615 -> 1614) and the port's doesn't, so he is a frame ahead from there; the
+  ladder up from the floor at y 1455 is climbed from x 7200 in the arcade (Arthur put at x 7200 on it) and from x 7196 in
+  the port (put at x 7184; up at x 7200 doesn't take it). Not traced.
+- **Camera snaps (only after a debug teleport):** when Arthur is put far ahead of the camera (stage 2: x 5961 with the
+  camera held at 5578) both games snap the camera to the next section (5833); the port blanks the display and refills
+  the whole plane (`$93D6`, 32 columns, ~830 scanlines of work) over 8 paused frames where the arcade shows it on the next
+  frame. Not reached in play: walked from the checkpoint (x 4736) through the town to x 6024, the camera scrolls past
+  5578 one pixel a frame (Arthur 130 px ahead of it), with an update every frame and no refill.
 - **"Invisible troll" (itch.io report, stage 2 by the brick building after the ladder building):** not reproduced. With
   a check that every live, on-screen Big Man has sprites with pixels in the sprite table on every frame, over the ladder
   building and past it (teleported to x 5488/5632/5760 and walking on, ~6,000 frames) every one was drawn whenever the
-  game ran; the only frames without were the 8 paused, blank frames of the section change above. The Big Men's own
+  game ran; the only frames without were the 8 paused, blank frames of the camera snap above (after a teleport). The Big Men's own
   stand-ins in that area (a clamp to x 5200-5808 and a floor assumed where the probe found none) were removed with Fixed 54.
 - **Co-op speed:** with the enemies now behaving as the arcade's (devils staying on the screen as long, skulls, Big Men)
   and the per-update fixes above, co-op runs slower than the last install (seed 1: stage 2 0.70, stage 5 0.89, stage 6
@@ -667,7 +764,7 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
 - **Terrain map edges:** after Fixed 49 a few cells on the ring's edge columns still differ at a stage start (stage 5: 8
   of 1,792 probed, stage 6: 10), where the arcade's first fill left them as they were; not traced.
 
-- **Intro** (Fixed 59): between the graveyard and the black part the port shows 6 black frames while `$E0C` loads its
+- **Intro** (Fixed 62): between the graveyard and the black part the port shows 6 black frames while `$E0C` loads its
   VRAM (the arcade shows the characters on black); the cloak's blinking is the port's 7 on/off steps, not the arcade's ~26;
   after the picture the arcade shows the HUD with TIME on black for ~40 frames before stage 1 fades in, the port black
   and then stage 1 ~30 frames earlier (Arthur can move on the same frame in both); the intro's top score is the port's

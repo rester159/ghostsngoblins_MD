@@ -456,10 +456,57 @@ def install_features(rom, build_dir):
     install_petite(rom, sym)
     install_slot_fraction(rom, sym)
     install_big_man(rom)
+    install_astaroth(rom, sym)
+    install_ending(rom, sym)
     install_bossart(rom, sym)
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)
+
+def install_astaroth(rom, sym):
+    # Astaroth (the final room): the arcade's handler (astaroth.c) for the port's
+    # states 0 and 1, its 22-frame burst and sounds before the port's death,
+    # and its shots moved as the arcade's projectile type $0A
+    expect(rom, 0x111BB2, bytes.fromhex('7000102c0007'), 'Astaroth state dispatch')
+    put(rom, 0x111BB2, jsr(sym['hook_ast']))
+    expect(rom, 0x111DE8, bytes.fromhex('4a2c00086630'), 'Astaroth death entry')
+    put(rom, 0x111DE8, jsr(sym['hook_ast_die']))
+    expect(rom, 0x111E10, jsr(0xB942) + jsr(0xB7F2), 'Astaroth death sounds')
+    put(rom, 0x111E10, b'\x4e\x71' * 6)
+    expect(rom, 0x11B1C8, bytes.fromhex('0c2c000a000a660007e0'), 'type-10 handler type test')
+    put(rom, 0x11B1C8, jsr(sym['hook_ast_shot']))
+    expect(rom, 0x32EE, bytes.fromhex('0c2c0009000a6600004e'), 'shot pool pass type chain')
+    put(rom, 0x32EE, jsr(sym['hook_pool10']))
+    expect(rom, 0xAE9C, bytes.fromhex('0c2c0003000a6720'), 'shot pool builder type chain')
+    put(rom, 0xAE9C, jsr(sym['hook_pool_draw']))
+
+
+def install_ending(rom, sym):
+    """The end of the final room as the arcade's (ending.c, ending_glue.s)."""
+    jmp = lambda a: b'\x4e\xf9' + be32(a)
+    # the ending the frame after Astaroth's removal: no 240-frame wait, no
+    # 1,000 points, no sound in the final room (other rooms unchanged)
+    for a in (0x10EA5A, 0x1174B2):      # two copies of the boss-removal routine
+        expect(rom, a, bytes.fromhex('13fc000100ffdb0833fc00f000ffdb0a527900ffdb0e2f0c49f900ffb400'
+                                     '303c0c094eb900007c1c285f4eb90000b9424e75'), 'room-end block')
+        put(rom, a, jmp(sym['hook_room_end']))
+    # the port's ending routine (each update of the final room) replaced
+    expect(rom, 0x113916, bytes.fromhex('4a3900ff7fc2'), 'ending routine')
+    put(rom, 0x113916, jmp(sym['hook_end']))
+    # the text layer's sprites: the scene's, or none (not the last frame's)
+    expect(rom, 0x1118BC, jsr(sym['clear_sat']) + b'\x4e\x71' * 4 + bytes.fromhex('33fcffff00ffb20c'),
+           'final room text-mode sprites')
+    put(rom, 0x1118BC, jsr(sym['hook_end_tspr']) + b'\x4e\x71' * 8)
+    # after the final room's sprite build: the princess scene's sprites
+    expect(rom, 0x111922, bytes.fromhex('4eba01f6') + jsr(0xC35E8), 'final room sprite build')
+    put(rom, 0x111922, jsr(sym['hook_end_build']) + b'\x4e\x71' * 2)
+    # the text upload after the VBlank: also the scene's tiles
+    expect(rom, 0x1115D6, bytes.fromhex('4eba2528') + jsr(0x63FA), 'final room text upload')
+    put(rom, 0x1115D6, jsr(sym['hook_end_vbl']) + b'\x4e\x71' * 2)
+    # the game start's restore of score and lives: also the random, after the
+    # second clear's restart
+    expect(rom, 0x414, jsr(0x113AC4), 'restore after a restart')
+    put(rom, 0x414, jsr(sym['hook_end_restore']))
 
 
 def install_bossart(rom, sym):
@@ -675,6 +722,10 @@ def install_hud(rom, sym):
     # ($DE5E: LDB <$21 / INCB / ANDB #$1F); the port added the slot counter, staggering them by slot
     expect(rom, 0x10F774, bytes.fromhex('102b0006d02b0007'), 'type-14 step timing')
     put(rom, 0x10F774, bytes.fromhex('102b000652004e71'))
+    # ... and at the step the animation's first size class is set at once ($DE77-$DE89: JSR $8EBF), not 2 frames
+    # later with the timer's first read (pillar.s)
+    expect(rom, 0x10F7C4, bytes.fromhex('303900248baa3940001c3940001e197c0002001a'), 'type-14 step restart')
+    put(rom, 0x10F7C4, jsr(sym['pillar_step']) + b'\x4e\x71' * 7)
     # the VBlank handler also latches pad presses between updates (hud.s vb_isr)
     expect(rom, 0x78, be32(0x113E56), 'VBlank vector')
     put(rom, 0x78, be32(sym['vb_isr']))
