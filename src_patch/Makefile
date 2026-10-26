@@ -23,6 +23,7 @@ build/intro.o: build/intro.inc
 build/art.inc: mkart.py ../rom/gg12.bin
 	python3 -I mkart.py ../rom $@
 build/bossart.o: build/art.inc
+build/intro_waits.inc: build/art.inc
 
 # The SEGA/CAPCOM logos come from intro kits outside this repo (SEGA_KIT,
 # CAPCOM_KIT); without them the stub skips the intros.

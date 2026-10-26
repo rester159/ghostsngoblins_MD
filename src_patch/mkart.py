@@ -195,4 +195,200 @@ for n in (0xF2, 0xF4, 0xF6):
             words += (left if col < 2 else right)[row & 1][col & 1]
 emit_words('win_art', words)
 
+
+# --- the opening's graveyard (intro.c / bossart.c `intro_scene`) --------------
+# After Start the arcade draws stage 1's graveyard (camera 0, the HUD's top two
+# rows) with Arthur sitting in his boxers, the princess and the armour, and
+# fades its bg palettes twice before it goes black. The scene is taken from the
+# arcade itself: tools/arcade/gng.py run from power-on (coin at frame 700,
+# Start at 800, as tools/lockstep does) gives the bg and fg RAM and the sprite
+# list (frame 870), the palettes of the three phases (806, 871, 935) and
+# Arthur's second pose (955). Plane B holds the bg (arcade 16x16 tiles as 2x2
+# cells; black, pen 0, is the backdrop), plane A the HUD chars, sprites the 10
+# pieces. Each arcade palette (bg 0-7, sprite colours, fg 0-15) goes whole
+# into one of the 4 lines; the lines are packed from the colours of all three
+# phases (sprites and HUD don't fade).
+def intro_scene():
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools', 'arcade'))
+    from gng import GnG
+    g = GnG(romdir); m = g.mem
+    pal, snap = {}, {}
+    for f in range(1, 956):
+        g.set_inputs(0x40 if 700 <= f <= 710 else (1 if 800 <= f <= 805 else 0), 0, 0)
+        g.run_frame()
+        if f in (806, 871, 935):
+            pal[f] = g.palette()
+        if f in (870, 955):
+            b = g.spritebuf; sp = []
+            for o in range(0x200 - 4, -1, -4):          # back to front, as the renderer
+                attr = b[o + 1]; code = b[o] + ((attr << 2) & 0x300)
+                x = b[o + 3] - (0x100 if attr & 1 else 0); y = b[o + 2] - 16
+                if 0 <= y < 224 and -16 < x < 256:
+                    sp.append((code, (attr >> 4) & 3, attr & 4, attr & 8, x, y))
+            snap[f] = dict(bg=bytes(m[0x2800:0x3000]), fg=bytes(m[0x2000:0x2800]), spr=sp, scroll=list(g.scroll))
+    assert snap[870]['scroll'] == [0, 0, 0, 0]
+    phases = (806, 871, 935)
+    LV = [0, 52, 87, 116, 144, 172, 206, 255]       # Genesis levels (as tools/headless/vdp.py)
+    q = lambda c: tuple(min(range(8), key=lambda i: abs(LV[i] - v)) for v in c)
+    cram = lambda c: c[0] << 1 | c[1] << 5 | c[2] << 9
+    bg, fg = snap[870]['bg'], snap[870]['fg']
+    # what's on the screen
+    cells = []          # (cx, cy, code, attr)
+    for cy in range(1, 15):
+        for cx in range(16):
+            i = cx * 32 + cy
+            cells.append((cx, cy, bg[i] | ((bg[0x400 + i] & 0xC0) << 2), bg[0x400 + i]))
+    chars = []          # (tx, ty, code, attr) of the HUD rows
+    for ty in range(2, 30):
+        for tx in range(32):
+            i = ty * 32 + tx
+            code = fg[i] | ((fg[0x400 + i] & 0xC0) << 2)
+            if any(((CHR[code * 16 + k] >> 4) & (CHR[code * 16 + k] & 15)) != 15 for k in range(16)):
+                chars.append((tx, ty, code, fg[0x400 + i]))
+    sprs = {f: snap[f]['spr'] for f in (870, 955)}
+    # colour keys: (kind, palette, pen) -> the colour in each phase
+    groups = {}
+    def key_col(kind, pl, pen):
+        if kind == 'bg': return tuple(q(pal[f][pl * 8 + pen]) for f in phases)
+        if kind == 'spr': return tuple(q(pal[806][0x40 + pl * 16 + pen]) for f in phases)
+        return tuple(q(pal[806][0x80 + pl * 4 + pen]) for f in phases)
+    for cx, cy, code, attr in cells:
+        for y in range(16):
+            for x in range(16):
+                pen = til_pen(code, x, y)
+                if pen: groups.setdefault(('bg', attr & 7), set()).add(pen)
+    for f in sprs:
+        for code, col, hf, vf, x, y in sprs[f]:
+            for yy in range(16):
+                for xx in range(16):
+                    pen = spr_pen(code, xx, yy)
+                    if pen != 15: groups.setdefault(('spr', col), set()).add(pen)
+    for tx, ty, code, attr in chars:
+        for k in range(64):
+            pen = chr_pen(code, k & 7, k >> 3)
+            if pen != 3: groups.setdefault(('fg', attr & 15), set()).add(pen)
+    black = ((0, 0, 0),) * 3
+    lines = [[] for _ in range(4)]                  # colour vectors per line (index = position + 1)
+    gline = {}
+    for gk in sorted(groups, key=lambda k: -len(groups[k])):
+        cols = set(key_col(gk[0], gk[1], pen) for pen in groups[gk]) - ({black} if gk[0] == 'bg' else set())
+        best = None
+        for li in range(4):
+            new = len(cols - set(lines[li]))
+            if len(lines[li]) + new <= 15 and (best is None or new < best[0]):
+                best = (new, li)
+        assert best, 'intro palette doesn\'t fit'
+        li = best[1]
+        for c in sorted(cols - set(lines[li])):
+            lines[li].append(c)
+        gline[gk] = li
+    def idx(kind, pl, pen):
+        c = key_col(kind, pl, pen)
+        if kind == 'bg' and c == black: return 0
+        return lines[gline[(kind, pl)]].index(c) + 1
+    # tiles
+    tiles = [[0] * 16]
+    def tile(px):
+        w = []
+        for r in px:
+            w += [(r[0] << 12) | (r[1] << 8) | (r[2] << 4) | r[3], (r[4] << 12) | (r[5] << 8) | (r[6] << 4) | r[7]]
+        if w not in tiles: tiles.append(w)
+        return tiles.index(w)
+    planeb = [0] * (32 * 28)
+    for cx, cy, code, attr in cells:
+        li = gline.get(('bg', attr & 7), 0)
+        for qy in range(2):
+            for qx in range(2):
+                px = [[idx('bg', attr & 7, til_pen(code, qx * 8 + (7 - x if attr & 0x10 else x), qy * 8 + (7 - y if attr & 0x20 else y)))
+                       if til_pen(code, qx * 8 + (7 - x if attr & 0x10 else x), qy * 8 + (7 - y if attr & 0x20 else y)) else 0
+                       for x in range(8)] for y in range(8)]
+                if attr & 0x10: qxx = 1 - qx
+                else: qxx = qx
+                if attr & 0x20: qyy = 1 - qy
+                else: qyy = qy
+                planeb[(cy * 2 - 2 + qyy) * 32 + cx * 2 + qxx] = (li << 13) | tile(px)
+    planea = [0] * (32 * 28)
+    for tx, ty, code, attr in chars:
+        li = gline[('fg', attr & 15)]
+        px = [[0 if chr_pen(code, 7 - x if attr & 0x10 else x, 7 - y if attr & 0x20 else y) == 3 else
+               idx('fg', attr & 15, chr_pen(code, 7 - x if attr & 0x10 else x, 7 - y if attr & 0x20 else y)) for x in range(8)] for y in range(8)]
+        planea[(ty - 2) * 32 + tx] = 0x8000 | (li << 13) | tile(px)
+    sprdat = {}
+    for f in sprs:
+        lst = []
+        for code, col, hf, vf, x, y in sprs[f]:
+            li = gline[('spr', col)]
+            px = [[0 if spr_pen(code, xx, yy) == 15 else idx('spr', col, spr_pen(code, xx, yy)) for xx in range(16)] for yy in range(16)]
+            # the 4 tiles of a piece are consecutive: a block of its own unless one is there
+            blk = []
+            for tx, ty in ((0, 0), (0, 1), (1, 0), (1, 1)):
+                rr = [r[tx * 8:tx * 8 + 8] for r in px[ty * 8:ty * 8 + 8]]
+                w = []
+                for r in rr:
+                    w += [(r[0] << 12) | (r[1] << 8) | (r[2] << 4) | r[3], (r[4] << 12) | (r[5] << 8) | (r[6] << 4) | r[7]]
+                blk.append(w)
+            for at in range(len(tiles) - 3):
+                if tiles[at:at + 4] == blk: break
+            else:
+                at = len(tiles); tiles.extend(blk)
+            lst.append((y + 128, x + 128, (li << 13) | (0x800 if hf else 0) | (0x1000 if vf else 0) | at))
+        sprdat[f] = lst[::-1]                       # front first in the sprite list
+    out.append('/* the opening\'s graveyard: %d tiles, lines %s */' % (len(tiles), [len(l) for l in lines]))
+    emit_words('isc_tiles', [w for t in tiles for w in t])
+    emit_words('isc_planeb', planeb)
+    emit_words('isc_planea', planea)
+    for k, f in enumerate(phases):
+        cr = []
+        for li in range(4):
+            row = [0] * 16
+            for i, c in enumerate(lines[li]):
+                row[i + 1] = cram(c[k])
+            cr += row
+        emit_words('isc_cram%d' % k, cr)
+    for f in sprs:
+        out.append('static const u16 isc_spr%d[%d][3] = { %s };' % (f, len(sprdat[f]), ', '.join('{%d, %d, 0x%04X}' % e for e in sprdat[f])))
+    out.append('#define ISC_NSPR %d' % len(sprdat[870]))
+    assert len(sprdat[870]) == len(sprdat[955])
+
+
+CHR = rd('gg1.bin')
+
+
+def chr_pen(code, x, y):
+    b = CHR[code * 16 + y * 2 + (x >> 2)]
+    bit = 3 - (x & 3)
+    return ((b >> (bit + 4)) & 1) | (((b >> bit) & 1) << 1)
+
+
+intro_scene()
+
+# The pacing of the port's intro ($E0C: 155 steps of plane writes, 2 frames
+# each): the frame (arcade frames, Start at 800) at which each step's picture
+# is to show, from the arcade's sprites (tools/arcade): the Satan's cloak
+# blinks from 993 (its first visible frame here is 1007: the graveyard is up to
+# 998), opens its wings at 1045 and changes pose at 1057, 1068, 1079, 1090,
+# 1101; swoops at 1110; takes the princess at 1126; is gone at 1149; Arthur
+# lands at 1158, gets up at 1192, has his armour on at 1212, walks from 1246 to
+# 1287 and the picture ends at 1319. Steps between are spread evenly.
+# INTRO_START: the arcade frame at which $E0C's step loop starts (the scene
+# shows from 2 frames later after Start than the arcade's, then $E0C clears
+# and loads VRAM for 6 frames; measured). The port's stage start takes 4
+# frames more than the arcade's after the picture, so it ends 5 frames early
+# (at 1314) and Arthur can move 559 frames after Start, as in the arcade.
+ISC_FRAMES = 193
+INTRO_START = 1005
+ANCH = {0: 1006, 8: 1007, 22: 1045, 28: 1057, 34: 1068, 39: 1079, 45: 1090, 50: 1101, 55: 1110, 62: 1126,
+        74: 1149, 81: 1158, 96: 1192, 106: 1212, 121: 1246, 144: 1287, 155: 1314}
+ks = sorted(ANCH)
+at = []
+for i in range(156):
+    lo = max(k for k in ks if k <= i); hi = min(k for k in ks if k >= i)
+    at.append(ANCH[lo] if lo == hi else ANCH[lo] + (ANCH[hi] - ANCH[lo]) * (i - lo) / (hi - lo))
+waits, t = [], INTRO_START
+for a in at:
+    w = max(1, round(a) - t); waits.append(w); t += w
+open(os.path.join(os.path.dirname(dst), 'intro_waits.inc'), 'w').write(
+    '/* generated by mkart.py: frames before each step of $E0C */\n#define ISC_FRAMES %d\n'
+    'const u8 intro_waits[156] = { %s };\n' % (ISC_FRAMES, ', '.join(map(str, waits))))
+
 open(dst, 'w').write('\n'.join(out) + '\n')

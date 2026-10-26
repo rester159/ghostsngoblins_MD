@@ -476,6 +476,12 @@ def install_bossart(rom, sym):
     # the type-6 shot draw: a Satan's shots as the star
     expect(rom, 0x11721C, bytes.fromhex('0c4200086400' + '0094'), 'type-6 shot frame check')
     put(rom, 0x11721C, jmp(sym['star_sel']) + b'\x4e\x71')
+    # the opening: the arcade's graveyard before the port's intro, whose steps
+    # are paced as the arcade's events
+    expect(rom, 0xC46, bytes.fromhex('703a4eba7d9a4eba01be'), 'intro call')
+    put(rom, 0xC48, jsr(sym['intro_hook']) + b'\x4e\x71')
+    expect(rom, 0xE92, bytes.fromhex('6100004a45f900210088'), 'intro step loop')
+    put(rom, 0xE92, jmp(sym['intro_loop']) + b'\x4e\x71\x4e\x71')
 
 
 def install_stage_end(rom, sym):
