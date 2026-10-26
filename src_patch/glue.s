@@ -41,7 +41,7 @@ hook_title:
     beq.s   5f
     move.w  #0x2700,%sr             | as the intro leaves it
     bra.s   6f
-5:  jsr     0xE0C                   | INTR: the princess scene
+5:  jsr     intro_rest              | INTR: the graveyard, then the princess scene (bossart.c)
 6:  clr.l   0xFF83F8
     clr.l   0xFF7FF0
     movem.l (%sp)+,%d0-%a2

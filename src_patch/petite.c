@@ -619,7 +619,9 @@ void petite_update(u8 *p, const Ctx *x)
     p[24] = DIR;
     p[25] = CLS;
     wr16(p + 30, f);
-    wr16(p + 28, f);                    /* the port's death goes on from this frame */
+    /* the port's death goes on from this frame (its table knows the port's
+     * 41: for the wing poses with the fireball, the ones without) */
+    wr16(p + 28, f < 41 ? f : f < 44 ? f - 38 : f - 35);
     p[26] = 0;
     p[36] = 0; p[37] = 0;               /* its death timer starts from 0 */
 }

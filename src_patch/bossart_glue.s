@@ -80,9 +80,11 @@ star_sel:
 | $C48 (`jsr $89E4` + `jsr $E0C`, the intro's music and the intro):
 | `jsr intro_hook` + nop. The arcade's graveyard first (intro_scene), then the
 | port's intro unless Start skipped it.
-    .global intro_hook, intro_frame, intro_loop
+| intro_rest: the same after the music (the Home start, glue.s hook_title).
+    .global intro_hook, intro_rest, intro_frame, intro_loop
 intro_hook:
     jsr     0x89E4                  | the intro music (d0 = 58)
+intro_rest:
     movem.l %d0-%d7/%a0-%a6,-(%sp)
     jsr     intro_scene
     tst.l   %d0
@@ -126,48 +128,6 @@ intro_loop:
     bra.s   1b
 9:  jmp     0xED4
 
-| draw hooks with the Spr record (as sat_draw_hook): call the C function in a1
-| with (a4, a3, &spr); d0/d1 out. C returns nonzero when it drew (or chose to
-| draw nothing); zero -> the original goes on (a0 = where).
-art_call:
-    movem.l %a0-%a1,-(%sp)
-    lea     -12(%sp),%sp
-    move.l  %a5,(%sp)
-    move.w  %d0,4(%sp)
-    move.w  %d1,6(%sp)
-    clr.l   8(%sp)
-    pea     (%sp)
-    move.l  %a3,-(%sp)
-    move.l  %a4,-(%sp)
-    jsr     (%a1)
-    lea     12(%sp),%sp
-    movea.l (%sp),%a5
-    moveq   #0,%d0
-    moveq   #0,%d1
-    move.w  8(%sp),%d0
-    move.w  10(%sp),%d1
-    lea     12(%sp),%sp
-    movem.l (%sp)+,%a0-%a1
-    rts
-
-| $107626 (the type-9 draw): `jmp skull_draw_hook` + nop over `tst.b 4(a4)`
-| + `beq.w $1076D8`. Stage 5 (skulls): skull_draw; elsewhere the port's.
-    .global skull_draw_hook
-skull_draw_hook:
-    tst.b   4(%a4)
-    beq.s   9f
-    cmpi.b  #4,0xFFC512
-    bne.s   1f
-    tst.b   5(%a4)
-    beq.s   9f
-    movem.l %a1,-(%sp)
-    lea     skull_draw,%a1
-    bsr.s   art_call
-    movem.l (%sp)+,%a1
-    rts
-1:  jmp     0x10762E
-9:  jmp     0x1076D8
-
 | $11C15E (the type-2 draw, stages 3-6): `jmp pd_draw_hook` + nop over
 | `cmpi.b #1,$FFC512`. A dying devil in stage 5: the burst (pd_burst).
     .global pd_draw_hook
@@ -192,8 +152,11 @@ pd_draw_hook:
 2:  jmp     0x11C176
 8:  rts
 
-| as art_call, and d7 = C's result (d0/d1 untouched when it's 0)
+| a draw in C with the Spr record (as sat_draw_hook): the function in a1 with
+| (a4, a3, &spr); d7 = its result: nonzero, it drew (d0/d1 out); 0, nothing
+| changed (d0/d1 as they were) and the original goes on.
 art_call_r:
+    movem.l %d0-%d1,-(%sp)
     movem.l %a0-%a1,-(%sp)
     lea     -12(%sp),%sp
     move.l  %a5,(%sp)
@@ -212,15 +175,26 @@ art_call_r:
     moveq   #0,%d1
     move.w  8(%sp),%d0
     move.w  10(%sp),%d1
+    lea     12(%sp),%sp
+    movem.l (%sp)+,%a0-%a1
+    addq.l  #8,%sp                  | (the saved d0/d1)
+    rts
 1:  lea     12(%sp),%sp
     movem.l (%sp)+,%a0-%a1
+    movem.l (%sp)+,%d0-%d1          | not drawn: d0/d1 as they were
     rts
 
 | $11C26E (the devil frame upload): `jsr pd_src_hook` + 3 nops over `mulu.w
 | #128,d0` / `lea $10D526,a0` / `adda.l d0,a0`: a0 = the frame's art.
     .global pd_src_hook, pd_entry_hook
 pd_src_hook:
-    movem.l %d1/%a1,-(%sp)
+    cmpi.w  #41,%d0
+    bcc.s   1f
+    mulu.w  #128,%d0                | the port's frames, as before
+    lea     0x10D526,%a0
+    adda.l  %d0,%a0
+    rts
+1:  movem.l %d1/%a1,-(%sp)
     move.l  %d0,-(%sp)
     jsr     pd_src
     addq.l  #4,%sp
@@ -231,7 +205,15 @@ pd_src_hook:
 | $11C0A8 (its draw): `jsr pd_entry_hook` + nops over the frame lookup
 | ($10D392 -> $10D3E4): a2 = the frame's entry, d2 = the frame on entry.
 pd_entry_hook:
-    movem.l %d0-%d1/%a0-%a1,-(%sp)
+    cmpi.w  #41,%d2
+    bcc.s   1f
+    add.w   %d2,%d2                 | the port's frames, as before
+    lea     0x10D392,%a2
+    move.w  (%a2,%d2.w),%d2
+    lea     0x10D3E4,%a2
+    adda.w  %d2,%a2
+    rts
+1:  movem.l %d0-%d1/%a0-%a1,-(%sp)
     move.l  %d2,-(%sp)
     jsr     pd_entry
     addq.l  #4,%sp

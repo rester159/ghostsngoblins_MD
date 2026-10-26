@@ -484,8 +484,11 @@ def install_bossart(rom, sym):
     put(rom, 0xE92, jmp(sym['intro_loop']) + b'\x4e\x71\x4e\x71')
     # stage 5's skulls drawn as the arcade's (type 9 there), and both their and
     # the devils' deaths with the burst
-    expect(rom, 0x107626, bytes.fromhex('4a2c0004670000ac'), 'type 9 draw')
-    put(rom, 0x107626, jmp(sym['skull_draw_hook']) + b'\x4e\x71')
+    expect(rom, 0x107642, bytes.fromhex('0c420003'), 'type 9 frame count')
+    put(rom, 0x107642, bytes.fromhex('0c42000b'))
+    for at, old, new in ((0x10764E, 0x23CA3C, 't9_offs'), (0x107658, 0x23CA18, 't9_frames')):
+        expect(rom, at, be32(old), 'type 9 frame tables')
+        put(rom, at, be32(sym[new]))
     expect(rom, 0x11C15E, bytes.fromhex('0c39000100ffc512'), 'type 2 draw')
     put(rom, 0x11C15E, jmp(sym['pd_draw_hook']) + b'\x4e\x71')
     # the devils' frames 41-46 (the fireball carrier's $FD-$FF) after the port's 41

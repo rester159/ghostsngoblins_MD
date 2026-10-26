@@ -329,29 +329,24 @@ static int burst(Spr *o, const u8 *p, const u16 *cam, int j)
     return 1;
 }
 
-/* $107626 in stage 5 (type 9 = the skulls): frames from skull.c (+30):
- * 0 asleep ($A7), 1/2 rising ($A2 $A3 / $A4 $A5), 3-5 standing; the port's
- * tiles $4A0-$4B3 have $A7 and $A2-$A5, SKULL_T the rest */
-void skull_draw(u8 *p, const u16 *cam, Spr *o)
-{
-    static const u16 ST[3][4] = {               /* (-16,16) (-16,0) (0,16) (0,0) */
-        { SKULL_T + 8, SKULL_T, SKULL_T + 12, SKULL_T + 4 },
-        { SKULL_T + 16, 0x4A4, SKULL_T + 20, 0x4A8 },
-        { SKULL_T + 24, 0x4AC, SKULL_T + 28, 0x4B0 } };
-    u16 f = p[31];
-    if (p[7] == 2 && burst(o, p, cam, p[9])) return;
-    if (f == 0) put(o, p, cam, -8, 8, 0x4A0);
-    else if (f <= 2) {
-        put(o, p, cam, -16, 8, f == 1 ? 0x4A4 : 0x4AC);
-        put(o, p, cam, 0, 8, f == 1 ? 0x4A8 : 0x4B0);
-    } else if (f <= 5) {
-        const u16 *t = ST[f - 3];
-        put(o, p, cam, -16, 16, t[0]);
-        put(o, p, cam, -16, 0, t[1]);
-        put(o, p, cam, 0, 16, t[2]);
-        put(o, p, cam, 0, 0, t[3]);
-    }
-}
+/* The type-9 frames for its draw ($107626, which reads them through the
+ * offset table and frame base patched to these): 0-2 the port's ($23CA18:
+ * the skull asleep, $A7, and rising, $A2 $A3 / $A4 $A5; also the dragon's
+ * fire in stages 3, 4 and 6), 3-5 the skull standing up ($CE1A: A8 A0 A9 A1,
+ * AA A2 AB A3, AC A4 AD A5; the new pieces in SKULL_T), 6-10 the burst (BURST
+ * above) for skull.c to show while it dies. Count, then dx, dy, attribute. */
+#define SK(a, b, c, d) 4, -16, 16, a, -16, 0, b, 0, 16, c, 0, 0, d
+const s16 t9_frames[] = {
+    1, -8, 8, 0x04A0,
+    2, -16, 8, 0x04A4, 0, 8, 0x04A8,
+    2, -16, 8, 0x04AC, 0, 8, 0x04B0,
+    SK(SKULL_T + 8, SKULL_T, SKULL_T + 12, SKULL_T + 4),
+    SK(SKULL_T + 16, 0x4A4, SKULL_T + 20, 0x4A8),
+    SK(SKULL_T + 24, 0x4AC, SKULL_T + 28, 0x4B0),
+    SK(0x4B28, 0x4B2C, 0x4B20, 0x4B24), SK(0x4B38, 0x4B3C, 0x4B30, 0x4B34),
+    SK(0x4B48, 0x4B4C, 0x4B40, 0x4B44), SK(0x4B58, 0x4B5C, 0x4B50, 0x4B54),
+    SK(0x4B68, 0x4B2C, 0x4B60, 0x4B24) };
+const s16 t9_offs[11] = { 0, 8, 22, 36, 62, 88, 114, 140, 166, 192, 218 };
 
 /* $11C15E in stage 5, a dying devil (the port's count +36: 21 down to 1) */
 int pd_burst(u8 *p, const u16 *cam, Spr *o)
