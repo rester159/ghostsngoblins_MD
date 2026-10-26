@@ -464,6 +464,13 @@ hook_map_marker:
 | zero ones: the same requests in the same ascending order, the same bit
 | clears and the same calls of $11CB5C (d0 = id >> 8, d1 = id & $FF,
 | d2 = $FF8410[id]; it keeps d3-d5/a0 only, so the counters are saved).
+| One change: the frequencies go in pairs, $A4+c then $A0+c. The YM2612 has
+| one latch for $A4-$A6, taken by the next $A0-$A2 write, so the original's
+| ascending order ($A0, $A1, $A2, then $A4-$A6) gave each restored channel
+| the block and high fnum bits of whatever $A4-$A6 was written last. That
+| happens after every PCM effect (channel 6's $1A2/$1A6, set by $11CA40) and
+| FM jingle: the held note went to another octave or semitone (B1 -> B2 or
+| F2, C2 -> F#2 -20 cents) until the music's next note on that channel.
     .global sound_scan
 sound_scan:
     lea     0xFF8650,%a1
@@ -476,13 +483,48 @@ sound_scan:
     jmp     0x11CB28
 1:  tst.b   (%a1,%d6.w)
     beq.s   4f
-    moveq   #0,%d5                  | bit 0-7 (id & 7)
+    move.w  %d6,%d0
+    andi.w  #0x1F,%d0
+    cmp.w   #0x14,%d0               | $A0-$A7 / $1A0-$1A7: frequencies in pairs
+    bne.s   7f
+    moveq   #0,%d5                  | channel 0-2
+8:  move.b  (%a1,%d6.w),%d0
+    move.b  %d0,%d1
+    lsr.b   #4,%d1
+    or.b    %d0,%d1
+    btst    %d5,%d1                 | $A0+c or $A4+c requested
+    beq.s   9f
+    bclr    %d5,(%a1,%d6.w)
+    addq.w  #4,%d5
+    bclr    %d5,(%a1,%d6.w)
+    bsr.s   send                    | $A4+c first: it only sets the latch ...
+    subq.w  #4,%d5
+    bsr.s   send                    | ... that the $A0+c write takes
+9:  addq.w  #1,%d5
+    cmp.w   #3,%d5
+    bcs.s   8b
+7:  moveq   #0,%d5                  | bit 0-7 (id & 7)
 2:  btst    %d5,(%a1,%d6.w)
     beq.s   3f
     bclr    %d5,(%a1,%d6.w)
+    bsr.s   send
+3:  addq.w  #1,%d5
+    cmp.w   #8,%d5
+    bcs.s   2b
+4:  addq.w  #1,%d6
+    cmp.w   #64,%d6
+    bcc.s   6f
+    move.w  %d6,%d0
+    andi.w  #3,%d0
+    bne.s   1b                      | still inside this long
+    bra.s   5b
+6:  jmp     0x11CB28
+
+| d6 = byte, d5 = bit: send the music's cached value of that id if it has one
+send:
     lea     0xFF8610,%a0
     btst    %d5,(%a0,%d6.w)
-    beq.s   3f
+    beq.s   1f
     move.w  %d6,%d3
     lsl.w   #3,%d3
     or.w    %d5,%d3                 | id
@@ -496,17 +538,7 @@ sound_scan:
     movem.l %d5-%d6/%a1,-(%sp)
     jsr     0x11CB5C
     movem.l (%sp)+,%d5-%d6/%a1
-3:  addq.w  #1,%d5
-    cmp.w   #8,%d5
-    bcs.s   2b
-4:  addq.w  #1,%d6
-    cmp.w   #64,%d6
-    bcc.s   6f
-    move.w  %d6,%d0
-    andi.w  #3,%d0
-    bne.s   1b                      | still inside this long
-    bra.s   5b
-6:  jmp     0x11CB28
+1:  rts
 
 | The game's random source. The arcade's is its frame counter ($20-21, `inc`
 | in the interrupt at $65CA, read as <$21: zombie waits $D336, rise/walk

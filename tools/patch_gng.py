@@ -256,7 +256,10 @@ def install_features(rom, build_dir):
     put(rom, 0x92A0, jmp(sym['render_gate1']))
     expect(rom, 0x4CBE, bytes.fromhex('7000303900ffb20c'), 'stage-1 second sprite pass')
     put(rom, 0x4CBE, jmp(sym['render_gate2']) + b'\x4e\x71')
-    # sound driver request scan: byte-wise instead of 512 single-bit tests
+    # sound driver request scan: byte-wise instead of 512 single-bit tests, and
+    # the restored frequencies as $A4+c/$A0+c pairs (one YM2612 latch for
+    # $A4-$A6; the original's ascending order put held notes off after every
+    # sound effect). The music data needs no change: its notes are the arcade's.
     expect(rom, 0x11CADC, bytes.fromhex('700072003600'), 'sound request scan')
     put(rom, 0x11CADC, jmp(sym['sound_scan']))
     attenuate_music(rom, MUSIC_ATT)

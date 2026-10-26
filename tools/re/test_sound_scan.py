@@ -1,7 +1,11 @@
-"""Equivalence test: the sound driver's request scan ($11CAB8) in the original
-ROM vs the patched one (byte-wise scan, glue.s sound_scan), from the same RAM
-with random request/enable bitmaps. Compares the Z80 command bytes written,
-in order, and the final 68000 RAM.
+"""Test of the sound driver's restore scan ($11CAB8) in the original ROM vs the
+patched one (byte-wise scan, glue.s sound_scan), from the same RAM with random
+request/enable bitmaps. Both runs' YM2612 writes (the (part, register, value)
+triples queued for the Z80) are checked against a model of the scan: the
+original's in ascending register order, the patched one's the same except
+that each requested $A0+c or $A4+c is sent as the pair $A4+c, $A0+c (the
+chip's single $A4-$A6 latch). The final 68000 RAM must match apart from the
+queue pointers.
 
 usage: test_sound_scan.py <original-layout rom> <patched rom> <ram dump> [cases]
 """
@@ -42,6 +46,36 @@ def run(rom, ram):
     return z80, bytes(uc.mem_read(0xFF0000, 0x10000))
 
 
+def triples(z80):
+    d = [v for a, v in z80 if 0xA01200 <= a < 0xA01500]
+    return [tuple(d[i:i + 3]) for i in range(0, len(d), 3)]
+
+
+def model(ram, pair):
+    req = bytearray(ram[0x8650:0x8690])
+    out = []
+
+    def send(i, b):
+        if ram[0x8610 + i] >> b & 1:
+            r = i * 8 + b
+            out.append((r >> 8, r & 0xFF, ram[0x8410 + r]))
+    for i in range(64):
+        if pair and i & 0x1F == 0x14:
+            for c in range(3):
+                if req[i] >> c & 0x11:
+                    req[i] &= 0xFF & ~(0x11 << c)
+                    send(i, c + 4)
+                    send(i, c)
+        for b in range(8):
+            if req[i] >> b & 1:
+                req[i] &= 0xFF & ~(1 << b)
+                send(i, b)
+    for c in range(6):
+        if ram[0x8698 + c]:
+            out.append((0, 0x28, ram[0x8690 + c]))
+    return out
+
+
 orig = open(sys.argv[1], 'rb').read()
 new = open(sys.argv[2], 'rb').read()
 rng = random.Random(1)
@@ -63,10 +97,12 @@ for case in range(CASES):
         ram[0x8698 + i] = rng.getrandbits(8) & 1
     za, ra = run(orig, ram)
     zb, rb = run(new, ram)
-    calls += len(za)
-    if za != zb or ra[:0xFC00] != rb[:0xFC00]:      # $FFFC00 up: stack scratch
+    ta, tb = triples(za), triples(zb)
+    calls += len(tb)
+    keep = lambda r: r[:0x8400] + r[0x840C:0xFC00]   # minus the queue pointers; $FFFC00 up: stack scratch
+    if ta != model(ram, False) or tb != model(ram, True) or keep(ra) != keep(rb):
         bad += 1
         if bad <= 3:
-            print('case', case, 'differs: z80 writes', len(za), len(zb))
-print('%d cases, %d Z80 bytes written in total, %d mismatches' % (CASES, calls, bad))
+            print('case', case, 'differs: writes', len(ta), len(tb))
+print('%d cases, %d YM2612 writes in total, %d mismatches' % (CASES, calls, bad))
 sys.exit(1 if bad else 0)

@@ -386,6 +386,24 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     loop's drain), their count added to `$FFC04C` as the drains do. Stage 1 and stage 3 (the other pass) runs: every kill
     scores in its hit update; the kill count `$FFC04C`, the item slots and the totals are as before.
 
+44. **Wrong notes in the music after a sound effect** (`glue.s` `sound_scan`, the restore scan at `$11CADC`). The
+    music data is the arcade's, note for note: the arcade's sound program (`gg2.bin`, Z80 at 3 MHz, IRQ 4 per frame,
+    two YM2203s at `$E000-$E003`, latch `$C800`) was run headlessly for every sound code and its register writes
+    logged per IRQ; the port's sound id N is arcade code N-1, one stream tick is one arcade IRQ, and all 29 FM streams
+    (every tune and jingle; 11,396 key-ons over 116,339 ticks; `tools/arcade/music_cmp.py`) have the same pitches (to
+    0.1 semitone) on the same channels at the same ticks; the only differences are writes that spilled into the next
+    IRQ in the Z80 run, the port's fixed +4 total level, and the YM2612's fnums for the same notes (the same with and
+    without `attenuate_music`). The music doesn't use the YM2203s' SSG (no non-zero SSG volume in any music code). The
+    wrong notes came from the driver: after a PCM effect (it marks channel 6's registers, `$11CA40`) or an FM jingle
+    in slots 1-3 ends, it re-sends the music's cached registers in ascending order, `$A0`-`$A2` before `$A4`-`$A6`.
+    The YM2612 has one latch for `$A4`-`$A6`, taken by the next `$A0`-`$A2` write, so each restored channel got the
+    block and high fnum bits of the last `$A4`-`$A6` written by anything, and held that pitch until the music's next
+    note on the channel. Stage 1, a lance thrown every 40 frames (the YM2612 writes read back from the Z80's queue in
+    Genesis Plus GX, one state per frame, 450 frames): channel 6 played B2 or F2 +7 cents for B1 and F#2 -20 cents for
+    C2 in 95 frames. Now the scan sends each requested `$A0+c` or `$A4+c` as the pair `$A4+c`, `$A0+c` and no channel
+    is off (same run, 0 frames); the game RAM at the end is the same apart from a sound driver counter and the stack, and
+    `tools/re/test_sound_scan.py` checks both scans against a model of them (300 random cases).
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
