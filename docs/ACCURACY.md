@@ -660,6 +660,65 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     co-op stage 5 0.914 -> 0.890 updates per frame (9 seeds; the standing skulls are 4 sprites and the bursts are drawn), 1P
     and Firebrand within noise; no faults in stages 1-6 x 1P/co-op/Firebrand and the stage 5 boss room.
 
+64. **Vertical scroll speed** (`rowfast.s`; hooks `$938E`, `$986C`, `$104DF6`, `$110102`, `$1110B8`, `$11570E`, `$11AB02`). Stage 5,
+    Arthur put at y 1167 over the start (the camera then climbs 5 px a frame from 512 to ~1000, a row crossed every 3 frames):
+    the arcade's camera moves every frame (its update count is its frame count); the port lost one update in the climb
+    (frame 88, camera 847 -> 852 over 2 frames). Each row crossing ran the streamer `$10FF6A` at ~43 of the update's lines
+    (Unicorn estimate, `tools/re/uc_profile.py`): the collision ring's row fill `$938E` (32 cells through the lookup `$9346`,
+    bounds checks and a multiply each) and the row's plane entries (`$1100E0`: 256 bytes cleared, then 32 cells with a
+    multiply each). The same bytes are now written with one bounds check of the row and pointers stepped by the map's
+    height and the row's stride, without the clear (the 32 cells cover both halves): 42.9 -> 14.4 lines, that update
+    235 -> 206; the climb runs an update every frame. Checked: `tools/re/test_rowfast.py` (every row routine of stages
+    2-6 on RAM of each stage start and of the climb, every window column and row in a range, three upper-word patterns of
+    d1: identical RAM), `tools/re/test_ab.py` on stage 5 and 6 snapshots (identical RAM and VDP writes), and the climb
+    frame by frame: planes A/B and the ring identical at each of 199 updates. (From Fixed 65 the ring part writes nothing.)
+
+65. **The terrain map as the arcade writes it** (`terrain.c`, `terrain_glue.s`; hooks `$9386`, `$938E`, `$1043B4`, `pad.c`
+    `stage_hold`; supersedes the ring windows of Fixed 37 and 49, whose plane windows stay). The arcade's collision map is
+    its bg RAM (`$2800`/`$2C00`, cell (col & 31) << 5 | (~row & 31)). Logging every write to it (`tools/arcade/bg_writes.py`):
+    a camera crossing a column to the right writes column C + 16, to the left C - 1 (`$81E7`/`$8457`, copy `$8677`); a row
+    upwards row R + 16, downwards R - 1 (`$8783`/`$88A0`); a column write covers rows R - 8 .. R + 23 and a row write columns
+    C - 8 .. C + 23, each cut at its 40-cell buffer's end (rows <= (R & ~15) + 31: stage 5 at R 62, 26 rows; columns <=
+    (C & ~15) + 31: at C 431, 25 columns); the stage draw before play (`$726E`/`$80A0`, every life) scrolls its own camera
+    18 columns right and back, leaving columns C - 1 .. C + 30. The cells come from one world map: at stage 5's start the
+    column left of the screen is stage 4's last (415, a wall), at stage 6's stage 5's 463 (with these and the windows, the
+    arcade's ring at the stages 4, 5 and 6 starts is reproduced byte for byte from the port's maps). The port filled from
+    its plane windows (cam/16 - 15 .. + 16 clamped to the stage's map, so 416 .. 447 at stage 5's start; rows cam y/16 - 5
+    .. + 26) and streamed a row climbing at R + 10, descending at R - 5, a column scrolling left at C - 15. Now the
+    streamers' ring fills write nothing (`$9386` returns, `$938E` only leaves d1 as its plane loop needs it) and the ring
+    is written after each camera update (`$1043B4`) and in the first frame of the stage-start hold (~0.5 frame, the hold
+    keeps its length; the first update after a stage start or a death is on the same frame as before). Arthur's floor
+    probe at every cell around the camera (`tools/re/terrain_probe.py`, arcade `$8CA7` vs port `$85D2`, 1,024-1,792 cells):
+    stage starts 2/4/5/6 disagreed on 8/10/8/10 cells, now 0; stage 3 on 14, now 13; stage 5 after the 5 px climb above
+    (camera 1019) on 173 (rows + 12, + 14, + 17 whole: the top of the screen had the floors of 32 rows lower, and the
+    columns left of the start), now 0; then walking right and dropping to camera 833: 122, now 2 (the cameras a column
+    apart). Planes A/B identical update for update (stage 5 climb and walk; `test_rowfast.py --noring`, stages 2-6).
+    What's left: cells in none of the port's maps keep its tile 0 / attribute `$C0` where the arcade has its world's (zeros
+    under stage 5's start, walls under stage 3's floor and below stage 1-2's row 0: no floor in either game's probe); stage
+    3's 13 cells are its collision map itself (rows 49-55 of columns 0-12 repeat rows 33-39 in the port's, empty in the
+    arcade's), 300 px above the start.
+
+66. **Stage 2's ledge-edge jump and elevator walk steps** (`pad.c` `arcade_input`, `arthur.s` `ground_snap`/`carry_gate`,
+    `glue.s` `tomb_check`/`box_walk`; hooks `$8698`, `$9DFC`, `$10F602`, `$11A432`, `$11A650` and the eight stage loops'
+    ground step calls `$104AA6`, `$10EF06`, `$10FDB6`, `$110DB4`, `$1117FE`, `$118A54`, `$118F92`, `$119ADC`). Both games
+    from the stage 2 start with the same plan (walk, x-triggered jumps), compared update by update
+    (`tools/lockstep/dual_updates.py`): (1) a jump pressed on the step that carries Arthur past the ice ledge's edge (x
+    3880.5): the arcade's press frame walks and takes the jump set-up branch (`$9218`, state `$0503` = 2), which has no
+    floor check, stands a frame and takes off from y 142.80; the port's ground step (`$868E`) made him airborne on the press
+    frame and its take-off (`$B484`) needs the ground, so he fell (Fixed 2's wind-up already gave the frames). Now the
+    wind-up (the press frame and the one after) keeps him on his floor (`ground_snap`, a flag set by `arcade_input`) and
+    off the platform carry (`carry_gate`; the arcade's set-up isn't carried: pressed on the elevator at y 194.1D it takes
+    off from 194.1D, the port from 192.41). (2) Riding the descending elevator (type 3) the arcade's walk skips a step
+    every ~14 updates: its walk test against the objects' boxes (`$9FAE` from `$940E`, every type 1-5 with the boxes of
+    `$A052`, type 0 none) probes y + 1, which enters the elevator's box (y ± 24) whenever the elevator's integer y stands
+    still for an update. The port's test (`tomb_check`) took type 1 only and only stage 1's and 3's loops called it; now it
+    takes types 1-5 with the arcade's table, probes the y of the update's start (the arcade tests before its floor step),
+    and the other loops run it after their ground step. Before: the runs parted at update 336 (664 of 1,000 updates
+    differed); with (1) only at 596 (404); now 1,000 of 1,000 identical: the edge jump, the ledge, the elevator ride with
+    its skipped steps, the jump off it, the landing and the walk on to the water at x 4248. The stepping stones (type 4,
+    x 6032-6608) take the same test but weren't reached in a run; the carry gate on the other movers (stages 3-5) wasn't run.
+
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -723,9 +782,6 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   phase starts a frame earlier; the arcade's small burst leaves the flying pose's right column on the screen for its 3
   frames (its sprite list isn't cleared; not drawn here). (Their spawn fractions: Fixed 53.)
 
-- **Vertical scroll speed:** while the camera catches up a long way vertically (stage 5, 50 frames of 5 px steps) the port
-  loses an update (the row streaming runs past the frame); the camera's moves are the arcade's (Fixed 45).
-
 - **Stage 2's devils, what's left** (Fixed 39; the windows: Fixed 61): a window whose devil dies before it closes keeps its
   slot until another opens (the arcade leaves it open); sound `$12` at the opening is played by id, not compared by ear; the change into a Red
   Arremer after 1200-3600 frames and the subtype 0/2 states (no such spawn records seen in stage 2) are translated but weren't
@@ -735,7 +791,7 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   from Arthur's palette line; the port's
   own opening after the second clear.
 
-- **Smaller:** the stage 2 stone-block edge and elevator walk-step quirks (not measured). "A stage 5 flying
+- **Smaller:** (the stage 2 ledge-edge and elevator walk steps: Fixed 66.) "A stage 5 flying
   knight drifts after ~600 frames" wasn't reproduced: no flying knight (type 3, `$AFFC`) spawns in stage 5 (every slot
   listed with Arthur held at each height from y 600 to 1800 and x 7100/7380: crows, Petite Devils, the Arremer, the Satan,
   skulls and Big Men only); the stage 1 knight's handler (`$1E8C`) matches the arcade's instruction for instruction; the
@@ -761,8 +817,9 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   0.82 updates per frame; 1P and Firebrand stay 0.92-1.0). On identical RAM the per-update fixes cost ~3 scanlines of
   ~165; the rest is the arcade's enemies on the screen. The big costs are the port's own stage 2 enemy pass (`$99C0`,
   ~22 lines) and sprite build (`$B258`, ~12), and Maximo's context swaps (~12).
-- **Terrain map edges:** after Fixed 49 a few cells on the ring's edge columns still differ at a stage start (stage 5: 8
-  of 1,792 probed, stage 6: 10), where the arcade's first fill left them as they were; not traced.
+- **Terrain map, what's left** (Fixed 65): cells outside all of the port's maps are tile 0 / attribute `$C0` where the
+  arcade's world has its own (zeros under stage 5's start, walls under stage 3's floor, data below row 0 in stages 1-2);
+  stage 3's collision map repeats rows 33-39 at rows 49-55 in columns 0-12 (13 probe cells above its start).
 
 - **Intro** (Fixed 62): between the graveyard and the black part the port shows 6 black frames while `$E0C` loads its
   VRAM (the arcade shows the characters on black); the cloak's blinking is the port's 7 on/off steps, not the arcade's ~26;
