@@ -111,6 +111,10 @@ Without `--features` the patcher produces the compatibility-only ROM.
   - **Spawner:** called after the scroll in every stage loop, as the arcade's (stage 1's already was), so camera-triggered spawns come on the arcade's update and a new enemy first moves the update after.
   - **Terrain:** the collision-map windows of stages 2-5 start at cam/16 - 15, the arcade's, like stage 1's.
 - **Music volume** (all modes): the music is 6 dB quieter; the sound effects are unchanged. The music (stage tunes, map and intro themes, jingles) is the sequencer's recorded YM2612 register streams, and the action effects are separate PCM clips, so the patcher adds 8 steps of attenuation to each carrier operator's total level in the stream data (`attenuate_music` and `MUSIC_ATT` in `tools/patch_gng.py`). It's a data change only, with no code and no run-time cost (co-op stage 5 over 12 input seeds: identical to the build without it). Measured: −5.2 to −6.3 dB on the stage music and jingles. The map theme was heavily clipped before; it's about −4 dB as measured and still peaks at full scale.
+- **Crows, stage 2's devils and the Red Arremers' first state** (all modes; `tdevil.c`, `tdevil_glue.s`, patches in `install_crow_tdevil`; evidence in `docs/ACCURACY.md`, Fixed 38-40):
+  - **Crows:** the crows of stage 2's last stretch (arcade subtype 3) perch until on screen and wait on random timers (`$A755`: `$A66F`, `$A775`, `$A796`), then fly at Arthur (`$A7DE`), as in the arcade; the port gave them subtype 4's entry (`$A72F`: flying in from off the screen at double speed), drew no randoms and held them back until 512 px from the camera (`$452C`). Stage 1, 3 and 5 crows were already the arcade's.
+  - **Stage 2's window devils** (type 4, `$B146`): states 0 and 1 translated whole in place of the port's (`$107A48`): the window opening (20 frames, sound `$12`; the window tiles aren't drawn), the 10-frame wait and the leap at Arthur in a falling arc, walking 16-160 frames (random), hopping 32/48 px (random) along a sine, gliding 60-180 frames (random), coming down, walking off ledges into a hop, dodging a weapon that comes at it from its side of Arthur (`$B630`), removal as soon as it is off the screen (`$B25E`), and the change into a Red Arremer after 1200-3600 frames by rank (`$B245`). Dying and removal stay the port's; the port's own scripts draw it.
+  - **Red Arremers** start in the arcade's first state for their subtype (`$B66C`): subtype 0 is awake at once, so stage 3's Arremer from after the checkpoint follows Arthur into the dragon fight (two there, as in the arcade; the port's slept where it was spawned).
 
 ## Engine hooks
 
@@ -160,6 +164,10 @@ Without `--features` the patcher produces the compatibility-only ROM.
 | `$6938` | `jmp pace_hook` | `se_pace`: puts the hidden flags back, takes weapon slot 0 for the key, then `pace_hook` |
 | `$91E`; `$104AD2`, `$10EF2E`, `$10FDDE`, `$110DDC`, `$1179FC`, `$118A80`, `$118FBE`, `$119B08`; `$104B0C`, `$10EF44`, `$10FDF4`, `$110DF2`, `$117A20`, `$118A98`, `$118FD6`, `$119B20` | the spawner `jsr $A460` / `jsr $26DA` before the enemy pass / the scroll `jsr $104382` (`jsr $525E` after it in the first loop) | `se_spawn` (not once the boss is dead); nops; `se_scroll_spawn` / `se_525e_spawn`: the scroll, then the spawner |
 | `$11A986`, `$104D16`, `$10F124`, `$11001C` | stages 2-5 map window start (cam/16 - 8) | `mw_stage2`-`mw_stage5`: cam/16 - 15 |
+| `$47FA` | crow (subtypes 3-5, `$44FE`) waiting state: `cmpi.b #3,6(a4)` -> the off-screen entry | `cmpi.b #4`: subtype 3 perches as the arcade's `$A755` |
+| `$452C` | `cmpi.b #1,$FFC512` / `bne.s` (stage 2 subtype-3 crows held back past 512 px) | `bra.s $4552` |
+| `$107A5E` | type-4 handler state dispatch (`moveq #0,d0` / `move.b 7(a4),d0` / `beq.w`) | `jmp tdevil_entry`: states 0 and 1 -> `tdevil_update` (`tdevil.c`), 2 and 3 the port's |
+| `$4278` | Red Arremer first state: subtype 2 -> 2, else 1 | subtype & 3, 0 -> 3 (arcade `$B66C`) |
 
 Engine variables used: `$FFC000` score (BCD), `$FFC004` TOP SCORE, `$FFC500` lives,
 `$FFC501` difficulty rank, `$FFC561` rank floor, `$FFC512` stage index (0-5 = stages 1-6, 6 = the final room),

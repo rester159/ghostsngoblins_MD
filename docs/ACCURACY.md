@@ -339,6 +339,33 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     differs by row, not column (see Open). Stages 2 and 4 were only probed near their start, where the clamp gives
     the same window in both versions (8 and 10 cells there, left of the stage start and below the screen).
 
+38. **Stage 2's crows** (`$47FA`, `$452C`; arcade type 1 `$A44A`). The arcade's crows come in subtypes (`-$E`): 2 (stages 3, 5:
+    `$A642`), 3 (stage 2's six crows at x 6208-6576: perch `$A755`, then fly straight at Arthur `$A7DE`), 4 (fly in from off the
+    screen `$A72F`, then `$A81C`) and 5 (stage 1: perch `$A755`, then `$A849`). The port's subtype 3-5 handler (`$44FE`) sent
+    subtype 3 into subtype 4's entry (moving in at double speed while off the screen), so it drew none of the perch randoms
+    (`$A66F` once it is on screen, `$A775`/`$A796` at each 55-75 frame perch timer), and stage 2 held these crows back until they
+    were 512 px from the camera (`$452C`). Now subtype 3 perches. Lockstep (Arthur moved through the end of stage 2 to x 6350,
+    1,800 frames): every crow's state, x and y and the random state identical (18 draws), where the old build differed on every
+    frame and its random parted at the first draw (frame 302). Unchanged and checked: stage 1 (2,400 frames, 18 draws), stage 3
+    (1,490 frames, the `$A6AD` flight draws), the stage 5 room (1,500 frames; at a life start both draw `$A66F` for the room's
+    three crows on the update after their set-up).
+
+39. **Stage 2's window devils** (type 4; `tdevil.c`, hook `$107A5E`; arcade `$B146`-`$B64D`). The port's states 0/1 were its own:
+    no random, the devil turned round at ledges, never glided or dodged, and was only removed 256 px past the screen or when the
+    scroll section changed, where the arcade removes it the frame it is off the screen (`$B25E`, so one spawned off screen goes
+    at once). Now the arcade's, routine by routine (window `$B41E`, leap `$B4BD`/`$B521` with the tables `$B593`-`$B5F3`, walk
+    `$B276` with `$B2BF`, glide `$B309` with `$B348`, hop `$B36F` with `$B37B` and the sine `$4140`, come-down `$B3CD`, dodge
+    `$B630`/`$B87E`, life timer `$B1BD`/`$B245`); the floor probe is the port's (`$107ED6` = `$8CA7`). The spawner already
+    matched (same records, every 76 frames). Lockstep through the window section (x 4700-5950, 2,500 frames): 11 spawns in
+    both, 5 removed at once in both, the other 6 living 155-305 frames, identical frame for frame, and the random identical
+    until another enemy's draw (type 10, `$D074`); old build: 9 spawns, 2 removed, lives of 25-419, different from frame 0.
+    The dodge test (`$B630` called on 3,000 random placements of the devil, Arthur and four weapons): 0 mismatches.
+
+40. **Red Arremers' first state** (`$4278`; arcade `$B66C`): the arcade starts subtype `& 3` (0 -> 3: awake at once, `$B734`),
+    the port 2 for subtype 2 and 1 (asleep until Arthur is within 48 px of its height) for the rest. Stage 3's Arremer spawned
+    after the checkpoint (subtype 0, x 1344) never woke in the port and stayed where it was spawned, so the dragon fight had one
+    Arremer instead of the arcade's two. From the checkpoint to the dragon (2,400 frames): two Arremers at the dragon in both.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -374,11 +401,10 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   which can move a drift step by a frame.
 - **Stage 5 boss room camera:** with the same jump, the port's camera follows Arthur up (y 1475 -> 1512) while
   the arcade's stays at 1475; while it scrolls the port lost an update (one frame).
-- **Spawn and activation rules:** stage 2 window devils are never rejected off-screen (arcade `$B25E`,
-  on-screen test `$B193`); stage 2 crows start 56-64 frames before they're visible (port `$450A` uses
-  512 px; arcade `$A72F` waits until on screen, then perches on random timers); stage 2 tower devils
-  (16 spawns, 218-frame life vs the arcade's 9 and 579); the stage 3 dragon fight has one Red Arremer
-  instead of two.
+- **Stage 2's devils, what's left** (Fixed 39): the window tiles opening and closing aren't drawn (the port has no window
+  art; their 20-frame timing is kept); sound `$12` at the opening is played by id, not compared by ear; the change into a Red
+  Arremer after 1200-3600 frames and the subtype 0/2 states (no such spawn records seen in stage 2) are translated but weren't
+  reached in a run. The Red Arremers' own AI (`$B64E`) is still the port's (Fixed 40 only fixes their first state).
 - **Ending:** the port walks Arthur 240 frames before the text and has no princess scene (arcade: text 1
   frame after Astaroth dies; 131-frame princess scene on the second clear); +1,000 points at the room's
   end that the arcade doesn't give; "Return to starting point" drawn over the room instead of on black.

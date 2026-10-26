@@ -444,6 +444,7 @@ def install_features(rom, build_dir):
         expect(rom, a, lea(reg, src), 'overlay lea')
         put(rom, a, jsr(sym[name]))
     install_stage_end(rom, sym)
+    install_crow_tdevil(rom, sym)
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)
@@ -498,6 +499,31 @@ def install_stage_end(rom, sym):
     put(rom, 0x92A0, jmp(sym['se_rg1']))
     expect(rom, 0x6938, jmp(sym['pace_hook']), 'update start')
     put(rom, 0x6938, jmp(sym['se_pace']))
+
+
+def install_crow_tdevil(rom, sym):
+    """Crows (type 1), stage 2 window/tower devils (type 4), the stage 3 Red Arremers (crow.c, tdevil.c)."""
+    jmp = lambda a: b'\x4e\xf9' + be32(a)
+    # crows, subtypes 3-5 ($44FE, stages 1 and 2): subtype 3 perches on random
+    # timers before flying at Arthur, as the arcade's ($A725: $A755, then $A7DE);
+    # only subtype 4 flies in from off the screen ($A812: $A72F). The port gave
+    # subtype 3 the off-screen entry.
+    expect(rom, 0x47FA, bytes.fromhex('0c2c000300066700'), 'crow subtype 3 entry')
+    put(rom, 0x47FA, bytes.fromhex('0c2c000400066700'))
+    # ... and its stage 2 hold-back (subtype 3 not set up while more than 512 px
+    # right of the camera, $452C) goes: the arcade sets them up at once and they
+    # wait for the on-screen flag
+    expect(rom, 0x452C, bytes.fromhex('0c39000100ffc512661c'), 'stage 2 crow hold-back')
+    put(rom, 0x452C, b'\x60\x24')
+    # stage 2's type-4 devils: states 0 and 1 as the arcade's ($B146; tdevil.c)
+    expect(rom, 0x107A5E, bytes.fromhex('7000102c00076700003c'), 'type 4 state dispatch')
+    put(rom, 0x107A5E, jmp(sym['tdevil_entry']) + b'\x4e\x71\x4e\x71')
+    # Red Arremers (type 5): the first state by subtype as the arcade's ($B66C:
+    # subtype & 3, 0 -> 3), so subtype 0 (stage 3's after the checkpoint, which
+    # follows Arthur into the dragon fight) starts at once ($B734) instead of
+    # sleeping like subtype 1 until Arthur is within 48 px of its height
+    expect(rom, 0x4278, bytes.fromhex('0c2c00020006670a197c0001000860000236197c000200086000022c'), 'Red Arremer first state')
+    put(rom, 0x4278, bytes.fromhex('102c000602000003660270031940000860000234') + b'\x4e\x71' * 2)
 
 
 FRAME = 0x200                  # 32x32 4bpp, 16 tiles column-major
