@@ -289,6 +289,32 @@ def install_features(rom, build_dir):
     put(rom, 0x11080E, jsr(sym['hook_satan_die']))
     expect(rom, 0x11082C, jsr(0xB7F2), 'Satan death sound')
     put(rom, 0x11082C, b'\x4e\x71' * 3)
+    # Astaroth (the final room): the arcade's handler (astaroth.c) for the port's
+    # states 0 and 1, its 22-frame burst and sounds before the port's death,
+    # and its shots moved as the arcade's projectile type $0A
+    expect(rom, 0x111BB2, bytes.fromhex('7000102c0007'), 'Astaroth state dispatch')
+    put(rom, 0x111BB2, jsr(sym['hook_ast']))
+    expect(rom, 0x111DE8, bytes.fromhex('4a2c00086630'), 'Astaroth death entry')
+    put(rom, 0x111DE8, jsr(sym['hook_ast_die']))
+    expect(rom, 0x111E10, jsr(0xB942) + jsr(0xB7F2), 'Astaroth death sounds')
+    put(rom, 0x111E10, b'\x4e\x71' * 6)
+    expect(rom, 0x11B1C8, bytes.fromhex('0c2c000a000a660007e0'), 'type-10 handler type test')
+    put(rom, 0x11B1C8, jsr(sym['hook_ast_shot']))
+    expect(rom, 0x32EE, bytes.fromhex('0c2c0009000a6600004e'), 'shot pool pass type chain')
+    put(rom, 0x32EE, jsr(sym['hook_pool10']))
+    expect(rom, 0xAE9C, bytes.fromhex('0c2c0003000a6720'), 'shot pool builder type chain')
+    put(rom, 0xAE9C, jsr(sym['hook_pool_draw']))
+    # the end of the final room as the arcade's (ending.c): the ending the frame
+    # after Astaroth's removal (no 240-frame wait, no 1,000 points, no sound),
+    # the first clear's text on black, the princess scene's timing
+    for a in (0x10EA5A, 0x1174B2):      # two copies of the boss-removal routine
+        expect(rom, a, bytes.fromhex('13fc000100ffdb0833fc00f000ffdb0a527900ffdb0e2f0c49f900ffb400'
+                                     '303c0c094eb900007c1c285f4eb90000b9424e75'), 'room-end block')
+        put(rom, a, jmp(sym['hook_room_end']))
+    expect(rom, 0x113916, bytes.fromhex('4a3900ff7fc266000084'), 'ending routine')
+    put(rom, 0x113916, jsr(sym['hook_end_frame']))
+    expect(rom, 0x11392A, bytes.fromhex('13fc000100ff7fc2'), 'ending start')
+    put(rom, 0x11392A, jsr(sym['hook_end_start']) + b'\x4e\x71')
     # the arcade's second random ($68F9, $6E/$6F = $FFC62C, arcrand.c) is seeded
     # at power-on and game start only: the ten stage inits reloaded $87CD
     for a in (0x9C0, 0x104728, 0x10EB60, 0x10FA2A, 0x1109D0, 0x111450, 0x11761C,
