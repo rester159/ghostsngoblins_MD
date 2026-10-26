@@ -165,7 +165,7 @@ static void anim_set(u16 a) { wr16(&X(0), a); wr16(&X(3), a); X(2) = 0; }
 static void remove_far(void)            /* $8F62 */
 {
     if ((u16)(XI - c->camx + 0x80) > 0x200 || (u16)(YI - c->camy + 0x40) > 0x180) {
-        ST0 = 3; ST1 = 0;
+        ST0 = 3; ST1 = 0; ST2 = 0;
     }
 }
 
@@ -284,27 +284,12 @@ static void fly(void)                   /* $ABBE */
     remove_far();
 }
 
-/* $AE70: the fireball, into the port's shot pool ($FFC220 = <$A7/<$A8) as its
- * type 6 with +8 = $D8 (petite_shot_aim / petite_shot_vel: the arcade's shot
- * type 8, direction +9: 0 right, 1 left, 2 down; speed by rank +11). The
- * fractions are left from the slot's last shot, as in the arcade. */
+/* $AE70: the fireball (shot_out: the pool, below), then the slot's side */
+static void shot_out(u8 dir);
+static int shots_free(void);
 static void drop(u8 dir)
 {
-    u16 *pool = (u16 *)0xFFC220;
-    u8 *p, **sp;
-    u16 y = YI - 10;
-    sp = *(u8 ***)0xFFC228;
-    p = *--sp;
-    *(u8 ***)0xFFC228 = sp;
-    pool[0]--;
-    p[11] = (c->rank & 0x30) >> 4;
-    wr16(p, XI);
-    RAM32(p + 16) = (u32)XI << 8 | p[19];
-    wr16(p + 2, y);
-    RAM32(p + 20) = (u32)y << 8 | p[23];
-    p[7] = 0; p[8] = 0xD8; p[9] = dir;
-    p[4] = 1; p[5] = 0;
-    p[10] = 6;
+    shot_out(dir);
     X(0x0C) = 1;
     X(0x11) = dir;
     ST1 = 2; ST2 = 0;
@@ -313,7 +298,7 @@ static void drop(u8 dir)
 static void drop_check(void)            /* $AE0E */
 {
     u16 d;
-    if (!X(0x0D) || !RAM16(0xFFC220)) return;
+    if (!X(0x0D) || !shots_free()) return;
     d = c->ay + 0x10;
     if (d >= YI && (u16)(d - 0x10) <= YI) {         /* level with him */
         d = c->ax - 0x32;
@@ -545,7 +530,40 @@ static u8 port_frame(u16 e)
     return (attr & 4 ? L : R)[code & 15];
 }
 
+/* the arcade handler for states 0 and 1 on the image (HOST builds: tools/re/test_petite.py) */
+void petite_step(u8 *img, const Ctx *x)
+{
+    s = img;
+    c = x;
+    if (ST0 == 0) setup(); else play();
+}
+
+#ifndef HOST
 /* ---- the port side ---------------------------------------------------- */
+
+/* the fireball into the port's shot pool ($FFC220 = <$A7/<$A8) as its type 6
+ * with +8 = $D8 (petite_shot_aim / petite_shot_vel_sel: the arcade's shot
+ * type 8, direction +9: 0 right, 1 left, 2 down; speed by rank +11). The
+ * fractions are left from the slot's last shot, as in the arcade. */
+static int shots_free(void) { return RAM16(0xFFC220) != 0; }
+static void shot_out(u8 dir)
+{
+    u16 *pool = (u16 *)0xFFC220;
+    u8 *p, **sp;
+    u16 y = YI - 10;
+    sp = *(u8 ***)0xFFC228;
+    p = *--sp;
+    *(u8 ***)0xFFC228 = sp;
+    pool[0]--;
+    p[11] = (c->rank & 0x30) >> 4;
+    wr16(p, XI);
+    RAM32(p + 16) = (u32)XI << 8 | p[19];
+    wr16(p + 2, y);
+    RAM32(p + 20) = (u32)y << 8 | p[23];
+    p[7] = 0; p[8] = 0xD8; p[9] = dir;
+    p[4] = 1; p[5] = 0;
+    p[10] = 6;
+}
 
 #define NREC 6
 typedef struct { u8 *slot; u8 s[48]; } Rec;
@@ -587,7 +605,7 @@ void petite_update(u8 *p, const Ctx *x)
      * frames by frame + slot counter, the same box for class 0); +5 is only
      * forced to 0 in the set-up, where the arcade's flag isn't read */
     ONS = p[5];
-    if (ST0 == 0) setup(); else play();
+    petite_step(s, x);
     f = port_frame(rd16(&X(3)));
     p[4] = FL;
     p[5] = f ? ONS : 0;                 /* the port can't draw frame 0 (fault $87) */
@@ -604,6 +622,11 @@ void petite_update(u8 *p, const Ctx *x)
     p[26] = 0;
     p[36] = 0; p[37] = 0;               /* its death timer starts from 0 */
 }
+#else
+int host_free = 1, host_nshot; u8 host_shot[16];
+static int shots_free(void) { return host_free; }
+static void shot_out(u8 dir) { if (host_nshot < 16) host_shot[host_nshot] = dir; host_nshot++; }
+#endif
 
 /* the fireball's speeds (the arcade's shot type 8: $5D6F -> $5D77/$5D83/$5D8F
  * by rank), as the port's 16-direction table (0 right, 8 left, 4 down) */
