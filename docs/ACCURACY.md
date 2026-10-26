@@ -591,6 +591,14 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   likeliest source was stage 5's Big Men (Fixed 54). Stage 2's water death y (24 in the arcade, 25 in the port) came from
   the restart's y fraction (Fixed 46): with the fractions equal the fall and the death are identical (y 79, 74, ... 24).
 
+- **Section changes:** where the camera jumps to the next section (stage 2 town, 5578 -> 5833, the arcade's jump too) the
+  port blanks the display and refills the whole plane (`$93D6`, 32 columns) over 8 frames with the game paused; the
+  arcade's jump shows the new section on the next frame.
+- **"Invisible troll" (itch.io report, stage 2 by the brick building after the ladder building):** not reproduced. With
+  a check that every live, on-screen Big Man has sprites with pixels in the sprite table on every frame, over the ladder
+  building and past it (teleported to x 5488/5632/5760 and walking on, ~6,000 frames) every one was drawn whenever the
+  game ran; the only frames without were the 8 paused, blank frames of the section change above. The Big Men's own
+  stand-ins in that area (a clamp to x 5200-5808 and a floor assumed where the probe found none) were removed with Fixed 54.
 - **Terrain map edges:** after Fixed 49 a few cells on the ring's edge columns still differ at a stage start (stage 5: 8
   of 1,792 probed, stage 6: 10), where the arcade's first fill left them as they were; not traced.
 
