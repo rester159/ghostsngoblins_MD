@@ -48,6 +48,9 @@ u8 arcade_input(u8 raw, InFilter *f, int on_ground)
         out &= ~0x20;                   /* this frame is still a walk frame */
     }
     f->prev_jump = jump;
+    /* the press frame and the frame between keep him on his floor (arthur.s
+       ground_snap): the arcade's jump set-up ($9218/$9542) has no floor check */
+    RAM8(0xFF9455) = (RAM8(0xFF9455) & ~4) | (f->wind ? 4 : 0);
     return ~out;
 }
 

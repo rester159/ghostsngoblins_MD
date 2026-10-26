@@ -5,7 +5,8 @@
 
 | Flags in unused bytes of the player control block $FF9440 (+17, +21;
 | cleared with it by $7FA4), which Maximo's context swap covers. WALK_FLAGS:
-| bit 0 the stand-up frame, bit 1 the crouch-entry frame.
+| bit 0 the stand-up frame, bit 1 the crouch-entry frame, bit 2 a jump's
+| wind-up (pad.c arcade_input, ground_snap below).
     .set    WALK_FLAGS, 0xFF9455
     .set    EXACT_FLOOR, 0xFF9451
 
@@ -84,9 +85,36 @@ lad_exit:
 | the arcade's instead of snapping down. Stage start, right held, arcade:
 | walk at y 64.28, then land at 62.03 without walking; the port walked and
 | snapped in the same update.
+| Also (docs/ACCURACY.md, Fixed 66): during a jump's wind-up (pad.c
+| arcade_input sets WALK_FLAGS bit 2 on the press frame and the frame between,
+| the walk and stand-still frames before the take-off) he stays on his floor.
+| The arcade's press frame walks and then takes the jump set-up branch ($9218),
+| which has no floor check, and the next frame ($9542) neither: a jump pressed
+| on the step that carries him past a ledge's edge still takes off from it
+| (stage 2, the ice ledge ending at x 3880.5: walk/stand at 142.80, then up).
+| The port's ground step ($868E) made him airborne on the press frame, and the
+| take-off ($B484) needs the ground: he fell instead.
+| $9DFC (stage 2's elevators and stepping stones, types 3/4), $10F602,
+| $11A432, $11A650 (the other movers): the platform carry of Arthur, skipped while he
+| jumps: `jsr carry_gate` over `tst.w $FF9410`; also skipped in a jump's
+| wind-up, as the arcade's jump set-up isn't carried (stage 2's elevator:
+| pressed on it at y 194.1D, the arcade takes off from 194.1D, the port from
+| 192.41 after two frames of carry). Z clear = no carry.
+    .global carry_gate
+carry_gate:
+    tst.w   0xFF9410
+    bne.s   1f
+    btst    #2,WALK_FLAGS
+1:  rts
+
     .global ground_snap
 ground_snap:
-    tst.b   EXACT_FLOOR
+    btst    #2,WALK_FLAGS
+    beq.s   2f
+    moveq   #0,%d1                  | a floor right at his feet: y unchanged
+    moveq   #1,%d0
+    rts
+2:  tst.b   EXACT_FLOOR
     bne.s   1f
     jsr     0x8744
     tst.l   %d0

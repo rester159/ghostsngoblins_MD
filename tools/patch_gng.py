@@ -460,6 +460,7 @@ def install_features(rom, build_dir):
     install_ending(rom, sym)
     install_rowfast(rom, sym)
     install_terrain(rom, sym)
+    install_boxes(rom, sym)
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)
@@ -536,6 +537,17 @@ def install_terrain(rom, sym):
     expect(rom, 0x1043B4, bytes.fromhex('33fc005b00ffc3706106'), 'camera update end')
     put(rom, 0x1043B4, jsr(sym['ter_cam']) + b'\x4e\x71' * 2)
     # the stage draw's fill: pad.c stage_hold calls ter_fill in its first frame
+
+
+def install_boxes(rom, sym):
+    """The arcade's walk test against the objects' boxes in every stage loop (glue.s box_walk; Fixed 66)."""
+    for a in (0x104AA6, 0x10EF06, 0x10FDB6, 0x110DB4, 0x1117FE, 0x118A54, 0x118F92, 0x119ADC):
+        expect(rom, a, jsr(0x8138), 'ground step call')
+        put(rom, a, jsr(sym['box_walk']))
+    # the platform carry skips a jump's wind-up too (arthur.s carry_gate)
+    for a in (0x9DFC, 0x10F602, 0x11A432, 0x11A650):
+        expect(rom, a, bytes.fromhex('4a7900ff9410'), 'platform carry jump test')
+        put(rom, a, jsr(sym['carry_gate']))
 
 
 def install_stage_end(rom, sym):

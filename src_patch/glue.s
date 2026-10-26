@@ -781,6 +781,11 @@ arc_rand_asm:
 |   on the ground ($FF9408 = 1) and moving: probe the old x +/- 1 (low byte,
 |     same high byte) and y + 1; if it's inside a box the move is cancelled
 |     (x back to $FF9220, fraction and all), as the arcade skips its x step.
+|     For every object type with a box (1-5, docs/ACCURACY.md Fixed 66), as
+|     the arcade's (type 0 has none): riding stage 2's elevator (type 3, box
+|     y +/- 24) the probe at y + 1 enters the box whenever the elevator's
+|     integer y stands still for an update, and the arcade's walk skips that
+|     step (every ~14 updates going down); the port walked on.
 |   rising ($FF9410 = 1): no test.
 |   falling: probe (x, y - 1); inside a box and not below its y, land: on top
 |     (y + 19), or where he is if he's within -3..+2 of its y. The y fraction
@@ -791,9 +796,29 @@ arc_rand_asm:
 | the stage 3 rocks kept the port's old box.
     .set TOMB_X, 12                     | $A052 type 1: x reach (E4; E5 = 2 * 12)
     .set TOMB_Y, 19                     | y reach and landing height (E6; E7 = 2 * 19)
+| The stage loops other than stage 1's and 3's ($104AA6, $10EF06, $10FDB6,
+| $110DB4, $1117FE, $118A54, $118F92, $119ADC) never called it: `jsr box_walk`
+| over `jsr $8138` (the ground step) runs the step and then the walk test
+| above (Fixed 66), as the arcade's walk ($940E) does in every stage. The
+| landing part stays stage 1's and 3's (types 3 and 4 land through the port's
+| platform code, on the same y as the arcade's).
+    .global box_walk
+box_walk:
+    jsr     0x8138
+    cmpi.w  #1,0xFF9408
+    bne.s   1f
+    movem.l %d0-%d7/%a1-%a2,-(%sp)
+    move.l  0xFF9000,%d5
+    lsr.l   #8,%d5
+    move.w  0xFF9004,%d7
+    lea     0xFFE000,%a2
+    moveq   #29,%d4
+    bra.w   tomb_walk
+1:  rts
+
     .global tomb_check
 tomb_check:
-    movem.l %d0-%d7/%a2,-(%sp)
+    movem.l %d0-%d7/%a1-%a2,-(%sp)
     move.l  0xFF9000,%d5
     lsr.l   #8,%d5                  | x
     move.w  0xFF9004,%d7            | y
@@ -845,10 +870,10 @@ tomb_check:
     move.l  #0x44000,0xFF9404       | 4.25, as every landing (the fall speed
     move.w  #1,0xFF9408             | if he walks off: the arcade's $51B)
     clr.w   0xFF9410
-    bra.s   9f
+    bra.w   9f
 8:  lea     48(%a2),%a2
     dbf     %d4,2b
-    bra.s   9f
+    bra.w   9f
 
 tomb_walk:
     move.l  0xFF9220,%d3
@@ -859,12 +884,20 @@ tomb_walk:
     bgt.s   4f
     subq.b  #2,%d2                  | moving left: old x - 1
 4:  addq.b  #1,%d2                  | moving right: old x + 1
-    move.b  %d7,%d6
-    addq.b  #1,%d6                  | probe y + 1
+    move.l  0xFF922A,%d6            | y at the update's start (the arcade's walk
+    lsr.l   #8,%d6                  | tests before its floor step; on a moving
+    addq.b  #1,%d6                  | platform that's the y the carry left): + 1
 5:  tst.b   4(%a2)
     beq.s   7f
-    cmpi.b  #1,10(%a2)
-    bne.s   7f
+    moveq   #0,%d0                  | the type's box from the arcade's table ($A052)
+    move.b  10(%a2),%d0
+    subq.w  #1,%d0
+    cmpi.w  #4,%d0                  | types 1-5 (0 is no box)
+    bhi.s   7f
+    add.w   %d0,%d0
+    add.w   %d0,%d0
+    lea     tomb_box,%a1
+    adda.w  %d0,%a1
     move.w  %d2,%d0
     sub.w   (%a2),%d0
     addi.w  #0x80,%d0
@@ -872,20 +905,24 @@ tomb_walk:
     bhi.s   7f
     move.b  %d2,%d0
     sub.b   1(%a2),%d0
-    addi.b  #TOMB_X,%d0
-    cmpi.b  #2*TOMB_X,%d0
+    add.b   (%a1),%d0
+    cmp.b   1(%a1),%d0
     bhi.s   7f
     move.b  %d6,%d0
     sub.b   3(%a2),%d0
-    addi.b  #TOMB_Y,%d0
-    cmpi.b  #2*TOMB_Y,%d0
+    add.b   2(%a1),%d0
+    cmp.b   3(%a1),%d0
     bhi.s   7f
     move.l  0xFF9220,0xFF9000       | blocked: the move doesn't happen
     bra.s   9f
 7:  lea     48(%a2),%a2
     dbf     %d4,5b
-9:  movem.l (%sp)+,%d0-%d7/%a2
+9:  movem.l (%sp)+,%d0-%d7/%a1-%a2
     rts
+| $A052: x reach, 2 x reach, y reach, 2 y reach of types 1-5 (1 tombstones and
+| stage 3's rocks, 3 stage 2's elevators, 4 its stepping stones, ...).
+tomb_box:
+    .byte   12, 24, 19, 38,  15, 30, 24, 48,  31, 62, 24, 48,  16, 32, 23, 46,  26, 52, 21, 42
 
 | $6A88: `jmp obj_dispatch`. The object pass ($69A2) then picked its handler
 | from the index in d4 (0-14, set by moveq/move.b just before, so its high
