@@ -50,7 +50,14 @@ cont_draw:
 | drain), with their count added to $FFC04C as the drains do.
     .global score_now
 score_now:
-    movem.l %d0-%d7/%a0-%a6,-(%sp)
+    movem.l %d0/%a0,-(%sp)              | most updates have no score queued: look first
+    move.w  0xFFB402,%d0                | the queue's read index ($7C30)
+    lea     0xFFB404,%a0
+    cmpi.b  #0x0C,0(%a0,%d0.w)          | a $0Cxx entry at the head?
+    movem.l (%sp)+,%d0/%a0              | (flags kept)
+    beq.s   1f
+    rts
+1:  movem.l %d0-%d7/%a0-%a6,-(%sp)
     lea     0xFFB400,%a4
     lea     0xFFC000,%a5
     lea     0x28F2E,%a0
