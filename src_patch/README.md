@@ -116,6 +116,10 @@ Without `--features` the patcher produces the compatibility-only ROM.
   - **Stage 2's window devils** (type 4, `$B146`): states 0 and 1 translated whole in place of the port's (`$107A48`): the window opening (20 frames, sound `$12`; the window tiles aren't drawn), the 10-frame wait and the leap at Arthur in a falling arc, walking 16-160 frames (random), hopping 32/48 px (random) along a sine, gliding 60-180 frames (random), coming down, walking off ledges into a hop, dodging a weapon that comes at it from its side of Arthur (`$B630`), removal as soon as it is off the screen (`$B25E`), and the change into a Red Arremer after 1200-3600 frames by rank (`$B245`). Dying and removal stay the port's; the port's own scripts draw it.
   - **Red Arremers** start in the arcade's first state for their subtype (`$B66C`): subtype 0 is awake at once, so stage 3's Arremer from after the checkpoint follows Arthur into the dragon fight (two there, as in the arcade; the port's slept where it was spawned).
 
+- **Petite Devils and stage 5's skulls** (all modes; `petite.c`, `skull.c` and their glue, patches in `install_petite`; evidence in `docs/ACCURACY.md`, Fixed 51-52):
+  - **Petite Devils** (type 2, `$A89C`): stage 2's come out of the rock face at one of the arcade's places on the screen, open to weapons after 32 frames; every devil drifts and turns on the arcade's random timers and turning plans four times, then flies off; stage 5's carry a fireball and drop it sideways when level with Arthur and more than 50 px away or straight down when right above him (the port's orb shot moving at the arcade's shot-8 speeds by rank), then turn through 8 directions. The port's homed on Arthur for 900 frames. Their death lasts the arcade's 21 frames with its sound in every stage.
+  - **Skulls** (type 9, stage 5, `$CC45`): asleep on the ledges until Arthur is within 32 px, then they jump up, stand as skeletons, hop twice toward him and leap at his x along a half sine, landing on the floor (the port's probe). The port shot them off as projectiles. They have no port art: the type-9 frames (a blue orb) are drawn. The dragon's fire (also type 9, stages 3, 4, 6) is unchanged.
+
 ## Engine hooks
 
 | Address | Original | Hook |
@@ -175,6 +179,10 @@ Without `--features` the patcher produces the compatibility-only ROM.
 | `$103E98`, `$103EA6` | restart placement: `andi.l #$FF` of the physics block's x/y (a fraction restored from a copy) | `frac_x`, `frac_y` (`hud.s`): the live fraction remembered by `frac_keep` at each update's start |
 | `$113B8A` | the map after a death: `move.w #300,$FFC590` | 299: 302 frames in all, as the arcade's |
 | `$10F774` | type-14 (stage 4 fire pillar) step test: counter + slot counter | counter + 1 (arcade `$DE5E`): all pillars together |
+| `$10C99A` | type-2 handler `jmp $11C5C2` | `jmp petite_entry`: states 0 and 1 -> `petite_update` (`petite.c`), 2 and 3 the port's |
+| `$72B6`, `$72F2` | type-6 shot set-up `jsr $7442` (aim) / its move `lea $29238,a1` | `petite_shot_aim`, `petite_shot_vel_sel`: a devil's fireball (+8 = `$D8`) keeps its direction and moves at the arcade's shot-8 speeds |
+| `$11AFF0` | type-2 death (stages 3-6): `jsr $B7F2`, 36 frames | `jsr $B7B2` (sound `$14`), 21 frames |
+| `$110452` | type-9 entry (`tst.b 4(a4)` / `beq.s`) | `jmp skull_entry`: stage 5, states 0-2 -> `skull_update` (`skull.c`); the asleep wake test in the glue |
 
 Engine variables used: `$FFC000` score (BCD), `$FFC004` TOP SCORE, `$FFC500` lives,
 `$FFC501` difficulty rank, `$FFC561` rank floor, `$FFC512` stage index (0-5 = stages 1-6, 6 = the final room),
@@ -187,6 +195,7 @@ Entering a stage's code directly from the start path crashes, because it expects
 - `$FF5000–$FF50FF`: `Persist` (`common.h`), which survives the game's soft restarts. Validated by the magic `MXMP`.
 - `$FF5100–$FF5EFF`: C `.bss` (no `.data`; everything is cleared at boot). `arthur.s`, then `satan.c` and `arcrand.c` (the 4 × 52-byte Satan records), are linked last, so their variables come after everyone else's and the earlier addresses (`menu_frames` at `$FF5137`, ...) stay put.
 - `stageend.s` is linked after `arthur.s`, `satan.c` and `arcrand.c`; its 51 bytes (`se_save`, `se_hidden`, `se_slot0`) come last.
+- `petite.c`, `petite_glue.s`, `skull.c` and `skull_glue.s` are linked after everything else: the devil and skull records (6 and 8 × 52 bytes), `pd_glob` (the arcade's `$1574`-`$1579`) and the glue's saved registers come after all earlier variables.
 - Arthur's timing flags use two bytes of the player control block that the game never touches (`$FF9451`, `$FF9455`) and the knockback marker one of the physics block (`$FFC343`); both blocks are in Maximo's context swap and are cleared by the game's own inits (`$7FA4`, `$6456`).
 - `$FF5F00`: the SRAM transfer routine, copied there at run time.
 - `$FF2BE1–$FF6FFF` is never touched by the game. Checked over 24,000 frames of boot, attract and stage 1 play plus 6,000 frames of play in each of stages 2–6 (via the developer launch), and no instruction addresses it directly.

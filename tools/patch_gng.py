@@ -446,6 +446,7 @@ def install_features(rom, build_dir):
     install_stage_end(rom, sym)
     install_crow_tdevil(rom, sym)
     install_hud(rom, sym)
+    install_petite(rom, sym)
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)
@@ -528,6 +529,26 @@ def install_crow_tdevil(rom, sym):
     # sleeping like subtype 1 until Arthur is within 48 px of its height
     expect(rom, 0x4278, bytes.fromhex('0c2c00020006670a197c0001000860000236197c000200086000022c'), 'Red Arremer first state')
     put(rom, 0x4278, bytes.fromhex('102c000602000003660270031940000860000234') + b'\x4e\x71' * 2)
+
+
+def install_petite(rom, sym):
+    """The Petite Devils (type 2, petite.c) and their fireball (the port's shot type 6)."""
+    # states 0 and 1 of the type-2 handler as the arcade's ($A89C); 2 and 3 the port's
+    expect(rom, 0x10C99A, bytes.fromhex('4ef90011c5c24e71'), 'type 2 handler')
+    put(rom, 0x10C99A, b'\x4e\xf9' + be32(sym['petite_entry']) + b'\x4e\x71')
+    # the shot type 6 set-up keeps a devil's fireball direction (no aim at Arthur)
+    expect(rom, 0x72B6, bytes.fromhex('4eba018a19400018'), 'type 6 shot aim')
+    put(rom, 0x72B6, jsr(sym['petite_shot_aim']) + b'\x4e\x71')
+    # ... and moves it at the arcade's shot-8 speeds
+    expect(rom, 0x72F2, bytes.fromhex('43f900029238'), 'type 6 shot speeds')
+    put(rom, 0x72F2, jsr(sym['petite_shot_vel_sel']))
+    # its death in stages 4 and 5 ($11AFEA): the arcade's sound $14 ($79B5 = $B7B2,
+    # as stage 2's death $11BC0A has it) and 21 frames before the removal (port 36)
+    expect(rom, 0x11AFF0, bytes.fromhex('4eb90000b7f2397c00240024'), 'type 2 death')
+    put(rom, 0x11AFF0, bytes.fromhex('4eb90000b7b2397c00150024'))
+    # stage 5's skulls (type 9): the arcade's ($CC45, skull.c) in states 0 and 1
+    expect(rom, 0x110452, bytes.fromhex('4a2c00046748'), 'type 9 entry')
+    put(rom, 0x110452, b'\x4e\xf9' + be32(sym['skull_entry']))
 
 
 FRAME = 0x200                  # 32x32 4bpp, 16 tiles column-major
