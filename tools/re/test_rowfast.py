@@ -2,7 +2,9 @@
 routine (the collision ring row fill $938E, then the row's plane entries) in Unicorn on build A and
 build B from the same RAM, for every window column start and row in a range, and compare all of RAM.
 
-usage: test_rowfast.py <rom A> <rom B> <ram dump> [<ram dump> ...]
+usage: test_rowfast.py [--noring] <rom A> <rom B> <ram dump> [<ram dump> ...]
+--noring leaves the collision ring ($FF0000-$FF07FF) out: from Fixed 61 the row routines write only
+the plane entries (terrain.c writes the ring), so a build before it is compared on those.
 Every one of the six row routines is called on every dump (the stage's own and the others: the same
 code on other data). Entry d1 = row, $FFB000 = first column; d1's upper word is set to a few
 patterns (the original's tile loop adds d1.l).
@@ -50,6 +52,9 @@ def run(rom, ram, entry, d1, b000):
 
 
 def main():
+    noring = '--noring' in sys.argv
+    if noring:
+        sys.argv.remove('--noring')
     rom_a, rom_b = open(sys.argv[1], 'rb').read(), open(sys.argv[2], 'rb').read()
     rom_b = rom_b[:0x18E] + rom_a[0x18E:0x190] + rom_b[0x190:]     # the header checksum (a routine run on
                                                                    # another stage's RAM can read it)
@@ -67,6 +72,8 @@ def main():
                 for hi in (0, 0x12340000, 0xFFFF0000):
                     a = run(rom_a, ram, entry, hi | row, col)
                     b = run(rom_b, ram, entry, hi | row, col)
+                    if noring and not isinstance(a, str) and not isinstance(b, str):
+                        a, b = a[0x800:], b[0x800:]
                     n += 1
                     nerr += a == b == 'error'
                     if a != b:
@@ -78,7 +85,7 @@ def main():
                                 continue
                             d = [i for i in range(len(a)) if a[i] != b[i]]
                             print('%s: $%X col %d row %d d1 %08X: %d bytes differ from $%06X'
-                                  % (path, entry, col, row, hi | row, len(d), 0xFF0000 + d[0]))
+                                  % (path, entry, col, row, hi | row, len(d), 0xFF0000 + (0x800 if noring else 0) + d[0]))
           print('%s: stage index %d, routine $%X, %d calls compared (%d failing in both)' % (path, stage, entry, n, nerr))
     print('%d differ' % bad)
     sys.exit(1 if bad else 0)

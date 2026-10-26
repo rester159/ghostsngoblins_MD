@@ -459,6 +459,7 @@ def install_features(rom, build_dir):
     install_astaroth(rom, sym)
     install_ending(rom, sym)
     install_rowfast(rom, sym)
+    install_terrain(rom, sym)
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)
@@ -521,6 +522,20 @@ def install_rowfast(rom, sym):
                jsr(0x938E) if a != 0x986C else bytes.fromhex('4ebafb24'), 'row fill call')
         expect(rom, a, bytes.fromhex('43f900ff0a00'), 'row entries loop')
         put(rom, a, jmp(sym[name]))
+
+
+def install_terrain(rom, sym):
+    """The collision ring written as the arcade writes its bg RAM (terrain.c, terrain_glue.s; Fixed 61):
+    the streamers' ring fills ($9386 columns, $938E rows) write nothing; the camera update and the
+    stage-start hold (pad.c stage_hold) write it."""
+    jmp = lambda a: b'\x4e\xf9' + be32(a)
+    expect(rom, 0x9386, bytes.fromhex('48e70f007e00'), 'collision ring column fill')
+    put(rom, 0x9386, bytes.fromhex('70204e75'))             # moveq #32,d0 / rts
+    expect(rom, 0x938E, jmp(sym['fast_maprow']), 'collision ring row fill')
+    put(rom, 0x938E, jmp(sym['maprow_noring']))
+    expect(rom, 0x1043B4, bytes.fromhex('33fc005b00ffc3706106'), 'camera update end')
+    put(rom, 0x1043B4, jsr(sym['ter_cam']) + b'\x4e\x71' * 2)
+    # the stage draw's fill: pad.c stage_hold calls ter_fill in its first frame
 
 
 def install_stage_end(rom, sym):
