@@ -377,6 +377,15 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     two digits at its place, in the port's digit tiles with the palette whose colour 15 is red. Compared screen by screen:
     "10" for the first 64 frames, "06" and "02" at the same frames as the arcade's run; on timing out both go to the title.
 
+43. **A kill's score in the update of the hit** (`hud.s` `score_now`, called from `se_objpass`/`se_objpass2`): the arcade's
+    weapon-hit code adds the score on the hit frame (stage 1, a lance at each zombie: the zombie's state 1 -> 2 and the
+    score `$6A` +2 (200) on the same frame, every kill). The port's enemies queue it as a `$0Cxx` entry in the player's
+    event queue (`$FFB400`) during the enemy pass, and every stage loop drains that queue (`$4EE0`, `$78C2`) before the
+    pass, so it came an update later (hit on update 551, score on 552). Now the score entries at the queue's head are
+    added right after the pass's core with the game's own `$7818` (which stops at the first other entry, left for the
+    loop's drain), their count added to `$FFC04C` as the drains do. Stage 1 and stage 3 (the other pass) runs: every kill
+    scores in its hit update; the kill count `$FFC04C`, the item slots and the totals are as before.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -421,8 +430,6 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   end that the arcade doesn't give; "Return to starting point" drawn over the room instead of on black.
 - **Smaller:** stage 4 fire pillars one frame early; a stage 5 flying knight drifts after ~600 frames; Astaroth's shot parks on a blinking Arthur; the stage 2
   stone-block edge and elevator walk-step quirks; Big Men 1 px; stage 2 water death y.
-- **Seen while checking the dragon (not traced further):** a kill's score is added a frame later in the port.
-  (The camera order, the lance's fraction and lances past the screen edge are Fixed 35 and 36.)
 
 - **Stage start fraction:** start x fraction `$60F5` (arcade) vs `$609C` (port); start y 64.28 vs 64.21
   (leftover RAM in the arcade, `$6D36` sets only the integer bytes).

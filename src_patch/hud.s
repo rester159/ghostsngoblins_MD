@@ -37,3 +37,24 @@ cont_draw:
     addi.w  #0xC250,%d0
     move.w  %d0,0xC00000
     rts
+
+| A kill's score in the update of the hit, as the arcade's (its weapon-hit
+| code adds it, `$EF17`). The port's enemies queue the score as a $0Cxx
+| entry in the player's event queue ($FFB400) during the enemy pass, and
+| every stage loop drains that queue ($4EE0 / $78C2) before the pass, so
+| the score came an update late (stage 1, a lance at each zombie: hit on
+| update 551, score on 552; the arcade's on the hit frame). Called by
+| se_objpass/se_objpass2 (stageend.s) right after the pass's core: the score
+| entries at the head of the queue go now ($7818, the game's own: it adds
+| each and stops at the first other entry, which stays for the loop's
+| drain), with their count added to $FFC04C as the drains do.
+    .global score_now
+score_now:
+    movem.l %d0-%d7/%a0-%a6,-(%sp)
+    lea     0xFFB400,%a4
+    lea     0xFFC000,%a5
+    lea     0x28F2E,%a0
+    jsr     0x7818
+    add.l   %d0,0xFFC04C
+    movem.l (%sp)+,%d0-%d7/%a0-%a6
+    rts
