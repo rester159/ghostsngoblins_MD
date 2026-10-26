@@ -458,6 +458,7 @@ def install_features(rom, build_dir):
     install_big_man(rom)
     install_astaroth(rom, sym)
     install_ending(rom, sym)
+    install_rowfast(rom, sym)
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)
@@ -506,6 +507,20 @@ def install_ending(rom, sym):
     # second clear's restart
     expect(rom, 0x414, jsr(0x113AC4), 'restore after a restart')
     put(rom, 0x414, jsr(sym['hook_end_restore']))
+
+
+def install_rowfast(rom, sym):
+    """Row streaming in fewer cycles, the same bytes written (rowfast.s; Fixed 60): the collision ring's
+    row fill ($938E) and each stage's row of plane entries after it."""
+    jmp = lambda a: b'\x4e\xf9' + be32(a)
+    expect(rom, 0x938E, bytes.fromhex('48e70f007e01'), 'collision ring row fill')
+    put(rom, 0x938E, jmp(sym['fast_maprow']))
+    for a, name in ((0x986C, 'row_s124'), (0x11570E, 'row_s124'), (0x11AB02, 'row_s124'),
+                    (0x104DF6, 'row_s3'), (0x110102, 'row_s5'), (0x1110B8, 'row_s6')):
+        expect(rom, a - 6 if a != 0x986C else a - 4,
+               jsr(0x938E) if a != 0x986C else bytes.fromhex('4ebafb24'), 'row fill call')
+        expect(rom, a, bytes.fromhex('43f900ff0a00'), 'row entries loop')
+        put(rom, a, jmp(sym[name]))
 
 
 def install_stage_end(rom, sym):
