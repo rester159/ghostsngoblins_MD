@@ -561,6 +561,10 @@ def install_hud(rom, sym):
     for a, name, off in ((0x103E98, 'frac_x', '0030'), (0x103EA6, 'frac_y', '0034')):
         expect(rom, a, bytes.fromhex('02ac000000ff' + off), 'restart fraction mask')
         put(rom, a, jsr(sym[name]) + b'\x4e\x71')
+    # the map after a death: 302 frames from the death sequence's end to play, as the arcade's (it set up
+    # in 3 frames, the arcade's in 2, then both count 300)
+    expect(rom, 0x113B8A, bytes.fromhex('33fc012c00ffc590'), 'map duration')
+    put(rom, 0x113B8A, bytes.fromhex('33fc012b00ffc590'))
     # the VBlank handler also latches pad presses between updates (hud.s vb_isr)
     expect(rom, 0x78, be32(0x113E56), 'VBlank vector')
     put(rom, 0x78, be32(sym['vb_isr']))

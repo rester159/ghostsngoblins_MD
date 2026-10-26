@@ -423,6 +423,11 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     death is at +667 in both. (This was the Open "Enemies" item: the ~130/340-frame gap came from runs whose counters
     weren't lined up.)
 
+48. **The map after a death** (`$113B8A`): from a death, stage 1, Home start, right held: the death sequence is 121 frames in
+    both, the map then took 303 frames in the port (3 to set up, a 300-frame count `$FFC590`) against the arcade's 302
+    (mode 0 at +121, play at +423), and from the map's end to the first step 41 frames in both, so every life after the
+    first started a frame late. The count is 299 now: map end at +423 and the first step at +464 in both.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn

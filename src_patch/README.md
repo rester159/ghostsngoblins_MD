@@ -172,6 +172,7 @@ Without `--features` the patcher produces the compatibility-only ROM.
 | vector `$78` | VBlank handler `$113E56` (frame count) | `vb_isr` (`hud.s`): the count, then in play both pads' fire/jump presses latched for the next update |
 | `$104392` | camera object: `move.b $FFC324,1(a3)` (an airborne flag nothing sets) | `cam_air` (`hud.s`): airborne = jump phase, armored knockback or dying (arcade `<$99`) |
 | `$103E98`, `$103EA6` | restart placement: `andi.l #$FF` of the physics block's x/y (a fraction restored from a copy) | `frac_x`, `frac_y` (`hud.s`): the live fraction remembered by `frac_keep` at each update's start |
+| `$113B8A` | the map after a death: `move.w #300,$FFC590` | 299: 302 frames in all, as the arcade's |
 
 Engine variables used: `$FFC000` score (BCD), `$FFC004` TOP SCORE, `$FFC500` lives,
 `$FFC501` difficulty rank, `$FFC561` rank floor, `$FFC512` stage index (0-5 = stages 1-6, 6 = the final room),
