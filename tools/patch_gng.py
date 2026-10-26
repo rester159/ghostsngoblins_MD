@@ -488,6 +488,9 @@ def install_stage_end(rom, sym):
             put(rom, a, jmp(sym[name]))
         else:
             put(rom, a, jsr(sym[name]) + b'\x60' + bytes([y_part - (a + 8)]))
+    # the collision ring's rows: cam y/16 - 5 .. + 26, as the arcade's (src_patch/mapwin.s mw_rows)
+    expect(rom, 0x9394, bytes.fromhex('38003a017c1f'), 'collision fill rows')
+    put(rom, 0x9394, jsr(sym['mw_rows']))
     # stage 1's weapons against the tombstones
     expect(rom, 0x102C56, bytes.fromhex('4eba18ee33fc004700ffcfb0'), 'weapon tombstone check')
     put(rom, 0x102C56, jsr(sym['se_wtomb']) + b'\x4e\x71' * 3)

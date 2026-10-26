@@ -428,6 +428,15 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     (mode 0 at +121, play at +423), and from the map's end to the first step 41 frames in both, so every life after the
     first started a frame late. The count is 299 now: map end at +423 and the first step at +464 in both.
 
+49. **Terrain map rows** (`mapwin.s` `mw_rows`, `$9394`): the arcade's collision ring holds the rows cam y/16 - 5 .. + 26,
+    the port's held cam y/16 .. + 31, so 1-5 rows under the screen's bottom edge held the rows 27-31 above it. Arthur's
+    floor probe at every 16 px cell around the camera (columns - 24 .. + 31, rows - 12 .. + 19; arcade `$8CA7`, port
+    `$85D2` called on the RAM of matched stage starts): stage 5 (camera 6656, 512) disagreed on 63 of 1,792 cells, row - 4
+    (floor in the port from row + 27's data) and row - 2 (+ 30's) almost all of them; stage 6 (7424, 1536) on 55, row - 3.
+    Filling the ring's columns and rows 5 rows lower (`$9386`/`$938E`; the lookup `$9346` already gives an empty cell
+    outside the map) leaves 8 and 10, all on the ring's edge columns. A fall below the screen into a pit could find a floor
+    there in the port that the arcade doesn't have.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -478,14 +487,8 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
 - **Smaller:** stage 4 fire pillars one frame early; a stage 5 flying knight drifts after ~600 frames; Astaroth's shot parks on a blinking Arthur; the stage 2
   stone-block edge and elevator walk-step quirks; Big Men 1 px; stage 2 water death y.
 
-- **Terrain map rows:** after Fixed 37 the floor probes still disagree above and below the screen: the port's
-  streamers hold the 32 rows from cam y/16 up (`$11A9B0`, `$104D34`, `$11003C`, `$110FF4`: d5 = cam y/16, clamped),
-  so nothing below the screen's bottom edge; the arcade's ring holds at least 4 rows below it (stage 5, cam y 512:
-  row - 4 empty in the arcade, the port's row + 28 floor in that slot; stage 6 the same at row - 3) and, in stage 3,
-  not row + 19 above the screen in the columns cam/16 - 16 .. - 8 and + 16 .. + 24. The arcade's row writer
-  (`$8677` and the bg pointers `<$C0-$CE` set at `$802E`) wasn't traced, so the exact window isn't known; a fall
-  below the screen or a probe high above it can find a floor in one game and not the other (hypothesis: matters
-  for pits in stages 5 and 6).
+- **Terrain map edges:** after Fixed 49 a few cells on the ring's edge columns still differ at a stage start (stage 5: 8
+  of 1,792 probed, stage 6: 10), where the arcade's first fill left them as they were; not traced.
 - **Intro:** the arcade's opening shows Arthur and the princess in the graveyard (stage background) for
   ~200 frames before the black-background kidnapping scene; the port's intro starts at the kidnapping.
   Start to play is 557 frames in the arcade, ~335 in the port.

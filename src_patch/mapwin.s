@@ -77,3 +77,21 @@ mw_stage5:
     bls.s   3f
     move.w  #432,%d6
 3:  rts
+
+| Terrain map rows (docs/ACCURACY.md, Fixed 49): the arcade's ring holds the
+| rows cam y/16 - 5 .. + 26, the port's held cam y/16 .. + 31 (stage 5 at cam
+| y 512, every cell probed in both with Arthur's floor probe, which also
+| reads the cell below: row - 4 empty in the arcade, floor in the port from
+| row + 27's data in that slot; - 2 from + 30's; the arcade's - 9 and - 11
+| show + 23's and + 21's, so it doesn't hold them). $9386 / $938E fill a column /
+| a row of the collision ring from row d1 (the window's base row or the row
+| that just came in); the lookup ($9346) gives an empty cell outside the
+| map. $9394: `jsr mw_rows` over `move.w d0,d4` / `move.w d1,d5` /
+| `moveq #31,d6`: the same with the row 5 lower.
+    .global mw_rows
+mw_rows:
+    move.w  %d0,%d4
+    move.w  %d1,%d5
+    subq.w  #5,%d5
+    moveq   #31,%d6
+    rts

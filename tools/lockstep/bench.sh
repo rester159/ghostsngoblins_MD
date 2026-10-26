@@ -10,7 +10,7 @@ while f<3600:
 print(','.join(s))")
 PK=$(python3 -c "print(','.join('%d:FFC309:60'%f for f in range(1300,3600,30)))")
 X=""; [ "$3" = 1 ] && X="$Rn"
-SCRIPT="$(python3 $D/devscript.py $2 $3 $Rn)" SCRIPT2="$X" POKE="$PK" STEP=50 WATCH="1FFC9DC FFC570 FFC571 1FF7084 1FF7DFC" REGION=${REGION:-ntsc-u} python3 "$P/tools/headless/lr.py" "$C" "$1" 3600 $W/prof/b3_$$ | tee $W/tw/flt_${TAG:-x}_$2_$3_${SEED:-7}.txt | python3 -c "
+SCRIPT="$(python3 "$D/devscript.py" $2 $3 $Rn)" SCRIPT2="$X" POKE="$PK" STEP=50 WATCH="1FFC9DC FFC570 FFC571 1FF7084 1FF7DFC" REGION=${REGION:-ntsc-u} python3 "$P/tools/headless/lr.py" "$C" "$1" 3600 $W/prof/b3_$$ | tee $W/tw/flt_${TAG:-x}_$2_$3_${SEED:-7}.txt | python3 -c "
 import sys,re
 prev=None; u_=0; f_=0; d=0; n=0
 for l in sys.stdin:
