@@ -173,13 +173,13 @@ void score_init(void)
     p->bonus_step_i = 1;
 }
 
-/* $779A: after points were added to the score at a4 */
-void score_added(u32 a4)
+/* One bonus-life check (the arcade's $EDA8-$EDF1): returns 1 if a life was given. */
+int bonus_give(void)
 {
     Persist *p = PERSIST;
-    if (a4 != 0xFFC000 || !p->bonus_next) return;
-    if (SCORE >= 0x1000000) return;         /* the arcade stops at 1,000,000 ($ED95) */
-    if (SCORE < p->bonus_next) return;
+    if (!p->bonus_next) return 0;
+    if (SCORE >= 0x1000000) return 0;       /* the arcade stops at 1,000,000 ($ED95) */
+    if (SCORE < p->bonus_next) return 0;
     LIVES++;                                /* no cap: the arcade's INC <$60 ($EDF1) */
     {
         const u32 *t = bonus_tab[bonus_setting()];
@@ -187,6 +187,15 @@ void score_added(u32 a4)
         else p->bonus_next = t[2] ? bcd_add(p->bonus_next, t[2]) : 0;
         if (p->bonus_step_i < 2) p->bonus_step_i++;
     }
+    return 1;
+}
+
+/* $779A: after points were added to the score at a4. The life waits for the
+ * arcade's check in play (bonus.c). */
+void score_added(u32 a4)
+{
+    if (a4 != 0xFFC000) return;
+    bonus_pending = 1;
 }
 
 /* $62FA: each frame of the continue countdown */

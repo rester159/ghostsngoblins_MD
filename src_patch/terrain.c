@@ -1,4 +1,4 @@
-/* The collision ring written as the arcade writes its bg RAM (docs/ACCURACY.md, Fixed 61).
+/* The collision ring written as the arcade writes its bg RAM (docs/ACCURACY.md, Fixed 65).
  *
  * The arcade's terrain map is its bg video RAM ($2800 tiles, $2C00 attributes; cell
  * (col & 31) << 5 | (~row & 31) with rows counted up from the bottom, which is the port's

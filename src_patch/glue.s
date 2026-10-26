@@ -41,7 +41,7 @@ hook_title:
     beq.s   5f
     move.w  #0x2700,%sr             | as the intro leaves it
     bra.s   6f
-5:  jsr     0xE0C                   | INTR: the princess scene
+5:  jsr     intro_rest              | INTR: the graveyard, then the princess scene (bossart.c)
 6:  clr.l   0xFF83F8
     clr.l   0xFF7FF0
     movem.l (%sp)+,%d0-%a2
@@ -291,7 +291,10 @@ hook_sat_dma:
     movem.l (%sp)+,%d0-%d1/%a0-%a1
     beq.s   1f
     rts
-1:  movem.l %d1/%a0-%a1,-(%sp)
+1:  movem.l %d0-%d1/%a0-%a1,-(%sp)
+    jsr     sat_vblank              | bossart.c: the Satans' pose uploads
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+    movem.l %d1/%a0-%a1,-(%sp)
     move.l  %d0,-(%sp)
     jsr     p2_sat
     addq.l  #4,%sp
@@ -502,7 +505,12 @@ rng_tick:
     jsr     rng_lag_step            | hud.s
     bsr.s   rng_now
     move.b  %d0,6(%a3)
-    bsr.s   rank_creep
+    tst.b   bonus_pending           | bonus.c: a life earned outside play
+    beq.s   1f
+    movem.l %d0-%d1/%a0-%a1,-(%sp)
+    jsr     bonus_tick
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+1:  bsr.s   rank_creep
     move.l  (%sp)+,%d0
     lea     0xFFB800,%a4
     rts
@@ -741,8 +749,8 @@ hook_satan:
 | 1 + 3 + 18 frames, after $C368's frame) and only then the 63-frame score
 | phase ($C375) that the port's death is; the port went straight to it, so the
 | slot (and the key, which comes with its removal) went 22 frames early. The
-| burst frames count in +9 (cleared by the weapon code at the kill); nothing
-| is drawn for them (the port has no burst frames for the Satan). The death
+| burst frames count in +9 (cleared by the weapon code at the kill), and
+| the slot shows the arcade's burst for them (bossart.c `sat_burst`, by the count). The death
 | sound moves to the first of them (its own call at $11082C is removed).
     .global hook_satan_die
 hook_satan_die:
@@ -754,7 +762,14 @@ hook_satan_die:
     cmpi.b  #1,9(%a4)
     bne.s   3f
     jsr     0xB7F2                  | the death sound (arcade $C368 -> $79A1)
-3:  clr.w   30(%a4)                 | nothing drawn
+3:  movem.l %d0/%a0,-(%sp)
+    moveq   #0,%d0
+    move.b  9(%a4),%d0
+    lea     sat_burst,%a0
+    move.b  (%a0,%d0.w),%d0
+    beq.s   4f                      | the pose stays
+    move.w  %d0,30(%a4)             | the burst's frame
+4:  movem.l (%sp)+,%d0/%a0
     addq.l  #4,%sp
     jmp     0x110846                | the handler's exit
 1:  rts

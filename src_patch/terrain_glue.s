@@ -1,4 +1,4 @@
-| Hooks for terrain.c (the collision ring as the arcade writes it; docs/ACCURACY.md, Fixed 61).
+| Hooks for terrain.c (the collision ring as the arcade writes it; docs/ACCURACY.md, Fixed 65).
 
     .section .text,"ax"
     .global ter_cam, maprow_noring

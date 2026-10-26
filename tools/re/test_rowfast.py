@@ -1,9 +1,9 @@
-"""Row streaming equivalence (src_patch/rowfast.s, docs/ACCURACY.md Fixed 60): call each stage's row
+"""Row streaming equivalence (src_patch/rowfast.s, docs/ACCURACY.md Fixed 64): call each stage's row
 routine (the collision ring row fill $938E, then the row's plane entries) in Unicorn on build A and
 build B from the same RAM, for every window column start and row in a range, and compare all of RAM.
 
 usage: test_rowfast.py [--noring] <rom A> <rom B> <ram dump> [<ram dump> ...]
---noring leaves the collision ring ($FF0000-$FF07FF) out: from Fixed 61 the row routines write only
+--noring leaves the collision ring ($FF0000-$FF07FF) out: from Fixed 65 the row routines write only
 the plane entries (terrain.c writes the ring), so a build before it is compared on those.
 Every one of the six row routines is called on every dump (the stage's own and the others: the same
 code on other data). Entry d1 = row, $FFB000 = first column; d1's upper word is set to a few

@@ -458,6 +458,7 @@ def install_features(rom, build_dir):
     install_big_man(rom)
     install_astaroth(rom, sym)
     install_ending(rom, sym)
+    install_bossart(rom, sym)
     install_rowfast(rom, sym)
     install_terrain(rom, sym)
     install_boxes(rom, sym)
@@ -512,7 +513,7 @@ def install_ending(rom, sym):
 
 
 def install_rowfast(rom, sym):
-    """Row streaming in fewer cycles, the same bytes written (rowfast.s; Fixed 60): the collision ring's
+    """Row streaming in fewer cycles, the same bytes written (rowfast.s; Fixed 64): the collision ring's
     row fill ($938E) and each stage's row of plane entries after it."""
     jmp = lambda a: b'\x4e\xf9' + be32(a)
     expect(rom, 0x938E, bytes.fromhex('48e70f007e01'), 'collision ring row fill')
@@ -526,7 +527,7 @@ def install_rowfast(rom, sym):
 
 
 def install_terrain(rom, sym):
-    """The collision ring written as the arcade writes its bg RAM (terrain.c, terrain_glue.s; Fixed 61):
+    """The collision ring written as the arcade writes its bg RAM (terrain.c, terrain_glue.s; Fixed 65):
     the streamers' ring fills ($9386 columns, $938E rows) write nothing; the camera update and the
     stage-start hold (pad.c stage_hold) write it."""
     jmp = lambda a: b'\x4e\xf9' + be32(a)
@@ -548,6 +549,51 @@ def install_boxes(rom, sym):
     for a in (0x9DFC, 0x10F602, 0x11A432, 0x11A650):
         expect(rom, a, bytes.fromhex('4a7900ff9410'), 'platform carry jump test')
         put(rom, a, jsr(sym['carry_gate']))
+
+
+def install_bossart(rom, sym):
+    """The arcade's art the port lacked (bossart.c, art from mkart.py): the
+    Satans' hovering poses, burst and star."""
+    jmp = lambda a: b'\x4e\xf9' + be32(a)
+    # the Satan's draw: its frames and per-Satan pose buffers in tiles $500/$524
+    expect(rom, 0x11086A, bytes.fromhex('4a2c0004670000ae'), 'Satan draw')
+    put(rom, 0x11086A, jmp(sym['sat_draw_hook']))
+    # its art load ($1104FC, every stage init that has it): then the buffers' state,
+    # the score (to tiles $6D0) and the star ($5F4) in stages 5 and 6
+    expect(rom, 0x11051A, bytes.fromhex('4cdf01034e75'), 'Satan art load end')
+    put(rom, 0x11051A, jmp(sym['sat_load_tail']))
+    # the type-6 shot draw: a Satan's shots as the star
+    expect(rom, 0x11721C, bytes.fromhex('0c4200086400' + '0094'), 'type-6 shot frame check')
+    put(rom, 0x11721C, jmp(sym['star_sel']) + b'\x4e\x71')
+    # the opening: the arcade's graveyard before the port's intro, whose steps
+    # are paced as the arcade's events
+    expect(rom, 0xC46, bytes.fromhex('703a4eba7d9a4eba01be'), 'intro call')
+    put(rom, 0xC48, jsr(sym['intro_hook']) + b'\x4e\x71')
+    expect(rom, 0xE92, bytes.fromhex('6100004a45f900210088'), 'intro step loop')
+    put(rom, 0xE92, jmp(sym['intro_loop']) + b'\x4e\x71\x4e\x71')
+    # stage 5's skulls drawn as the arcade's (type 9 there), and both their and
+    # the devils' deaths with the burst
+    expect(rom, 0x107642, bytes.fromhex('0c420003'), 'type 9 frame count')
+    put(rom, 0x107642, bytes.fromhex('0c42000b'))
+    for at, old, new in ((0x10764E, 0x23CA3C, 't9_offs'), (0x107658, 0x23CA18, 't9_frames')):
+        expect(rom, at, be32(old), 'type 9 frame tables')
+        put(rom, at, be32(sym[new]))
+    expect(rom, 0x11C15E, bytes.fromhex('0c39000100ffc512'), 'type 2 draw')
+    put(rom, 0x11C15E, jmp(sym['pd_draw_hook']) + b'\x4e\x71')
+    # the devils' frames 41-46 (the fireball carrier's $FD-$FF) after the port's 41
+    for a in (0x11C256, 0x11C09E):
+        reg = 0 if a == 0x11C256 else 2
+        expect(rom, a, bytes([0xB0 | (reg << 1), 0x79]) + be32(0x10E9A6), 'devil frame count')
+        put(rom, a, bytes([0xB0 | (reg << 1), 0x7C, 0x00, 47, 0x4E, 0x71]))
+    expect(rom, 0x11C26E, bytes.fromhex('c0fc008041f90010d526d1c0'), 'devil frame art')
+    put(rom, 0x11C26E, jsr(sym['pd_src_hook']) + b'\x4e\x71' * 3)
+    # ... and the stage loops' copy of the upload ($10CDE2)
+    expect(rom, 0x10CE00, bytes.fromhex('b07a1ba4'), 'devil frame count (2)')
+    put(rom, 0x10CE00, bytes.fromhex('b07c002f'))
+    expect(rom, 0x10CE16, bytes.fromhex('c0fc008041fa070ad1c0'), 'devil frame art (2)')
+    put(rom, 0x10CE16, jsr(sym['pd_src_hook']) + b'\x4e\x71' * 2)
+    expect(rom, 0x11C0A8, bytes.fromhex('d44245f90010d392343220' + '0045f90010d3e4d4c2'), 'devil frame entry')
+    put(rom, 0x11C0A8, jsr(sym['pd_entry_hook']) + b'\x4e\x71' * 7)
 
 
 def install_stage_end(rom, sym):
@@ -718,6 +764,10 @@ def install_hud(rom, sym):
     # ($DE5E: LDB <$21 / INCB / ANDB #$1F); the port added the slot counter, staggering them by slot
     expect(rom, 0x10F774, bytes.fromhex('102b0006d02b0007'), 'type-14 step timing')
     put(rom, 0x10F774, bytes.fromhex('102b000652004e71'))
+    # ... and at the step the animation's first size class is set at once ($DE77-$DE89: JSR $8EBF), not 2 frames
+    # later with the timer's first read (pillar.s)
+    expect(rom, 0x10F7C4, bytes.fromhex('303900248baa3940001c3940001e197c0002001a'), 'type-14 step restart')
+    put(rom, 0x10F7C4, jsr(sym['pillar_step']) + b'\x4e\x71' * 7)
     # the VBlank handler also latches pad presses between updates (hud.s vb_isr)
     expect(rom, 0x78, be32(0x113E56), 'VBlank vector')
     put(rom, 0x78, be32(sym['vb_isr']))

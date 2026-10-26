@@ -152,7 +152,7 @@ static void text_start(void)
     switch (tx) {
     case 0:                             /* $7399 */
         end_text(45);
-        end_50k();
+        end_50k();                      /* its bonus life comes in play (bonus.c) */
         score_now();
         count = 540;
         break;

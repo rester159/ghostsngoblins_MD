@@ -15,6 +15,9 @@ Core: `C="$HOME/Library/Application Support/RetroArch/cores/genesis_plus_gx_libr
 | `port_score.py` | score and slot-state changes with the update counter (score timing) |
 | `bench.sh <rom> <stage> <players>` | speed (in-play updates per frame, `SEED` = random input) and a log with the fault word `$FFC9DC` (`OUT` = output dir) |
 | `bot.py` | the walk bot both walkers share |
+| `route.py` | a scripted route (`ROUTE="W58,L7200,U,R7262,U"`: walk to x, climb, jump, wait, fire) both games follow from their own positions |
+| `arc_rand.py <state> <frames> "<script>"` / `port_rand.py <core> <rom> <frames> <out>` | every draw of the shared second random (`$68F9` / `$FFC62C`, Fixed 31): the arcade's by frame, call site and slot; the port's per frame as a count of register steps, frames counted from the restart (`TX`), `ROUTE`, `RPOKE` (e.g. `1:FF5600:0F` sets `rng_lag` to line `$FFA206` up with `<$21`), `XLOG=1` Arthur every frame. A life start anywhere: point a stage's restart entry there (arcade RAM `$6CED` + 4 x stage during the boot, port a test copy of the ROM table `$1040CC`) |
+| `port_end.py` | the final room's end forced in the port (second clear by default, `SCORE`), logging score, lives, stage and the update counter; the arcade's equivalent: poke `<$7F` = 1, `<$08` = 2, `<$0B` = 0 into an `arc_start.py 6 0` state |
 
 RAM: port enemy slots `$FFB800` (40 x 48: +4 live, +5 on screen, +6 subtype, +7 state, +10 type, +17 x, +21 y,
 y points up: screen y = 224 - (y - cam y)), camera `$FFA200/2`, Arthur x `$FF9001`, y `$FF9004`, invincibility `$FFC309`,

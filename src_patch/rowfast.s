@@ -1,4 +1,4 @@
-| Row streaming in fewer cycles (docs/ACCURACY.md, Fixed 60).
+| Row streaming in fewer cycles (docs/ACCURACY.md, Fixed 64).
 |
 | When the camera crosses a 16 px row, each stage's streamer ($10FF6A in
 | stage 5, the same shape in the others) fills one row of the collision ring

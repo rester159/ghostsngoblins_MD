@@ -38,8 +38,8 @@
  * tdevil.c): <$A0/<$A2 Arthur x/y +4/+6, <$9C/<$9E camera +0/+2, <$21 frame
  * +8, <$E0 slot counter +9, <$9A rank +10, <$A7/<$A8 shot pool $FFC220.
  * The arcade's animation scripts are kept (entries: sprite, attribute, time)
- * and each sprite maps to the port's frame with the same art (fd-ff, wing
- * poses with the fireball, have no port art: fa-fc are shown). */
+ * and each sprite maps to the port's frame with the same art (fd-ff, the wing
+ * poses with the fireball, are frames 41-46 that bossart.c adds). */
 #include "md.h"
 
 u8 arc_rand(void);
@@ -523,8 +523,9 @@ static void play(void)                  /* state 1 ($AB4B) */
 /* the port's frame for the arcade's sprite (left = attribute bit 2) */
 static u8 port_frame(u16 e)
 {
-    static const u8 R[16] = { 15, 16, 17, 29, 30, 31, 0, 0, 1, 2, 3, 4, 5, 3, 4, 5 };
-    static const u8 L[16] = { 21, 22, 23, 37, 38, 39, 0, 0, 7, 8, 9, 10, 11, 9, 10, 11 };
+    /* fd-ff: the frames bossart.c adds after the port's 41 (pd_src/pd_entry) */
+    static const u8 R[16] = { 15, 16, 17, 29, 30, 31, 0, 0, 1, 2, 3, 4, 5, 41, 42, 43 };
+    static const u8 L[16] = { 21, 22, 23, 37, 38, 39, 0, 0, 7, 8, 9, 10, 11, 44, 45, 46 };
     u8 code = rb(e), attr = rb(e + 1);
     if ((code & 0xF0) != 0xF0) return 0;
     return (attr & 4 ? L : R)[code & 15];
@@ -618,7 +619,9 @@ void petite_update(u8 *p, const Ctx *x)
     p[24] = DIR;
     p[25] = CLS;
     wr16(p + 30, f);
-    wr16(p + 28, f);                    /* the port's death goes on from this frame */
+    /* the port's death goes on from this frame (its table knows the port's
+     * 41: for the wing poses with the fireball, the ones without) */
+    wr16(p + 28, f < 41 ? f : f < 44 ? f - 38 : f - 35);
     p[26] = 0;
     p[36] = 0; p[37] = 0;               /* its death timer starts from 0 */
 }
