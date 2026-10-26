@@ -649,13 +649,15 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   likeliest source was stage 5's Big Men (Fixed 54). Stage 2's water death y (24 in the arcade, 25 in the port) came from
   the restart's y fraction (Fixed 46): with the fractions equal the fall and the death are identical (y 79, 74, ... 24).
 
-- **Section changes:** where the camera jumps to the next section (stage 2 town, 5578 -> 5833, the arcade's jump too) the
-  port blanks the display and refills the whole plane (`$93D6`, 32 columns) over 8 frames with the game paused; the
-  arcade's jump shows the new section on the next frame.
+- **Camera snaps (only after a debug teleport):** when Arthur is put far ahead of the camera (stage 2: x 5961 with the
+  camera held at 5578) both games snap the camera to the next section (5833); the port blanks the display and refills
+  the whole plane (`$93D6`, 32 columns, ~830 scanlines of work) over 8 paused frames where the arcade shows it on the next
+  frame. Not reached in play: walked from the checkpoint (x 4736) through the town to x 6024, the camera scrolls past
+  5578 one pixel a frame (Arthur 130 px ahead of it), with an update every frame and no refill.
 - **"Invisible troll" (itch.io report, stage 2 by the brick building after the ladder building):** not reproduced. With
   a check that every live, on-screen Big Man has sprites with pixels in the sprite table on every frame, over the ladder
   building and past it (teleported to x 5488/5632/5760 and walking on, ~6,000 frames) every one was drawn whenever the
-  game ran; the only frames without were the 8 paused, blank frames of the section change above. The Big Men's own
+  game ran; the only frames without were the 8 paused, blank frames of the camera snap above (after a teleport). The Big Men's own
   stand-ins in that area (a clamp to x 5200-5808 and a floor assumed where the probe found none) were removed with Fixed 54.
 - **Co-op speed:** with the enemies now behaving as the arcade's (devils staying on the screen as long, skulls, Big Men)
   and the per-update fixes above, co-op runs slower than the last install (seed 1: stage 2 0.70, stage 5 0.89, stage 6
