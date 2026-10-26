@@ -43,6 +43,14 @@ typedef signed short   s16;
 
 static inline void vdp_reg(int r, int v) { VDP_CTRL = 0x8000 | (r << 8) | (v & 0xFF); }
 static inline void nop(void) { __asm__ volatile ("nop"); }
+/* block interrupts (level 7 mask), returning the old status register */
+static inline u16 irq_off(void)
+{
+    u16 sr;
+    __asm__ volatile ("move.w %%sr,%0\n\tori.w #0x0700,%%sr" : "=d"(sr) : : "memory");
+    return sr;
+}
+static inline void irq_restore(u16 sr) { __asm__ volatile ("move.w %0,%%sr" : : "d"(sr) : "memory"); }
 
 void vsync(void);
 u16  pad_read(int port);

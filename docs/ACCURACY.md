@@ -386,6 +386,15 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     loop's drain), their count added to `$FFC04C` as the drains do. Stage 1 and stage 3 (the other pass) runs: every kill
     scores in its hit update; the kill count `$FFC04C`, the item slots and the totals are as before.
 
+44. **One-frame presses between updates** (`hud.s` `vb_isr`, vector `$78`; `pad.c`, `p2.c`, `common.c`): the arcade runs
+    and reads its pads every frame; the port reads them once per update, and when an update takes longer than a frame
+    (stage 1 1P ~0.997 updates a frame, co-op 0.82-0.95) a fire or jump press held only during the skipped frame was
+    never seen. The VBlank handler (was `$113E56`: count the frame) now also reads both pads in play and latches the
+    fire/jump bits (B, C, A; active low, a press on any frame sticks); each update's read takes them in and clears the
+    latch; the readers block interrupts while they read. Stage 2 co-op, fire held for one frame every 37 frames over
+    3,400 frames: 92 presses, 89 lances before (3 lost), 92 now. Directions and Start aren't latched (the two-frame
+    left/right rule and the pause stay as they were).
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -447,7 +456,5 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
 - **Intro:** the arcade's opening shows Arthur and the princess in the graveyard (stage background) for
   ~200 frames before the black-background kidnapping scene; the port's intro starts at the kidnapping.
   Start to play is 557 frames in the arcade, ~335 in the port.
-- **Dropped fire presses:** about every 23 updates the port advances its update counter without moving the
-  weapons; a one-frame fire press there is lost (frame pacing, not weapon logic).
 - **Enemies:** with the same input the port's Arthur is hit again ~130 frames after the first tombstone
   while the arcade's isn't hit for another ~340. Not yet traced (enemy tables to be mapped).

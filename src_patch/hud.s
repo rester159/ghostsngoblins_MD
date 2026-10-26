@@ -58,3 +58,48 @@ score_now:
     add.l   %d0,0xFFC04C
     movem.l (%sp)+,%d0-%d7/%a0-%a6
     rts
+
+| One-frame presses on frames without an update. The arcade reads its pads
+| every frame (60 updates a second); the port reads them once per update
+| ($BF72 pad_update, p2.c read_pad2), and when an update takes longer than a
+| frame (co-op runs 0.82-0.95 updates a frame) a press held only during the
+| frame it skipped was never seen: a lost lance or jump. The VBlank handler
+| (vector $78, was $113E56: count the frame) now also reads both pads while
+| in play (dv_latch_on, set by pad_update) and ANDs the fire/jump bits into
+| a latch (active low, so a press on any frame sticks); the update's read
+| takes them in and clears the latch. The pad readers block interrupts
+| while they read, so the two never interleave on the port.
+    .global vb_isr, pad_latch_on, pad_lat
+vb_isr:
+    addq.l  #1,0xFF7DFC
+    tst.b   pad_latch_on
+    beq.s   9f
+    movem.l %d0/%a0-%a1,-(%sp)
+    lea     0xA10003,%a0
+    lea     pad_lat,%a1
+    bsr.s   1f
+    lea     0xA10005,%a0
+    bsr.s   1f
+    movem.l (%sp)+,%d0/%a0-%a1
+9:  rte
+1:  move.b  #0x40,(%a0)
+    nop
+    nop
+    nop
+    nop
+    move.b  (%a0),%d0                   | TH=1: C B R L D U
+    ori.b   #0xCF,%d0
+    and.b   %d0,(%a1)+
+    move.b  #0x00,(%a0)
+    nop
+    nop
+    nop
+    nop
+    move.b  (%a0),%d0                   | TH=0: S A 0 0 D U
+    ori.b   #0xEF,%d0
+    and.b   %d0,(%a1)+
+    move.b  #0x40,(%a0)
+    rts
+
+    .lcomm  pad_latch_on, 1
+    .lcomm  pad_lat, 4                  | pad 1 TH=1, TH=0, pad 2 TH=1, TH=0

@@ -26,11 +26,13 @@ u16 pad_read(int port)
 {
     volatile u8 *d = (volatile u8 *)(0xA10003 + port * 2);
     u8 hi, lo;
+    u16 sr = irq_off();             /* not interleaved with the VBlank latch (hud.s) */
     *d = 0x40; nop(); nop(); nop(); nop();
     hi = *d;                        /* TH=1: C B R L D U */
     *d = 0x00; nop(); nop(); nop(); nop();
     lo = *d;                        /* TH=0: S A 0 0 D U */
     *d = 0x40;
+    irq_restore(sr);
     return (u16)(~((hi & 0x3F) | ((lo & 0x30) << 2)) & 0xFF);
 }
 

@@ -140,15 +140,20 @@ static const u8 dir_lut[16] = {
     0x00, 0x08, 0x04, 0x0C, 0x02, 0x0A, 0x06, 0x0E,
     0x01, 0x09, 0x05, 0x0D, 0x03, 0x0B, 0x07, 0x0F,
 };
+extern u8 pad_latch_on, pad_lat[4];      /* hud.s */
 static void read_pad2(void)
 {
     volatile u8 *d = (volatile u8 *)0xA10005;
     u8 t1, t0, p;
+    u16 sr = irq_off();
     *d = 0x40; nop(); nop(); nop(); nop();
     t1 = *d;
     *d = 0x00; nop(); nop(); nop(); nop();
     t0 = *d;
     *d = 0x40;
+    if (pad_latch_on) { t1 &= pad_lat[2]; t0 &= pad_lat[3]; }  /* presses between updates */
+    pad_lat[2] = pad_lat[3] = 0xFF;
+    irq_restore(sr);
     if (t0 & 0x0C) { input = 0xFF; return; }        /* no pad 2 */
     p = 0xC0 | dir_lut[t1 & 15];
     if (t1 & 0x10) p |= 0x10;                       /* B */

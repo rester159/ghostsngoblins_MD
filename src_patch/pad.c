@@ -75,10 +75,13 @@ static void pause_loop(void)
     prev_start = 1;
 }
 
+extern u8 pad_latch_on, pad_lat[4];      /* hud.s: presses on frames between updates */
+
 void pad_update(void)
 {
     volatile u8 *d = (volatile u8 *)0xA10003;
     u8 t1, t0, p1, sys, act4, act5, coin, start;
+    u16 sr = irq_off();
     int mode = PERSIST->magic == PERSIST_MAGIC ? PERSIST->mode : MODE_NONE;
 
     *d = 0x40; nop(); nop(); nop(); nop();
@@ -86,6 +89,13 @@ void pad_update(void)
     *d = 0x00; nop(); nop(); nop(); nop();
     t0 = *d;
     *d = 0x40;
+    if (pad_latch_on) {                 /* B/C, A pressed on a frame since the last update */
+        t1 &= pad_lat[0];
+        t0 &= pad_lat[1];
+    }
+    pad_lat[0] = pad_lat[1] = 0xFF;
+    pad_latch_on = in_play();
+    irq_restore(sr);
     G_RAW1 = t1;
     G_RAW2 = t0;
     G_FRAMES++;
