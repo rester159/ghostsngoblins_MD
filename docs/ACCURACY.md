@@ -386,6 +386,48 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     loop's drain), their count added to `$FFC04C` as the drains do. Stage 1 and stage 3 (the other pass) runs: every kill
     scores in its hit update; the kill count `$FFC04C`, the item slots and the totals are as before.
 
+44. **The Petite Devils** (type 2, stages 2 and 5; `petite.c`, `petite_glue.s`, hooks `$10C99A`, `$72B6`, `$72F2`,
+    `$11AFF0`; arcade `$A89C`-`$AEC0`). The port's (`$3416AA` in stage 2, `$11AEE2` elsewhere) homed on Arthur in 8
+    directions for 900 frames, drew no random and dropped nothing. Now the arcade's, routine by routine, on an image of
+    the arcade slot (as `satan.c`): stage 2's subtype 0 picks a place on the rock face from the 9 lists at `$AF79` (one
+    entry a frame, the scan direction alternating per devil, `$1577`; never the last place, `$1574`/`$1578`) and comes out
+    (`$A8C6`, `$AB6F`: weapons pass for 32 frames, 80-111 frames by `$AD1E`); every devil then aims four times (`$AD53`:
+    one of six turning plans by the `$8FE4` direction, `$ADAC`), drifts 48-95 frames by rank (`$AD28`) and turns toward
+    the plan's direction for 80-111 (`$AC0D`/`$AC33`), then flies off (`$ACD3`); subtype 2 (stage 5) carries a fireball
+    and drops it when level with Arthur and more than 50 px away (sideways) or right above him (down) (`$ADFE`/`$AE0E`,
+    a 0/1 from the random for an early drop, `$A94A`, and 64-95 frames, `$A953`), then turns through 8 directions
+    (`$AC46`); subtype 0 is removed as soon as it is off the screen (`$B25E`), the others out of range (`$8F62`); sound
+    `$0B` every 32 frames (`$798D`). The fireball is the port's shot type 6 (its orb art) with the arcade's shot-8
+    direction and speeds (`$5D6F` by rank: 1.56/2.0/2.13 px sideways, 2.0/2.06/2.19 down) instead of the aim and the
+    2.26 px table. The death in stages 4/5 (`$11AFEA`) lasts the arcade's 21 frames with its sound `$14` (port 36 frames,
+    sound `$1B`), as stage 2's (`$11BC0A`) already did. Frames: the arcade's scripts are kept and each sprite is drawn as
+    the port frame with the same art (`$F8`-`$FC`, `$F0`-`$F5`); `$FD`-`$FF` (the carrier's other wing poses) have no
+    port art and show `$FA`-`$FC`.
+    Measured (lockstep, the port's frame counter phase and the devils' spawn fractions set to the arcade's): stage 2,
+    Arthur standing, 1,000 frames: 4 devils, every position, state and removal identical frame for frame, the random
+    identical (24 draws on the same frames); old build: the same 4 spawns living 185-295 frames against the arcade's
+    570-700, no draws. Stage 5, Arthur standing, 2,500 frames: 5 devils, 2,939 play frames identical, 3 fireballs dropped on the
+    same frames moving identically (one or two leave a frame apart: leftover shot-slot fractions), the random identical
+    (34 draws); old build: 4 spawns, no fireballs, no draws. Stage 5 throwing lances: the same kills on the same frames,
+    the random identical for all 31 draws (the spawns after a kill came 15 frames late with the port's 36-frame death).
+    `tools/re/test_petite.py` runs the same C on every recorded arcade handler call (subtypes 0, 1 and 2, every state,
+    ~29,000 calls, 24 fireballs; subtype 1, which these runs don't meet in stage 4, from devils placed in stages 4
+    and 5): 0 mismatches.
+
+45. **Stage 5's skulls** (type 9; `skull.c`, `skull_glue.s`, hook `$110452`; arcade `$CC45`-`$CF33`). The port ran its
+    type-9 projectile (`$1074DC`, the dragon's fire) on them: off as soon as they came on the screen (aimed at Arthur;
+    since Fixed 30, straight along a leftover direction), removed off the screen. Now, in stage 5, the arcade's: asleep
+    until on the screen with Arthur within 32 px both ways (`$CC70`), the rise (3.5 px/frame against 0.16 px/frame^2,
+    `$CCB8`-`$CCED`), two hops toward Arthur (`$CD30`: sound `$20`, 3 px/frame up slowing by 0.165, down to the floor
+    at up to 3, 0.8 px sideways; the floor probe is the port's `$107ED6` = `$8CA7`), then a leap at his x along a half
+    sine 80 px high (`$CE3A`, |dx|/42 px a frame from the `$FED8` division and `$4EE1`), 6 frames, facing him when he's
+    more than 64 px away (`$CDDB`); removed out of range (`$8F62`); dying 21 frames with sound `$14` (port: 2 frames).
+    The dragon's fire (stages 3, 4, 6) is unchanged. Measured: Arthur teleported next to the first skull (x 6905) and
+    standing, 2,500 frames: its wake, rise, hops and leaps identical value for value (1,913 positions until the end of
+    the run; the port's own skipped updates only delay it); one lance kills it on the same frame in both and it goes on
+    the same frame (old build: it flew off at 3.125 px/frame and left the screen in 60 frames). `tools/re/test_skull.py`
+    (every handler call with the floor probes' results, 38,600 calls, every state): 0 mismatches.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -407,13 +449,18 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   1-4 (ambiguous). Stage 2 zombie walk frames 26-29 matched arcade images 1-2 px apart, possibly the
   streamed art arriving an update late (hypothesis).
 
-- **AI rewritten in the port (to port from the arcade):** Astaroth (`$DAD9`: walk/pause, rapid-fire mode, high shots; shot motion), the Petite Devils (rise from
-  the lava, hover, dive: `$A89C`/`$A8F9`/`$AB4B`), the stage 5 skulls (sleep/wake/hop, `$CC70`/`$CD08`; the
-  port fires them as aimed projectiles). The arcade's second random (`$68F9`, see Fixed 31) is shared by all
-  its callers, so each of these has to draw from it (`arc_rand`) exactly when the arcade does, or the numbers
-  everyone else gets shift: in the stage 5 boss room the arcade's crows (type 1, `$A66F`) draw three as the
-  Satan wakes and the port's crows (`$105472`) didn't in the same run, so in play the Satan's numbers differ
-  from the arcade's (the lockstep runs above set the state at its wake-up).
+- **AI rewritten in the port (to port from the arcade):** Astaroth (`$DAD9`: walk/pause, rapid-fire mode, high shots; shot
+  motion). The arcade's second random (`$68F9`, see Fixed 31) is shared by all its callers, so it has to draw from it
+  (`arc_rand`) exactly when the arcade does, or the numbers everyone else gets shift: in the stage 5 boss room the
+  arcade's crows (type 1, `$A66F`) draw three as the Satan wakes and the port's crows (`$105472`) didn't in the same
+  run, so in play the Satan's numbers differ from the arcade's (the lockstep runs above set the state at its wake-up).
+- **Petite Devils and skulls, what's left** (Fixed 44, 45): the skulls have no port art (drawn with the type-9 frames,
+  a blue orb); the devils' fireball is the port's orb, not sprite `$F7`, and the carrier's wing poses `$FD`-`$FF` show
+  `$FA`-`$FC`; neither death draws the arcade's burst (the 21 frames are kept). Stage 4's devils (subtype 1) weren't met in
+  a play run (checked on placed devils only). The spawner leaves the spawn's x/y fractions from RAM in both games, and
+  the slots it picks differ, so a devil can start a fraction apart (the lockstep runs set them equal). Co-op stage 2 runs
+  at 0.73 updates per frame (was 0.81): the devils now stay on the screen as long as the arcade's, and drawing them is
+  the cost (the same build with the devils not drawn: 0.88); co-op stage 5 0.98 -> 0.93 (skulls and devils on the screen).
 - **The Satans, what's left:** nothing is drawn for the 22-frame burst before the score (the port has no burst
   frames for it); the arcade's hovering pose with the wings open has no port frame (drawn as the flying pose),
   and its shot (a star, sprites `$D7/$DF`) is drawn with the port's type-6 shot art (a small orb). The
