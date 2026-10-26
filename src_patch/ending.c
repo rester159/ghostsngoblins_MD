@@ -68,8 +68,10 @@ extern u8 menu_frames;                  /* glue.s: the frame counter <$21 is $FF
 int  end_trigger(void);                 /* ending_glue.s: the port's $10EAA4 (the room is over) */
 void end_text(int id);                  /* the port's text id into the text layer ($4EBA, $113A88) */
 void end_black(void);                   /* planes cleared, the HUD rows and the lives kept */
+void end_black_all(void);               /* the same down to the bottom row */
 void end_time_off(void);                /* the TIME display erased */
 void end_50k(void);                     /* 50,000 points ($0C15) */
+void score_now(void);                   /* hud.s: the queued score now, as the arcade's */
 void end_sound(int id);
 void end_to_map(void);                  /* stage 1 from its map (no return) */
 void end_restart(void);                 /* stage 1 from its opening scene (glue.s loop_again) */
@@ -147,29 +149,29 @@ static void scene_frame(void)
 /* the second clear's texts ($7389) */
 static void text_start(void)
 {
-        switch (tx) {
-        case 0:                         /* $7399 */
-            end_text(45);
-            end_50k();
-            count = 540;
-            break;
-        case 1:                         /* $73B4 */
-            end_time_off();
-            end_text(47);
-            end_sound(26);              /* the port's own (the arcade's text queue has none) */
-            count = 420;
-            break;
-        case 2:                         /* $73CF */
-            black = 1;
-            end_black();
-            end_time_off();
-            end_text(48);
-            end_sound(26);
-            count = 180;
-            break;
-        }
-        TEXT_ON = 1;
-        FONT_LD = 1;
+    switch (tx) {
+    case 0:                             /* $7399 */
+        end_text(45);
+        end_50k();
+        score_now();
+        count = 540;
+        break;
+    case 1:                             /* $73B4 */
+        end_time_off();
+        end_text(47);
+        end_sound(26);                  /* the port's own (the arcade's text queue has none) */
+        count = 420;
+        break;
+    case 2:                             /* $73CF */
+        black = 1;
+        end_black_all();
+        end_text(48);
+        end_sound(26);
+        count = 180;
+        break;
+    }
+    TEXT_ON = 1;
+    FONT_LD = 1;
 }
 
 /* each text's first frame counts (the arcade's state falls through into its
@@ -242,16 +244,14 @@ static int put(int n, int x, int y, int size, int tile)
 /* the scene's sprites from entry n on; returns the new count */
 static int scene_sprites(int n)
 {
-    int k, top = 224 + CAM_Y - 0x0A4E;
+    int k, nh, top = 224 + CAM_Y - 0x0A4E;
     int cx = CAM_X;
     if (phase < 2 || black) return n;
-    for (k = 0; k < hearts; k++) {      /* fg chars in the arcade: over the sprites */
-        int row = hy - k, col = hx;
-        int trow = row - 2;             /* the arcade's fg row r is screen row r - 2 */
-        /* a text character written over the heart replaces it, as the arcade's */
-        if (TEXT_ON && trow >= 7 && trow <= 18 && TBUF[(trow + 2) * 32 + col] != ' ') continue;
-        n = put(n, col * 8, trow * 8, 0, 0x8000 | T_HEART);
-    }
+    /* the hearts are fg chars in the arcade (over the sprites): the first
+     * text writes over the top one, the second clears them ($011A) */
+    nh = phase < 3 ? hearts : tx == 0 && hearts > 3 ? 3 : 0;
+    for (k = 0; k < nh; k++)
+        n = put(n, hx * 8, (hy - k - 2) * 8, 0, 0x8000 | T_HEART);
     if (hug) {
         n = put(n, (int)(px >> 8) - cx - 16, top, 15, T_HUG_P);
         if (!fb_on()) n = put(n, (int)(u16)(ART_X >> 8) - cx - 16, top, 15, T_HUG_A);
@@ -286,9 +286,9 @@ void end_text_sprites(void)
 void end_build_sprites(void)
 {
     int n;
-    if (phase != 2 || STAGE != 6) return;
-    n = (SPR_LAST + 1) / 4;
-    if (hug && !fb_on()) SPR[0] = 0;    /* entry 0 is Arthur ($5302) */
+    if (phase < 2 || STAGE != 6) return;
+    n = 1;                              /* Arthur ($5302's first entry) only: */
+    if (hug && !fb_on()) SPR[0] = 0;    /* the stage-end mode draws no weapons */
     n = scene_sprites(n);
     link_all(n);
     SPR_LAST = 4 * n - 1;

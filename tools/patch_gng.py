@@ -492,6 +492,10 @@ def install_ending(rom, sym):
     # the text upload after the VBlank: also the scene's tiles
     expect(rom, 0x1115D6, bytes.fromhex('4eba2528') + jsr(0x63FA), 'final room text upload')
     put(rom, 0x1115D6, jsr(sym['hook_end_vbl']) + b'\x4e\x71' * 2)
+    # the game start's restore of score and lives: also the random, after the
+    # second clear's restart
+    expect(rom, 0x414, jsr(0x113AC4), 'restore after a restart')
+    put(rom, 0x414, jsr(sym['hook_end_restore']))
 
 
 def install_stage_end(rom, sym):

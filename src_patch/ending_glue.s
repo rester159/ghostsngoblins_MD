@@ -3,8 +3,8 @@
 
     .text
     .global hook_room_end, hook_end, hook_end_tspr, hook_end_build, hook_end_vbl
-    .global end_trigger, end_text, end_black, end_time_off, end_50k, end_sound
-    .global end_to_map, end_restart
+    .global end_trigger, end_text, end_black, end_black_all, end_time_off, end_50k, end_sound
+    .global end_to_map, end_restart, hook_end_restore
 
 | $10EA5A / $1174B2: `jmp hook_room_end` over the port's room-end block
 | (after the last boss of stages 2-6 is removed: $FFDB08 = 1, a 240-frame
@@ -82,10 +82,20 @@ end_sound:
 | HUD font's among them). Display and
 | interrupts off for the length of it, so the VBlank's VDP accesses can't
 | come in between.
+| end_black_all: rows 4-27 (the second clear's last text, $68DF: no lives
+| or weapon either)
+end_black_all:
+    move.w  %sr,-(%sp)
+    move.w  #0x2700,%sr
+    movem.l %d0-%d3/%a0,-(%sp)
+    moveq   #27-4,%d3
+    bra.s   3f
 end_black:
     move.w  %sr,-(%sp)
     move.w  #0x2700,%sr
-    movem.l %d0-%d2/%a0,-(%sp)
+    movem.l %d0-%d3/%a0,-(%sp)
+    moveq   #24-4,%d3
+3:
     lea     0xC00000,%a0
     move.w  #0x8124,4(%a0)          | display off
     move.w  #0x8F02,4(%a0)
@@ -97,7 +107,7 @@ end_black:
     .endr
     dbf     %d0,1b
     move.l  #0x62000003,%d2         | VRAM $E200: row 4
-    moveq   #24-4,%d0
+    move.w  %d3,%d0
 2:  move.l  %d2,4(%a0)
     .rept 16
     move.l  %d1,(%a0)               | 32 columns
@@ -105,7 +115,7 @@ end_black:
     addi.l  #0x00800000,%d2         | the next row (128 bytes)
     dbf     %d0,2b
     move.w  #0x8164,4(%a0)          | display on (DMA off, as $704BE leaves it)
-    movem.l (%sp)+,%d0-%d2/%a0
+    movem.l (%sp)+,%d0-%d3/%a0
     move.w  (%sp)+,%sr
     rts
 
@@ -144,10 +154,33 @@ end_to_map:
     clr.w   0xFFCD7A
     jmp     0x113B70
 
-| C: void end_restart(void): after the second clear, the opening scene of
-| stage 1 (glue.s loop_again)
+| C: void end_restart(void): after the second clear, the game starts over
+| from its opening scene, score and lives kept, as the arcade's ($73F3,
+| $7446: mode 0, the opening, then stage 1). Here the port's opening (its
+| music $3A and the picture sequence $E0C that the title plays at a game
+| start) and then glue.s loop_again (the port's restart through the game
+| start, $2CC, which keeps score and lives). The game start reseeds the
+| arcade's random (player_init); the arcade's restart doesn't, so its state
+| is kept here and put back with the score and lives (hook_end_restore).
 end_restart:
+    move.w  #0x2700,%sr
+    move.l  0xFFC62C,end_rand
+    st      end_rand_keep
+    clr.b   0xFF7FC2
+    moveq   #0x3A,%d0
+    jsr     0x89E4
+    jsr     0xE0C
     jmp     loop_again
+
+| $414 (the game start, after its inits): `jsr hook_end_restore` over `jsr
+| $113AC4` (the port's restore of the score and lives after its restarts).
+hook_end_restore:
+    jsr     0x113AC4
+    tst.b   end_rand_keep
+    beq.s   1f
+    move.l  end_rand,0xFFC62C
+    sf      end_rand_keep
+1:  rts
 
 | $1118BC (the final room's sprites while the text layer is on): `jsr
 | hook_end_tspr` + nops over `jsr clear_sat` + nops and `move.w #-1,$FFB20C`.
@@ -190,3 +223,8 @@ hook_end_vbl:
 prin_tiles:
     .include "build/princess.inc"
 prin_end:
+
+    .bss
+    .even
+end_rand:      .space 4             | $FFC62C-$FFC62F across the restart
+end_rand_keep: .space 1
