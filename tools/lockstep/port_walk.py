@@ -1,5 +1,5 @@
 """port_walk.py <core> <rom> <frames> <out>: per-frame log of enemy slot events (TYPES=4,5 | all), Arthur
-every 100 frames; LOAD state, POKE, INV=1 (blink invincibility), BOT=1 with AJ (jump x list) / CL (climb x list),
+every 100 frames; LOAD state, POKE, BOTF (first bot frame, so a SCRIPT launch can run first), INV=1 (blink invincibility), BOT=1 with AJ (jump x list) / CL (climb x list),
 DUMP_AT, PNGS=1. Port slots: $FFB800, 40 x 48 bytes."""
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -23,8 +23,9 @@ for f in range(1, int(frames) + 1):
         if pf == f:
             n = (len(pv) + 1) // 2; v = int(pv, 16)
             for k in range(n): w8(pa + k, (v >> (8 * (n - 1 - k))) & 0xFF)
-    if os.environ.get('INV'): w8(0xFFC309, 60)
-    if bot:
+    botf = int(os.environ.get('BOTF', '0'))
+    if os.environ.get('INV') and f >= botf: w8(0xFFC309, 60)
+    if bot and f >= botf:
         r0 = ram(); SCRIPT[:] = [(f, f, {'R': 0x80, 'U': 0x10, 'J': 0x100, 'RJ': 0x180}[bot.step(rd(r0, 0xFF9001, 2), rd(r0, 0xFF9004, 2))])]
     L.retro_run()
     if f in dump_at:

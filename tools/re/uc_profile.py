@@ -8,6 +8,9 @@ Runs from `start` (default $5CE, after the stage-1 loop's VBlank wait) to `end`
 (default $95A, the loop's branch back), `iterations` times, then prints:
   - per top-level call of the loop: instructions and bus accesses (inclusive)
   - the hottest routines by exclusive instructions, with their callers
+PCHIST=n in the environment adds the costliest n code spans (32-byte buckets by
+address, bus cycles counted at the instruction that made them), for routines
+entered by jumps that the call tracking lumps into their caller.
 Cycles are estimated: 4 per instruction word fetched plus a little internal
 time, 4 per data access (8 for a long), and the internal time of multiply,
 divide and shifts. VDP stalls and DMA time are not modelled. The VDP is a write sink with a toggling status, the Z80 bus is
@@ -42,8 +45,14 @@ vb = [8]
 th = {}                                  # pad port -> TH level last written
 
 
+PCHIST = int(os.environ.get('PCHIST', '0'))
+pch = collections.Counter()
+cur_pc = [0]
+
+
 def on_mem(uc, kind, addr, size, value, _):
     c = 8 if size == 4 else 4
+    pch[cur_pc[0] >> 5] += c
     stats['bus'] += 1
     stats['cyc'] += c
     if stack:
@@ -112,6 +121,8 @@ def on_code(uc, addr, size, _):
         return
     op = struct.unpack('>H', uc.mem_read(addr, 2))[0]
     cyc = 2 * size + 2 + extra_cycles(op)     # fetch 4 per word, a little internal time
+    cur_pc[0] = addr
+    pch[addr >> 5] += cyc
     stats['insn'] += 1
     stats['cyc'] += cyc
     if stack:
@@ -158,3 +169,8 @@ if INCL:
     for a, c in incl.most_common(TOP):
         cs = ', '.join('%s x%d' % (('%06X' % k) if isinstance(k, int) else k, v // N) for k, v in callers[a].most_common(2))
         print('  %06X  lines %5.1f   from %s' % (a, c / N / LINE, cs))
+
+if PCHIST:
+    print('\ncostliest code spans (32 bytes, per iteration):')
+    for b, c in pch.most_common(PCHIST):
+        print('  %06X-%06X  lines %5.1f' % (b << 5, (b << 5) + 31, c / N / LINE))
