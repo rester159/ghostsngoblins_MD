@@ -538,6 +538,13 @@ def install_petite(rom, sym):
     # ... and moves it at the arcade's shot-8 speeds
     expect(rom, 0x72F2, bytes.fromhex('43f900029238'), 'type 6 shot speeds')
     put(rom, 0x72F2, jsr(sym['petite_shot_vel_sel']))
+    # its death in stages 4 and 5 ($11AFEA): the arcade's sound $14 ($79B5 = $B7B2,
+    # as stage 2's death $11BC0A has it) and 21 frames before the removal (port 36)
+    expect(rom, 0x11AFF0, bytes.fromhex('4eb90000b7f2397c00240024'), 'type 2 death')
+    put(rom, 0x11AFF0, bytes.fromhex('4eb90000b7b2397c00150024'))
+    # stage 5's skulls (type 9): the arcade's ($CC45, skull.c) in states 0 and 1
+    expect(rom, 0x110452, bytes.fromhex('4a2c00046748'), 'type 9 entry')
+    put(rom, 0x110452, b'\x4e\xf9' + be32(sym['skull_entry']))
 
 
 FRAME = 0x200                  # 32x32 4bpp, 16 tiles column-major
