@@ -425,6 +425,11 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
 - **Arthur:** knockback arc (identical frame by frame), 120-frame invincibility (`$00AD`/`$FFC309`), death in
   boxers, ladders (grab zone, 1.375 px/frame, top/bottom sequences), ledge falls, throw lock 14 frames,
   crouch entry, landing keeps the y fraction in both.
+- **Timer spawns at a stage start** (stages 2, 3; `tools/lockstep`, both games anchored on the frame the camera reaches the
+  restart point, Arthur's first possible step one update later in both): the stage's spawn generator (arcade slot `$06C0`,
+  counter `$06CF`; port `$FFC740`, `$FFC74C`) is set up and its counter loaded with 100 three updates after that in both;
+  the first timer spawns come 104 (stage 2, type 2 at x 3656) and 74 (stage 3, type 11 at x 176) updates after it in both,
+  then every 151 updates. The 3- and 4-update gaps seen before came from the old alignment and the spawner order (Fixed 36).
 
 ## Open
 
@@ -464,9 +469,6 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   (`$8677` and the bg pointers `<$C0-$CE` set at `$802E`) wasn't traced, so the exact window isn't known; a fall
   below the screen or a probe high above it can find a floor in one game and not the other (hypothesis: matters
   for pits in stages 5 and 6).
-- **Timer spawns at a stage start:** in the stage 2 and 3 lockstep (from the arcade's restart state and the port's
-  developer launch, aligned on Arthur's first step) the first spawns that don't depend on the camera come 3 (stage 2)
-  and 4 (stage 3) updates later in the port, at the same places; probably the two starts' alignment (not traced).
 - **Intro:** the arcade's opening shows Arthur and the princess in the graveyard (stage background) for
   ~200 frames before the black-background kidnapping scene; the port's intro starts at the kidnapping.
   Start to play is 557 frames in the arcade, ~335 in the port.

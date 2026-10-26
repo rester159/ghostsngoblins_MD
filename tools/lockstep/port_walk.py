@@ -38,5 +38,5 @@ for f in range(1, int(frames) + 1):
         a = 0xFFB800 + 48 * i; t = rd(r, a + 10, 1)
         cur = (t, rd(r, a + 7, 1)) if rd(r, a + 4, 1) and (types is None or t in types) else None
         if cur != prev.get(i):
-            print('f%d ax%d cam%d slot%d %s -> %s x%d y%d ons%d var%d sub%d,%d life%d' % (f, ax, cam, i, prev.get(i), cur, rd(r, a + 17, 2), rd(r, a + 21, 2), rd(r, a + 5, 1), rd(r, a + 6, 1), rd(r, a + 8, 1), rd(r, a + 9, 1), rd(r, a + 42, 2)))
+            print('f%d ax%d cam%d slot%d %s -> %s x%d y%d ons%d var%d sub%d,%d life%d upd%d' % (f, ax, cam, i, prev.get(i), cur, rd(r, a + 17, 2), rd(r, a + 21, 2), rd(r, a + 5, 1), rd(r, a + 6, 1), rd(r, a + 8, 1), rd(r, a + 9, 1), rd(r, a + 42, 2), rd(r, 0xFF7084, 4)))
             prev[i] = cur
