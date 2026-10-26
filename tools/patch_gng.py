@@ -456,9 +456,26 @@ def install_features(rom, build_dir):
     install_petite(rom, sym)
     install_slot_fraction(rom, sym)
     install_big_man(rom)
+    install_bossart(rom, sym)
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)
+
+
+def install_bossart(rom, sym):
+    """The arcade's art the port lacked (bossart.c, art from mkart.py): the
+    Satans' hovering poses, burst and star."""
+    jmp = lambda a: b'\x4e\xf9' + be32(a)
+    # the Satan's draw: its frames and per-Satan pose buffers in tiles $500/$524
+    expect(rom, 0x11086A, bytes.fromhex('4a2c0004670000ae'), 'Satan draw')
+    put(rom, 0x11086A, jmp(sym['sat_draw_hook']))
+    # its art load ($1104FC, every stage init that has it): then the buffers' state,
+    # the score (to tiles $6D0) and the star ($5F4) in stages 5 and 6
+    expect(rom, 0x11051A, bytes.fromhex('4cdf01034e75'), 'Satan art load end')
+    put(rom, 0x11051A, jmp(sym['sat_load_tail']))
+    # the type-6 shot draw: a Satan's shots as the star
+    expect(rom, 0x11721C, bytes.fromhex('0c4200086400' + '0094'), 'type-6 shot frame check')
+    put(rom, 0x11721C, jmp(sym['star_sel']) + b'\x4e\x71')
 
 
 def install_stage_end(rom, sym):

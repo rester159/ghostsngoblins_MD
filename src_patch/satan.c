@@ -9,8 +9,9 @@
  * x/y, the live/shielded flags (+4 = the arcade's -$10: 1 live, $81 wings
  * closed = weapons blocked, which the port's weapon code already honours),
  * the state (+7 = -$D: 0 init/asleep, 1 awake, 3 remove) and the frame.
- * The port keeps its own drawing (frames 1/2 flying, 3/4 wings closed), hit
- * points, death (+7 = 2) and removal/key (+7 = 3).
+ * The frames are the arcade's (bossart.c: flying, wings closed, and the
+ * hovering script with the wings open, stepped as the arcade steps it); the
+ * port keeps its hit points, death (+7 = 2) and removal/key (+7 = 3).
  *
  * Arcade direct-page inputs and their port equivalents:
  *   <$A0/<$A2 Arthur x/y   $FFA204 / $FFA230 (set at the start of the update pass)
@@ -50,6 +51,19 @@ static u8 counted;                      /* set by $BF5F (the arcade's <$B5 count
 /* anim (visual only): which of the arcade's scripts is set */
 #define ANIM X(0)
 enum { AN_WRAP = 1, AN_FLAP, AN_FLYL, AN_FLYR };
+/* the hovering script ($4C6D: 4 entries of 11 frames, poses A B C B) as the
+ * arcade steps it: $906B restarts it with the facing of that moment (X+1
+ * entry, X+2 timer, X+3 facing), $9074 counts it down */
+#define FLAP_IDX X(1)
+#define FLAP_TIM X(2)
+#define FLAP_FAC X(3)
+static void flap_start(u8 *s) { ANIM = AN_FLAP; FLAP_IDX = 0; FLAP_TIM = 10; FLAP_FAC = FAC; }
+static void anim_step(u8 *s)
+{
+    if (ANIM != AN_FLAP) return;
+    if (FLAP_TIM) FLAP_TIM--;
+    else { FLAP_IDX = (FLAP_IDX + 1) & 3; FLAP_TIM = 10; }
+}
 
 static u16 rd16(const u8 *p) { return (u16)(p[0] << 8 | p[1]); }
 static void wr16(u8 *p, u16 v) { p[0] = v >> 8; p[1] = v; }
@@ -199,7 +213,7 @@ static void back_off(u8 *s)
         if (!X(0xE) && (u16)(XI - in->ax + 0x30) < 0x60) {
             X(0x17) = pick4(T_C358);
             X(0xE) = 1;
-            ANIM = AN_FLAP;
+            flap_start(s);                  /* $C32E */
         }
         if (!X(0xE)) return;
         if (--X(0x17)) { ADDX(T_C354[(s16)(in->ax - XI) >= 0 ? 0 : 1]); return; }
@@ -228,7 +242,7 @@ static void wings(u8 *s)
         if (--X(0x1B) == 0) { X(0x10)++; FL = 1; }
         break;
     case 2:
-        ANIM = AN_FLAP;
+        flap_start(s);                      /* $C049 */
         X(0x10) = 0;
         X(0x1B) = 0x1E;
         X(0x1A) = pick4(T_C06E);
@@ -252,9 +266,10 @@ static void ground(u8 *s)
         FAC = in->ax >= XI;
         ST2++;
         break;
-    case 2: ANIM = AN_FLAP; ST2++;                  /* $BF95, on into $BF9D */
+    case 2: flap_start(s); ST2++;                   /* $BF95, on into $BF9D */
         /* fall through */
     case 3:                                         /* $BF9D */
+        anim_step(s);
         return_dash(s);
         if (X(0x1F)) break;
         back_off(s);
@@ -315,6 +330,7 @@ static void flight(u8 *s)
             ST2++;
         break;
     case 1:                                         /* $C1DB: the arc */
+        anim_step(s);                               /* $C1F5 */
         u = vel(rd16(&X(0x18)));
         if (!X(0x1D) && X(9) >= 0x7F) u = T_VEL[4 + (X(0x1C) & 3)];
         ADDX(u[FAC & 1]);
@@ -326,6 +342,7 @@ static void flight(u8 *s)
         X(9) += X(0x15);
         break;
     case 2:                                         /* $C227: level run to his old x */
+        anim_step(s);                               /* $C22D */
         ADDX(vel(rd16(&X(0x18)))[FAC & 1]);
         if ((u16)(XI - rd16(&X(0xC)) + 0x10) < 0x20) ST2 = 1;
         break;
@@ -394,6 +411,11 @@ static void satan_fire(u8 *s)
     p[7] = 0; p[8] = 0; p[9] = 0;
     p[4] = 1; p[5] = 0;
     p[10] = 6;
+    {                                   /* drawn as the arcade's star (bossart.c) */
+        extern u8 star_tag[6], star_t0[6];
+        u16 n = ((u32)p - 0xFFC100) / 48;
+        if (n < 6) { star_tag[n] = 1; star_t0[n] = RAM8(0xFFA206); }
+    }
 }
 
 static Satan *bind(u8 *p, int *fresh)
@@ -471,12 +493,18 @@ out:
     p[20] = 0; p[21] = s[9]; p[22] = s[10]; p[23] = s[11];
     wr16(p, XI);
     wr16(p + 2, YI);
-    /* the port's frames: 1/2 flying (left/right), 3/4 wings closed */
+    /* the frames (bossart.c): 1/2 flying (left/right), 3/4 wings closed,
+     * 6-11 hovering with the wings open (poses A, B, C) */
     if (ANIM == AN_FLYL) left = 1;
     else if (ANIM == AN_FLYR) left = 0;
+    else if (ANIM == AN_FLAP) left = FLAP_FAC;
     else left = FAC;                    /* ground states: 1 = facing left */
     p[24] = !left;
-    wr16(p + 30, (ANIM == AN_WRAP ? 3 : 1) + !left);
+    if (ANIM == AN_FLAP) {
+        static const u8 POSE[4] = { 0, 2, 4, 2 };
+        wr16(p + 30, 6 + POSE[FLAP_IDX & 3] + !left);
+    } else
+        wr16(p + 30, (ANIM == AN_WRAP ? 3 : 1) + !left);
     return born;
 }
 #else
