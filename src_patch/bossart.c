@@ -134,10 +134,13 @@ void sat_draw(u8 *p, const u16 *cam, Spr *o)
     }
 }
 
-/* the burst ($E8A7 for size class 4) by the port's burst count (+9, 1-22,
- * hook_satan_die): 0 = the pose stays */
+/* the burst ($E8A7 for size class 4: $5B89's 2x2 for 3 frames, then $5B24's
+ * 3x3, 4 frames a pose) by the port's burst count (+9, 1-22, hook_satan_die;
+ * 0 = the pose stays). Lined up with the arcade on the frame the Satan dies:
+ * the pose for 3 frames, the 2x2 for 3, A B A B for 4 each, then C, which the
+ * arcade shows 3 frames and the port 2 (its score comes a frame earlier). */
 const u8 sat_burst[23] = {
-    0, 0, 0, 0, 12, 12, 12, 13, 13, 13, 13, 14, 14, 14, 14, 13, 13, 13, 13, 14, 14, 14, 14 };
+    0, 0, 12, 12, 12, 13, 13, 13, 13, 14, 14, 14, 14, 13, 13, 13, 13, 14, 14, 14, 14, 15, 15 };
 
 /* the star's frames for the shot draw ($117238: count, then dx, dy, attr) */
 const s16 star_frames[2][4] = { { 1, -8, 8, STAR_T }, { 1, -8, 8, STAR_T + 4 } };
