@@ -446,6 +446,7 @@ def install_features(rom, build_dir):
     install_stage_end(rom, sym)
     install_crow_tdevil(rom, sym)
     install_slot_fraction(rom, sym)
+    install_big_man(rom)
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)
@@ -536,6 +537,22 @@ def install_slot_fraction(rom, sym):
     for a in SLOT_COPIES:
         expect(rom, a, bytes.fromhex('303c01df22d851c8fffc'), 'slot image copy')
         put(rom, a, b'\x4e\xb9' + be32(sym['slot_copy']) + b'\x4e\x71\x4e\x71')
+
+
+def install_big_man(rom):
+    """Big Men (type 10, stages 2 and 5; handler $11B1BC, arcade $CF36): the arcade's size class 3 (its
+    on-screen box, $8E67, wakes them; its floor probe $8CA7 at y - 16) in every stage; the port set class 10
+    outside stage 2 and probed with its own box at y - 32 ($14E82 = class 10's)."""
+    expect(rom, 0x11BA2A, bytes.fromhex('197c000a0019'), 'Big Man size class')
+    put(rom, 0x11BA2C, b'\x00\x03')
+    expect(rom, 0x11B7A6, bytes.fromhex('49f900014e82'), 'Big Man floor probe box')
+    put(rom, 0x11B7A8, be32(0x6D612))       # the port's class 3 entry (8, 16, 32) = the arcade's $8DB2
+    # and without the port's stage 2 stand-ins for that probe: Big Men kept to x 5200-5808 and turned there
+    # ($11B746), and a floor assumed there when the probe found none ($11B7D0)
+    expect(rom, 0x11B746, bytes.fromhex('0c39000100ffc512663c'), 'Big Man stage 2 clamp')
+    put(rom, 0x11B746, b'\x60\x44')
+    expect(rom, 0x11B7D0, bytes.fromhex('0c39000100ffc5126626'), 'Big Man stage 2 floor')
+    put(rom, 0x11B7D0, b'\x60\x2e')
 
 
 FRAME = 0x200                  # 32x32 4bpp, 16 tiles column-major
