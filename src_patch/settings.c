@@ -190,13 +190,12 @@ int bonus_give(void)
     return 1;
 }
 
-/* $779A: after points were added to the score at a4. Points added outside
- * play (the ending's 50,000) wait for play (bonus.c). */
+/* $779A: after points were added to the score at a4. The life waits for the
+ * arcade's check in play (bonus.c). */
 void score_added(u32 a4)
 {
     if (a4 != 0xFFC000) return;
-    if (bonus_defer) { bonus_pending = 1; return; }
-    bonus_give();
+    bonus_pending = 1;
 }
 
 /* $62FA: each frame of the continue countdown */

@@ -11,15 +11,15 @@
  * second threshold crossed by the same points comes 8 frames later). The port
  * added the life with the points, at once, and one at most.
  *
- * ending.c sets bonus_defer around its score add; score_added (settings.c)
- * then only sets bonus_pending, and bonus_tick, from rng_tick (glue.s: once a
- * play update, $FFA206 = the arcade's <$21) while bonus_pending is set, makes
- * the arcade's check. Points scored in play still give their life at once
- * (score_added), so ordinary play is unchanged. */
+ * score_added (settings.c) only sets bonus_pending; bonus_tick, from rng_tick
+ * (glue.s: once a play update, $FFA206 = the arcade's <$21) while
+ * bonus_pending is set, makes the arcade's check. Points scored in play wait
+ * for it too, as the arcade's (a score poked to 20,000 at <$21 = $70: the
+ * life at $78; two thresholds crossed at once: two lives 8 frames apart). */
 #include "md.h"
 #include "common.h"
 
-u8 bonus_defer, bonus_pending;
+u8 bonus_pending;
 
 void bonus_tick(void)
 {

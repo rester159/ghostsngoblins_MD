@@ -591,8 +591,14 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     the arcade's check on updates with `$FFA206 & 7` = 0 and `$FFC570` = 0, one life a check until none is due. Port,
     the same forced run (`tools/lockstep/port_end.py`, `SCORE=00049000`): no life at the 50,000 (frame 146 after the
     end), stage 1's first play update with `$FFA206` = `$B7`, the first life on the next one (`$B8`), the second 8 updates
-    later (`$C0`); before, one life on frame 146. Points scored in play still give their life at once (see Open: the
-    arcade's comes 0-7 frames later).
+    later (`$C0`); before, one life on frame 146. Points scored in play: Fixed 59.
+
+59. **A bonus life in play comes on the arcade's check frame** (`settings.c` `score_added`, `bonus.c`): the arcade's
+    life for points scored in play comes 0-7 frames after them, on the next frame with `<$21 & 7` = 0 (`$ED96`; a score
+    poked to 20,000 at `<$21` = `$70`: the life at `$78`), and points crossing two thresholds give their lives 8 frames
+    apart. The port gave one life with the points (`$779A`). Now `score_added` only sets `bonus_pending` for every score,
+    and the check of Fixed 58 gives the lives. Port, stage 1 with the score poked to 19,900 and a lance at the zombies:
+    20,100 at `$FFA206` = `$BA` (update 828), the life at `$C0` (update 834); before, the life with the points.
 
 ## Matching (audited)
 
@@ -677,10 +683,6 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   likeliest source was stage 5's Big Men (Fixed 54). Stage 2's water death y (24 in the arcade, 25 in the port) came from
   the restart's y fraction (Fixed 46): with the fractions equal the fall and the death are identical (y 79, 74, ... 24).
 
-- **Bonus lives in play:** the arcade checks on frames with `<$21 & 7` = 0 (`$ED96`; Fixed 58), so a life comes 0-7
-  frames after the points that earn it (a score poked to 20,000 on a frame with `<$21` = `$70`: the life on `$78`), and
-  points crossing two thresholds give their lives 8 frames apart; the port's comes with the points (`score_added`), one
-  at most. Left as it was (only the ending's waits for the check).
 - **Stage 5 room, Arthur:** walking right from x 7008 on the top floor the arcade's Arthur stands still for a frame where
   the floor steps down a pixel (x 7048, y 1615 -> 1614) and the port's doesn't, so he is a frame ahead from there; the
   ladder up from the floor at y 1455 is climbed from x 7200 in the arcade (Arthur put at x 7200 on it) and from x 7196 in

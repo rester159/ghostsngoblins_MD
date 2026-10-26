@@ -81,6 +81,6 @@ int  hiscore_table(void);           /* 0 arcade, 1 home */
 void hiscore_show(int table, int wait);
 
 /* bonus.c (with settings.c bonus_give) */
-extern u8 bonus_defer, bonus_pending;
+extern u8 bonus_pending;
 int  bonus_give(void);
 #endif

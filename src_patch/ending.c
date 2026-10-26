@@ -72,7 +72,6 @@ void end_black_all(void);               /* the same down to the bottom row */
 void end_time_off(void);                /* the TIME display erased */
 void end_50k(void);                     /* 50,000 points ($0C15) */
 void score_now(void);                   /* hud.s: the queued score now, as the arcade's */
-extern u8 bonus_defer;                  /* bonus.c */
 void end_sound(int id);
 void end_to_map(void);                  /* stage 1 from its map (no return) */
 void end_restart(void);                 /* stage 1 from its opening scene (glue.s loop_again) */
@@ -153,10 +152,8 @@ static void text_start(void)
     switch (tx) {
     case 0:                             /* $7399 */
         end_text(45);
-        bonus_defer = 1;                /* its bonus life comes in play (bonus.c) */
-        end_50k();
+        end_50k();                      /* its bonus life comes in play (bonus.c) */
         score_now();
-        bonus_defer = 0;
         count = 540;
         break;
     case 1:                             /* $73B4 */
