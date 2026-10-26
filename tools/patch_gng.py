@@ -568,6 +568,10 @@ def install_hud(rom, sym):
     # in 3 frames, the arcade's in 2, then both count 300)
     expect(rom, 0x113B8A, bytes.fromhex('33fc012c00ffc590'), 'map duration')
     put(rom, 0x113B8A, bytes.fromhex('33fc012b00ffc590'))
+    # stage 4's fire pillars (type 14) step when (counter + 1) & 31 = 0, all together, as the arcade's
+    # ($DE5E: LDB <$21 / INCB / ANDB #$1F); the port added the slot counter, staggering them by slot
+    expect(rom, 0x10F774, bytes.fromhex('102b0006d02b0007'), 'type-14 step timing')
+    put(rom, 0x10F774, bytes.fromhex('102b000652004e71'))
     # the VBlank handler also latches pad presses between updates (hud.s vb_isr)
     expect(rom, 0x78, be32(0x113E56), 'VBlank vector')
     put(rom, 0x78, be32(sym['vb_isr']))

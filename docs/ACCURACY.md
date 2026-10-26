@@ -437,6 +437,13 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     outside the map) leaves 8 and 10, all on the ring's edge columns. A fall below the screen into a pit could find a floor
     there in the port that the arcade doesn't have.
 
+50. **Stage 4's fire pillars step together** (`$10F774`; arcade type 14, `$DE5A`): the arcade's pillars advance their size
+    sequence when `(<$21 + 1) & 31 = 0`, all on the same frame; the port's added the slot counter instead of 1, so each
+    pillar was offset by its slot (slot 38, the first one on screen from the checkpoint: a frame early; slot 24: 15 frames).
+    From the stage 4 checkpoint (the port started there by copying the restart entry for the test) with the counters lined
+    up, slot 38's 62 size changes over 700 frames: before, every one a frame early; now 61 on the arcade's update, one (the
+    sequence's restart step) 2 frames late.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -484,7 +491,7 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
 - **Ending:** the port walks Arthur 240 frames before the text and has no princess scene (arcade: text 1
   frame after Astaroth dies; 131-frame princess scene on the second clear); +1,000 points at the room's
   end that the arcade doesn't give; "Return to starting point" drawn over the room instead of on black.
-- **Smaller:** stage 4 fire pillars one frame early; a stage 5 flying knight drifts after ~600 frames; Astaroth's shot parks on a blinking Arthur; the stage 2
+- **Smaller:** a stage 4 fire pillar's restart step, once a 256-frame cycle, 2 frames late (Fixed 50); a stage 5 flying knight drifts after ~600 frames; Astaroth's shot parks on a blinking Arthur; the stage 2
   stone-block edge and elevator walk-step quirks; Big Men 1 px; stage 2 water death y.
 
 - **Terrain map edges:** after Fixed 49 a few cells on the ring's edge columns still differ at a stage start (stage 5: 8
