@@ -63,10 +63,100 @@ void sat_art_init(void)
     }
 }
 
+/* ---- stage 2's windows -------------------------------------------------
+ * The arcade's devils open and close their window by writing bg tiles
+ * ($B457: 4 steps of 5 frames, at the devil's x - 16 .. + 15 and its tile
+ * row and the one above). Here the same poses go onto plane B ($C000, 64 x 32
+ * cells; a window at world x X, y Y is at column ((X >> 4) - 1) * 2, row
+ * 30 - 2 * (Y >> 4), 4 x 4 cells), from two 16-tile slots ($6AC-$6BB and
+ * $6BC-$6C7 + $5F4-$5F7, unused in stage 2; $6A4-$6C7 is the second
+ * Unicorn's art slot, $71DF0, only at the stage's end), uploaded at the
+ * vblank of the step; the closed window's cells, saved when it opens, are put
+ * back at the end. A window off the camera's reach (the plane holds 512 px)
+ * is left alone. */
+#define WIN_PLANE 0xC000
+typedef struct { u8 *owner; u16 wx; u8 col, row, pend, saved; u16 cell[16]; } Win;
+static Win win[2];
+static const u16 win_tile[2][16] = {
+    { 0x6AC, 0x6AD, 0x6AE, 0x6AF, 0x6B0, 0x6B1, 0x6B2, 0x6B3, 0x6B4, 0x6B5, 0x6B6, 0x6B7, 0x6B8, 0x6B9, 0x6BA, 0x6BB },
+    { 0x6BC, 0x6BD, 0x6BE, 0x6BF, 0x6C0, 0x6C1, 0x6C2, 0x6C3, 0x6C4, 0x6C5, 0x6C6, 0x6C7, 0x5F4, 0x5F5, 0x5F6, 0x5F7 } };
+
+static int win_reach(const Win *w)
+{
+    u16 d = w->wx - RAM16(0xFFA200) + 64;
+    return d < 384;
+}
+
+/* tdevil.c's window_tiles, at each of its steps (n = 1-4) */
+void win_step(u8 *p, int closing, int n)
+{
+    Win *w = 0;
+    int k;
+    if (RAM8(0xFFC512) != 1) return;
+    for (k = 0; k < 2; k++)
+        if (win[k].owner == p) w = &win[k];
+    if (!closing && n == 1) {                   /* a window opens (this step writes it closed) */
+        u16 x = p[17] << 8 | p[18], y = p[21] << 8 | p[22];     /* (odd addresses) */
+        if (!w) {
+            for (k = 0; k < 2 && !w; k++) {
+                u8 *q = win[k].owner;
+                if (!q || !q[4] || q[10] != 4) w = &win[k];     /* free, or its devil is gone */
+            }
+            if (!w) w = &win[0];
+        }
+        w->owner = p;
+        w->wx = ((x >> 4) - 1) << 4;
+        w->col = (((x >> 4) - 1) * 2) & 63;
+        w->row = (30 - 2 * (y >> 4)) & 31;
+        w->saved = 0;
+        w->pend = 0;
+        return;
+    }
+    if (!w) return;
+    k = closing ? 4 - n : n - 1;                /* 0 closed, 1-3 the open poses */
+    w->pend = k ? k : 0xFF;
+}
+
+static void win_vblank(Win *w, int k)
+{
+    int r, c;
+    u16 a;
+    if (!w->pend) return;
+    if (!win_reach(w)) { w->pend = 0; return; }
+    if (w->pend == 0xFF) {
+        if (w->saved == 1)
+            for (r = 0; r < 4; r++) {
+                VDP_CTRLL = VRAM_W(WIN_PLANE + ((w->row + r) & 31) * 128 + w->col * 2);
+                for (c = 0; c < 4; c++) VDP_DATA = w->cell[r * 4 + c];
+            }
+        w->saved = 0;                           /* closed again: the slot is free */
+        w->owner = 0;
+        w->pend = 0;
+        return;
+    }
+    if (!w->saved) {
+        for (r = 0; r < 4; r++) {
+            VDP_CTRLL = VRAM_R(WIN_PLANE + ((w->row + r) & 31) * 128 + w->col * 2);
+            for (c = 0; c < 4; c++) w->cell[r * 4 + c] = VDP_DATA;
+        }
+        w->saved = 1;
+    }
+    a = (w->pend - 1) * 256;                    /* 16 tiles of 16 words */
+    if (k == 0) dma_vram((u32)(win_art + a), 512, 0x6AC * 32);
+    else { dma_vram((u32)(win_art + a), 384, 0x6BC * 32); dma_vram((u32)(win_art + a + 192), 128, 0x5F4 * 32); }
+    for (r = 0; r < 4; r++) {
+        VDP_CTRLL = VRAM_W(WIN_PLANE + ((w->row + r) & 31) * 128 + w->col * 2);
+        for (c = 0; c < 4; c++) VDP_DATA = (w->cell[r * 4 + c] & 0xE000) | win_tile[k][r * 4 + c];
+    }
+    w->pend = 0;
+}
+
 /* hook_sat_dma: the uploads for the sprites about to be shown */
 void sat_vblank(void)
 {
     int b;
+    win_vblank(&win[0], 0);
+    win_vblank(&win[1], 1);
     for (b = 0; b < 2; b++) {
         if (sb_want[b] && sb_want[b] != sb_have[b]) {
             dma_vram((u32)(sat_art + sb_want[b] - 1), (u16)sb_nart[b] * 128, (b ? SAT_BUF1 : SAT_BUF0) * 32);

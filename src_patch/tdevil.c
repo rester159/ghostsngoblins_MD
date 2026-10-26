@@ -213,11 +213,12 @@ static int dodge(u8 *p, const Ctx *c)
     return 0;
 }
 
-/* $B457: the window's tiles, 4 steps of 5 frames (the tiles themselves
- * aren't drawn: the port has no window art); 1 at the end */
-static int window_tiles(u8 *p)
+/* $B457: the window's tiles, 4 steps of 5 frames (drawn by bossart.c's
+ * win_step on plane B); 1 at the end */
+void win_step(u8 *p, int closing, int n);
+static int window_tiles(u8 *p, int closing)
 {
-    if (!TILE) { TILE = 5; TSTEP++; }
+    if (!TILE) { TILE = 5; TSTEP++; win_step(p, closing, TSTEP); }
     if (--TILE) return 0;
     return TSTEP >= 4;
 }
@@ -351,12 +352,12 @@ static void window(u8 *p, const Ctx *c)    /* ST1 4 ($B41E) */
         if (ONS) { TILE = 0; TSTEP = 0; tdv_sound(0x12); ST2++; }
         break;
     case 1:                             /* $B457, opening */
-        if (window_tiles(p)) ST2++;
+        if (window_tiles(p, 0)) ST2++;
         break;
     case 2: emerge(p, c); break;
     case 3: TILE = 0; TSTEP = 0; ST2++;  /* $B510, closing, and on into $B51B */
         /* fall through */
-    case 4: if (window_tiles(p)) ST2++;  /* $B51B */
+    case 4: if (window_tiles(p, 1)) ST2++;  /* $B51B */
         leap(p, c);
         break;
     default: leap(p, c); break;

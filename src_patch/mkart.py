@@ -164,4 +164,35 @@ out.append('#define SAT_ART_BLOCK(f) (sat_frames[f].art)')
 # the Satan's shot: the star, sprites $1D7/$1DF (colour 3), 4 frames each
 emit_words('star_art', piece(0x1D7, PM_STAR) + piece(0x1DF, PM_STAR))
 
+# --- stage 2's windows (the devils' $B457: bg tiles $2F0-$2FF, colour 7) -------
+# Each step writes 2x2 bg tiles: $Fn top left, $Fn+8 below it, $Fn+1 and $Fn+9
+# to the right ($B495 opening F0 F2 F4 F6, $B4A9 closing F6 F4 F2 F0). The port
+# draws stage 2's bg on plane B with line 3; its closed windows (F0, from its own
+# conversion) map the pens 0 1 2 3 4 5 6 to 1 4 5 6 6 A A (pen 7, black, unused
+# there, to 1). Each open pose is 16 tiles, row by row (4 x 4 cells).
+PM_WIN = {0: 1, 1: 4, 2: 5, 3: 6, 4: 6, 5: 0xA, 6: 0xA, 7: 1}
+
+
+def bg_cells(code):
+    """a 16x16 bg tile as 2x2 cells: [[top left, top right], [bottom left, bottom right]] of 16 words"""
+    cells = [[None, None], [None, None]]
+    for qy in range(2):
+        for qx in range(2):
+            w = []
+            for y in range(8):
+                r = [PM_WIN[til_pen(code, qx * 8 + x, qy * 8 + y)] for x in range(8)]
+                w += [(r[0] << 12) | (r[1] << 8) | (r[2] << 4) | r[3], (r[4] << 12) | (r[5] << 8) | (r[6] << 4) | r[7]]
+            cells[qy][qx] = w
+    return cells
+
+
+words = []
+for n in (0xF2, 0xF4, 0xF6):
+    tl, tr, bl, br = (bg_cells(0x200 + c) for c in (n, n + 1, n + 8, n + 9))
+    for row in range(4):
+        left, right = (tl, tr) if row < 2 else (bl, br)
+        for col in range(4):
+            words += (left if col < 2 else right)[row & 1][col & 1]
+emit_words('win_art', words)
+
 open(dst, 'w').write('\n'.join(out) + '\n')
