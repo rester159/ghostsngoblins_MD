@@ -509,6 +509,67 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     1 px a frame): the first one wakes on the arcade's frame (437; before 430) and settles at the arcade's 1055.
     Hits to kill weren't compared (the port gives stage 5's 0 hit points at `+11`, stage 2's 10; not traced).
 
+57. **The Satans' art** (stages 5 and 6; `bossart.c`, `bossart_glue.s`, art by `src_patch/mkart.py`; hooks `$11086A`, `$11051A`,
+    `$11721C`, `hook_sat_dma`, `hook_satan_die`). The port drew 2 poses (flying, wings closed: tiles `$500`-`$543`, loaded once by
+    `$1104FC`), nothing for the burst, and the shot as its type-6 orb. Now the arcade's: the hovering pose with the wings open
+    (`$4C6D`: 4 entries of 11 frames, poses A B C B, restarted by `$906B` at `$BF95`/`$C049`/`$C32E` with the facing of that
+    moment and counted down by `$9074` at `$BF9D`/`$C1F5`/`$C22D`, as `satan.c` now steps it in the slot image's anim bytes), the
+    burst (`$E8A7` for class 4: `$5B89`'s 2x2 then `$5B24`'s 3x3), and the star (`$1D7`/`$1DF`, 4 frames each). mkart.py converts
+    the arcade sprites with the port's own pens for the Satan (its conversion of the flying and closed poses is reproduced
+    exactly: 16 of 16 pieces equal to `$2552F4`) and the nearest colours of line 0 for the rest. 9 pieces a pose don't fit
+    resident, so each Satan on the screen gets a 9-piece buffer in the Satan's own tiles (`$500`, `$524`), and its pose's
+    pieces are DMA'd there at the sprite-table DMA of the frame that shows them (`sat_vblank`; skipped with it when `pace.c`
+    holds the sprites); the score (the port's 2 pieces, `$255B74`) goes into the buffer too. The star sits in `$5F4`-`$5FB`:
+    the only writer of `$5F4`-`$5FE` in the ROM is `$6434`, unreachable (`$6428` returns first), and in 4,061 VRAM snapshots
+    of stage 5 (2 bot walks, 1P/Firebrand; the boss room, 1P/co-op/Firebrand) and 1,593 of stage 6 (random play, 3 modes)
+    nothing else wrote or showed those tiles.
+    Measured (stage 5 boss room, Arthur idle then throwing): the hover poses change every 11 frames A B C B as the arcade's
+    (`$4C9F` entries at its frames 7, 18, 29, 40); from the kill frame the arcade shows the pose 3 frames, the 2x2 3, A B A B 4
+    each, C 3, then the score; the port the same up to C, which it shows 2 frames (its score phase starts a frame earlier);
+    the star alternates every 4 frames from its shot as the arcade's (the port's shot is first drawn a frame later than the
+    arcade's, as before). Side by side: hover poses, burst and star match the arcade's frames.
+
+58. **Stage 2's windows** (`bossart.c` `win_step`/`win_vblank`, from `tdevil.c`'s `window_tiles`; arcade `$B457`, tables
+    `$B495`/`$B4A9`). The arcade's devil writes 2x2 bg tiles at its window (code `$Fn` + `$F8`.. with attribute `$87`: tiles
+    `$2F0`-`$2FF`, colour 7) every 5 frames: opening F0 F2 F4 F6, closing F6 F4 F2 F0; the port drew nothing. The port's stage 2
+    bg is plane B (`$C000`, 64 x 32, line 3; a window at the devil's x, y is at column ((x >> 4) - 1) * 2, row 30 - 2 * (y >> 4),
+    checked on 4 windows), and its closed windows are its own conversion of F0 (pens 0-6 -> 1 4 5 6 6 A A, which mkart.py
+    uses for F2-F7/FA-FF; 45 tiles). Two windows can open at once, so each gets a 16-tile slot (`$6AC`-`$6BB`, `$6BC`-`$6C7` +
+    `$5F4`-`$5F7`) filled with the step's pose at the vblank and its 4 x 4 cells pointed at it; the closed cells, saved when
+    it opens, are put back at the end. Stage 2 never had anything in `$6AC`-`$6C7` in 2,061 snapshots (1P, co-op, Firebrand,
+    the checkpoint); the only code that writes there is the Unicorn's second art slot (`$71DF0`: type 8, `$6A4`-`$6C7`), at the
+    stage's end. Side by side from the checkpoint (both 30 frames after the restart, walking right): the window's poses on
+    the same frames (frames 127-180: opening, the devil, closing, closed).
+
+59. **The opening** (`bossart.c` `intro_scene`, `intro_waits`; hooks `$C48`, `$E92`, Home start in `glue.s`). After Start the
+    arcade draws stage 1's graveyard at camera 0 with the HUD's top rows, Arthur sitting in his boxers, the princess and the
+    armour (frames 806-998 with coin at 700 and Start at 800), fades the bg palettes at 871 and 935 (Arthur turns his head at
+    955), and goes on on black from 999; the port's intro (`$E0C`: 155 steps of plane writes, 2 frames each) was only the
+    black part, and Arthur could move 362 frames after Start (arcade 559). Now the graveyard comes first: mkart.py runs the
+    arcade (tools/arcade) to those frames and converts its bg (38 tiles, the black pen as the backdrop), HUD chars and 10
+    sprite pieces into 196 tiles and 4 lines packed from the colours of the three palette phases. Then `$E0C` runs with a
+    wait per step from the arcade's frames of the same events (the cloak blinking from 993, the wings at 1045, poses at
+    1057-1101, the swoop 1110, the princess taken 1126, gone 1149, Arthur lands 1158, gets up 1192, armour 1212, walks
+    1246-1287). Measured: the graveyard shows 193 frames as the arcade's (port 908-1100, arcade 806-998: 2 frames later
+    after Start); the steps land on the arcade's frames (side by side every 24 frames, 1010-1322); Start to Arthur's first
+    step 559 frames in both (the picture ends 5 frames early because the port's stage start takes 4 frames more). Start
+    skips both parts from the 21st frame as before; the Home start shows them too; Firebrand's Quest skips them as before.
+
+60. **Stage 5's skulls and Petite Devils, their art** (`bossart.c`, `petite.c`'s frames, `skull.c`'s frames; type-9 draw tables
+    `$107642`/`$10764E`/`$107658`, devil frames `$11C256`/`$11C09E`/`$10CE00`/`$11C26E`/`$10CE16`/`$11C0A8`, `$11C15E`, `$11721C`).
+    The port had the skull asleep and rising (its type-9 tiles `$4A0`-`$4B3`: `$A7`, `$A2`-`$A5`) and drew the standing skull
+    with them; no art for the carrier's wing poses with the fireball (`$FD`-`$FF`, shown as `$FA`-`$FC`) or the fireball (`$F7`,
+    the type-6 orb), and the dying devils of stages 3-6 kept flying (frames 9-12, 21-24). Now: the standing frames (`$CE1A`: A8
+    A0 A9 A1, AA A2 AB A3, AC A4 AD A5, 2 x 2) through the port's own type-9 draw from a longer frame table (the port's 3 frames,
+    then these, then the burst); the 8 new pieces and the fireball in stage 5's second Satan buffer (`$524`-`$547`, unused there:
+    one Satan); the devil's 3 poses as frames 41-46 after the port's 41 in its streamed devil bank (both upload loops and the
+    draw); and both deaths with the arcade's burst (`$E85B` for class 3: 2 x 2, 5 poses, mirrored, attribute `$54`), which is
+    the port's own enemy burst, resident in stage 5 (tiles `$320`-`$36B`, line 2). The pens are the port's own conversions of
+    the same characters, reproduced exactly (5 skull pieces, 11 devil frames). Timing by each death's 21-frame count, as in
+    the arcade (`$CF07`, pose 3 frames then 4/4/4/4/3). Stage 2's dying devils already showed a burst (`$11BCB0`). Measured:
+    co-op stage 5 0.914 -> 0.890 updates per frame (9 seeds; the standing skulls are 4 sprites and the bursts are drawn), 1P
+    and Firebrand within noise; no faults in stages 1-6 x 1P/co-op/Firebrand and the stage 5 boss room.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -558,24 +619,23 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   arcade's crows (type 1, `$A66F`) draw three as the Satan wakes and the port's crows (`$105472`) didn't in the same
   run, so in play the Satan's numbers differ from the arcade's (the lockstep runs above set the state at its wake-up).
 
-- **Petite Devils and skulls, what's left** (Fixed 51, 52): the skulls have no port art (drawn with the type-9 frames,
-  a blue orb); the devils' fireball is the port's orb, not sprite `$F7`, and the carrier's wing poses `$FD`-`$FF` show
-  `$FA`-`$FC`; neither death draws the arcade's burst (the 21 frames are kept). Stage 4's devils (subtype 1) weren't met in
+- **Petite Devils and skulls, what's left** (Fixed 51, 52; their art: Fixed 60): the port's own enemy burst (used for
+  them and its other enemies) is drawn mirrored relative to the arcade's in its own frame tables (`$14C57A`; Fixed 60
+  draws the arcade's way for these two). Stage 4's devils (subtype 1) weren't met in
   a play run (checked on placed devils only). The spawner leaves the spawn's x/y fractions from RAM in both games, and
   the slots it picks differ, so a devil can start a fraction apart (the lockstep runs set them equal). Co-op stage 2 runs
   at 0.73 updates per frame (was 0.81): the devils now stay on the screen as long as the arcade's, and drawing them is
   the cost (the same build with the devils not drawn: 0.88); co-op stage 5 0.98 -> 0.93 (skulls and devils on the screen).
 
-- **The Satans, what's left:** nothing is drawn for the 22-frame burst before the score (the port has no burst
-  frames for it); the arcade's hovering pose with the wings open has no port frame (drawn as the flying pose),
-  and its shot (a star, sprites `$D7/$DF`) is drawn with the port's type-6 shot art (a small orb). (Their spawn
-  fractions: Fixed 53.)
+- **The Satans, what's left** (art: Fixed 57): the burst's last pose shows 2 frames (arcade 3), as the port's score
+  phase starts a frame earlier; the arcade's small burst leaves the flying pose's right column on the screen for its 3
+  frames (its sprite list isn't cleared; not drawn here). (Their spawn fractions: Fixed 53.)
 
 - **Vertical scroll speed:** while the camera catches up a long way vertically (stage 5, 50 frames of 5 px steps) the port
   loses an update (the row streaming runs past the frame); the camera's moves are the arcade's (Fixed 45).
 
-- **Stage 2's devils, what's left** (Fixed 39): the window tiles opening and closing aren't drawn (the port has no window
-  art; their 20-frame timing is kept); sound `$12` at the opening is played by id, not compared by ear; the change into a Red
+- **Stage 2's devils, what's left** (Fixed 39; the windows: Fixed 58): a window whose devil dies before it closes keeps its
+  slot until another opens (the arcade leaves it open); sound `$12` at the opening is played by id, not compared by ear; the change into a Red
   Arremer after 1200-3600 frames and the subtype 0/2 states (no such spawn records seen in stage 2) are translated but weren't
   reached in a run (the change into an Arremer was since forced in both games: Matching (audited), Red Arremers).
 
@@ -607,6 +667,8 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
 - **Terrain map edges:** after Fixed 49 a few cells on the ring's edge columns still differ at a stage start (stage 5: 8
   of 1,792 probed, stage 6: 10), where the arcade's first fill left them as they were; not traced.
 
-- **Intro:** the arcade's opening shows Arthur and the princess in the graveyard (stage background) for
-  ~200 frames before the black-background kidnapping scene; the port's intro starts at the kidnapping.
-  Start to play is 557 frames in the arcade, ~335 in the port.
+- **Intro** (Fixed 59): between the graveyard and the black part the port shows 6 black frames while `$E0C` loads its
+  VRAM (the arcade shows the characters on black); the cloak's blinking is the port's 7 on/off steps, not the arcade's ~26;
+  after the picture the arcade shows the HUD with TIME on black for ~40 frames before stage 1 fades in, the port black
+  and then stage 1 ~30 frames earlier (Arthur can move on the same frame in both); the intro's top score is the port's
+  prebaked 10000.
