@@ -14,7 +14,7 @@ compared.
 usage: test_astaroth.py <arcade state> <frames> [seed]
        DIE=n kills Arthur on frame n (a respawn re-creates Astaroth, so its init
        and wake-up are covered; the default is frame 1).
-The state needs the final room: e.g. arc_stage_states/rs_6_0.state.
+The state needs the final room: tools/lockstep/arc_start.py 6 0 <out.state> (or 6 1).
 """
 import ctypes
 import os
