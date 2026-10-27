@@ -73,18 +73,26 @@ void sat_art_init(void)
  * ($B457: 4 steps of 5 frames, at the devil's x - 16 .. + 15 and its tile
  * row and the one above). Here the same poses go onto plane B ($C000, 64 x 32
  * cells; a window at world x X, y Y is at column ((X >> 4) - 1) * 2, row
- * 30 - 2 * (Y >> 4), 4 x 4 cells), from two 16-tile slots ($6AC-$6BB and
- * $6BC-$6C7 + $5F4-$5F7, unused in stage 2; $6A4-$6C7 is the second
- * Unicorn's art slot, $71DF0, only at the stage's end), uploaded at the
- * vblank of the step; the closed window's cells, saved when it opens, are put
- * back at the end. A window off the camera's reach (the plane holds 512 px)
- * is left alone. */
+ * 30 - 2 * (Y >> 4), 4 x 4 cells). The arcade's windows are bg tiles, so it
+ * has no limit of its own: any number stay open, each at its last pose (a
+ * dead devil's too), until the ring is written over. So the three open poses
+ * (F2, F4, F6) each have their own 16 tiles, shared by every window showing
+ * that pose: $6AC-$6BB; $6BC-$6C7 + $5F4-$5F7; $5F8-$5FB + $6D0-$6DB, none
+ * read by anything in stage 2 ($6A4-$6C7 is the second Unicorn's art slot,
+ * $71DF0, only at the stage's end; $5F4-$5FB the Satans' star, stages 5-6;
+ * $6D0-$6D7 is rewritten blank at a life start, $4F4). A pose's tiles are
+ * uploaded at the vblank of a step to it, and a window's cells pointed at
+ * them; its closed cells, saved when it opens, are put back at the end.
+ * A window off the camera's reach (the plane holds 512 px) is left alone. */
 #define WIN_PLANE 0xC000
+#define NWIN 8
 typedef struct { u8 *owner; u16 wx; u8 col, row, pend, saved; u16 cell[16]; } Win;
-static Win win[2];
-static const u16 win_tile[2][16] = {
+static Win win[NWIN];
+static u8 win_any;                      /* an entry has a pend */
+static const u16 win_tile[3][16] = {
     { 0x6AC, 0x6AD, 0x6AE, 0x6AF, 0x6B0, 0x6B1, 0x6B2, 0x6B3, 0x6B4, 0x6B5, 0x6B6, 0x6B7, 0x6B8, 0x6B9, 0x6BA, 0x6BB },
-    { 0x6BC, 0x6BD, 0x6BE, 0x6BF, 0x6C0, 0x6C1, 0x6C2, 0x6C3, 0x6C4, 0x6C5, 0x6C6, 0x6C7, 0x5F4, 0x5F5, 0x5F6, 0x5F7 } };
+    { 0x6BC, 0x6BD, 0x6BE, 0x6BF, 0x6C0, 0x6C1, 0x6C2, 0x6C3, 0x6C4, 0x6C5, 0x6C6, 0x6C7, 0x5F4, 0x5F5, 0x5F6, 0x5F7 },
+    { 0x5F8, 0x5F9, 0x5FA, 0x5FB, 0x6D0, 0x6D1, 0x6D2, 0x6D3, 0x6D4, 0x6D5, 0x6D6, 0x6D7, 0x6D8, 0x6D9, 0x6DA, 0x6DB } };
 
 static int win_reach(const Win *w)
 {
@@ -101,47 +109,46 @@ static int win_orphan(const Win *w)
     return !q[4] || q[10] != 4 || q[7] != 1 || q[8] != 4;
 }
 
-/* give up a slot: its closed cells go back at the vblank (pend $FF) while the
- * window is in reach; out of reach they are the streamer's again */
+/* give up an entry: its closed cells go back at the vblank (pend $FF) while
+ * the window is in reach; out of reach they are the streamer's again */
 static void win_free(Win *w)
 {
-    if (win_reach(w) && w->saved == 1) { w->pend = 0xFF; return; }
+    if (win_reach(w) && w->saved == 1) { w->pend = 0xFF; win_any = 1; return; }
     w->owner = 0; w->saved = 0; w->pend = 0;
 }
 
 static int win_free_slot(void)
 {
     int k;
-    for (k = 0; k < 2; k++)
+    for (k = 0; k < NWIN; k++)
         if (!win[k].owner) return k;
     return -1;
 }
 
 /* tdevil.c's window_tiles, at each of its steps (n = 1-4). A window whose
- * devil dies or leaves before it is closed keeps its slot and its pose, as
- * the arcade's stays open; the slot is given up only when a new window finds
- * none free (preferring one off the camera's reach), and then its closed
- * cells are put back: the arcade can show three open windows, there are two
- * slots. The new window takes its slot at its first pose (step 2: step 1
- * writes it closed), so a slot given up at step 1 is free by then. */
+ * devil dies or leaves before it is closed keeps its entry and its pose, as
+ * the arcade's stays open. The new window takes an entry at its first pose
+ * (step 2: step 1 writes it closed); with all NWIN in use (never seen: the
+ * stage's window section has at most 3 at once in reach) one whose devil is
+ * gone is given up at the new window's step 1, off the camera's reach first. */
 void win_step(u8 *p, int closing, int n)
 {
     Win *w = 0;
     int k;
     if (RAM8(0xFFC512) != 1) return;
-    for (k = 0; k < 2; k++)
+    for (k = 0; k < NWIN; k++)
         if (win[k].owner == p) w = &win[k];
     if (!closing && n == 1) {                   /* a window opens */
-        if (w) win_free(w);                     /* the slot's last devil's window */
+        if (w) win_free(w);                     /* the entry's last devil's window */
         if (win_free_slot() < 0) {
             Win *v = 0;
-            for (k = 0; k < 2; k++)
+            for (k = 0; k < NWIN; k++)
                 if (win[k].pend != 0xFF && win_orphan(&win[k]) && (!v || !win_reach(&win[k]))) v = &win[k];
             if (v) win_free(v);
         }
         return;
     }
-    if (!w && !closing && n == 2) {             /* its first pose: take a slot */
+    if (!w && !closing && n == 2) {             /* its first pose: take an entry */
         u16 x = p[17] << 8 | p[18], y = p[21] << 8 | p[22];     /* (odd addresses) */
         k = win_free_slot();
         w = &win[k < 0 ? 0 : k];
@@ -155,13 +162,22 @@ void win_step(u8 *p, int closing, int n)
     if (!w) return;
     k = closing ? 4 - n : n - 1;                /* 0 closed, 1-3 the open poses */
     w->pend = k ? k : 0xFF;
+    win_any = 1;
 }
 
-static void win_vblank(Win *w, int k)
+/* a pose's 16 tiles (n = 1-3), row by row in win_art */
+static void win_upload(int n)
+{
+    u32 a = (u32)(win_art + (n - 1) * 256);
+    if (n == 1) dma_vram(a, 512, 0x6AC * 32);
+    else if (n == 2) { dma_vram(a, 384, 0x6BC * 32); dma_vram(a + 384, 128, 0x5F4 * 32); }
+    else { dma_vram(a, 128, 0x5F8 * 32); dma_vram(a + 128, 384, 0x6D0 * 32); }
+}
+
+static void win_vblank(Win *w)
 {
     int r, c;
-    u16 a;
-    if (!w->pend) return;
+    const u16 *t;
     if (!win_reach(w)) {
         if (w->pend == 0xFF) { w->owner = 0; w->saved = 0; }
         w->pend = 0;
@@ -173,7 +189,7 @@ static void win_vblank(Win *w, int k)
                 VDP_CTRLL = VRAM_W(WIN_PLANE + ((w->row + r) & 31) * 128 + w->col * 2);
                 for (c = 0; c < 4; c++) VDP_DATA = w->cell[r * 4 + c];
             }
-        w->saved = 0;                           /* closed again: the slot is free */
+        w->saved = 0;                           /* closed again: the entry is free */
         w->owner = 0;
         w->pend = 0;
         return;
@@ -185,14 +201,28 @@ static void win_vblank(Win *w, int k)
         }
         w->saved = 1;
     }
-    a = (w->pend - 1) * 256;                    /* 16 tiles of 16 words */
-    if (k == 0) dma_vram((u32)(win_art + a), 512, 0x6AC * 32);
-    else { dma_vram((u32)(win_art + a), 384, 0x6BC * 32); dma_vram((u32)(win_art + a + 192), 128, 0x5F4 * 32); }
+    t = win_tile[w->pend - 1];
     for (r = 0; r < 4; r++) {
         VDP_CTRLL = VRAM_W(WIN_PLANE + ((w->row + r) & 31) * 128 + w->col * 2);
-        for (c = 0; c < 4; c++) VDP_DATA = (w->cell[r * 4 + c] & 0xE000) | win_tile[k][r * 4 + c];
+        for (c = 0; c < 4; c++) VDP_DATA = (w->cell[r * 4 + c] & 0xE000) | t[r * 4 + c];
     }
     w->pend = 0;
+}
+
+/* the steps of this update: each pose stepped to is uploaded once (the
+ * tiles may have been written over since: the Unicorn's slot, a life start),
+ * then each window's cells */
+static void win_vblanks(void)
+{
+    int k, up = 0;
+    if (!win_any) return;
+    win_any = 0;
+    for (k = 0; k < NWIN; k++)
+        if (win[k].pend && win[k].pend != 0xFF && win_reach(&win[k])) up |= 1 << win[k].pend;
+    for (k = 1; k <= 3; k++)
+        if (up & 1 << k) win_upload(k);
+    for (k = 0; k < NWIN; k++)
+        if (win[k].pend) win_vblank(&win[k]);
 }
 
 void hide_vblank(void);                 /* opening.c */
@@ -202,8 +232,7 @@ void sat_vblank(void)
 {
     int b;
     hide_vblank();
-    win_vblank(&win[0], 0);
-    win_vblank(&win[1], 1);
+    win_vblanks();
     for (b = 0; b < 2; b++) {
         if (sb_want[b] && sb_want[b] != sb_have[b]) {
             dma_vram((u32)sb_want[b], (u16)sb_nart[b] * 128, (b ? SAT_BUF1 : SAT_BUF0) * 32);
