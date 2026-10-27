@@ -490,6 +490,7 @@ def install_features(rom, build_dir):
     install_boxes(rom, sym)
     install_burst(rom)
     install_big_man_edge(rom, sym)
+    install_win_chan(rom, sym)
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)
@@ -760,6 +761,15 @@ def install_big_man(rom):
     put(rom, 0x11B746, b'\x60\x44')
     expect(rom, 0x11B7D0, bytes.fromhex('0c39000100ffc5126626'), 'Big Man stage 2 floor')
     put(rom, 0x11B7D0, b'\x60\x2e')
+
+
+def install_win_chan(rom, sym):
+    """Stage 2's third window region (bossart.c, Fixed 79): before the object-art streamer
+    ($11692E, reached through $C35D8 from every stage loop) its tiles go back to the streamer's
+    channels 2 and 4 when their objects want them."""
+    jmp = lambda a: b'\x4e\xf9' + be32(a)
+    expect(rom, 0xC35D8, jmp(0x11692E) + b'\x4e\x71', 'object-art streamer entry')
+    put(rom, 0xC35D8, jmp(sym['win_chan_hook']))
 
 
 def install_big_man_edge(rom, sym):

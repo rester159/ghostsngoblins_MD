@@ -1,7 +1,8 @@
 """port_windows.py <core> <rom> <frames> <out>: stage 2 life start (TX), ROUTE, INV; the window devils (type 4 subtype 1):
 when one opens (+7 +8 = 1 4, +9 >= 1) its window's plane B cells (4 x 4) are followed; on each change prints the
 cells' look (a label per distinct set of tile pixels, first seen first) and whether they point at the slot tiles.
-KILL=n removes the n-th window devil to reach its closing (+9 = 4) on that frame (+4 = 0), KILL=-1 every one. With LOAD (a port_start.py
+KILL=n removes the n-th window devil to reach its closing (+9 = 4) on that frame (+4 = 0), KILL=-1 every one; KDELAY=d
+removes it d frames into its closing instead. With LOAD (a port_start.py
 state, e.g. TX=4736 TC=4608 on a restart_entry.py copy whose stage 2 entry is 00128050) frames count from the state,
 in phase with arc_windows.py on an arc_start.py 1 1 state."""
 import os, sys
@@ -17,7 +18,7 @@ def w8(a, v):
     p = L.retro_get_memory_data(2); C.c_uint8.from_address(p + ((a - 0xFF0000) ^ 1)).value = v
 
 
-TX = int(os.environ.get('TX', '4736')); KILL = int(os.environ.get('KILL', '0'))
+TX = int(os.environ.get('TX', '4736')); KILL = int(os.environ.get('KILL', '0')); KD = int(os.environ.get('KDELAY', '0')); kat = {}
 route = Route(os.environ.get('ROUTE', 'R9000'))
 PMAP = {'R': 0x80, 'L': 0x40, 'D': 0x20, 'U': 0x10, 'F': 1, 'J': 0x100, 'RJ': 0x180, 'LJ': 0x140, '': 0}
 r0 = 0 if os.environ.get('LOAD') else None; seen = {}; wins = {}; looks = {}; nclose = 0
@@ -44,7 +45,8 @@ for f in range(1, int(frames) + 1):
             wins[key] = None; print('r%d devil slot %d opens at %d,%d window %s' % (t, i, x, y, key))
         if st == (1, 4, 4) and seen.get(i) == 1:
             seen[i] = 2; nclose += 1
-            if nclose == KILL or KILL < 0: w8(s + 4, 0); print('r%d removed slot %d (closing)' % (t, i))
+            if nclose == KILL or KILL < 0: kat[i] = t + KD
+        if kat.get(i) == t: w8(s + 4, 0); del kat[i]; print('r%d removed slot %d (closing + %d)' % (t, i, KD))
     if not wins: continue
     n = L.retro_serialize_size(); b = C.create_string_buffer(n); L.retro_serialize(b, n)
     st = b.raw; vram = bytes(st[vdp.BASE + (k ^ 1)] for k in range(0x10000))

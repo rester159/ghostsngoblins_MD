@@ -205,3 +205,14 @@ pd_entry_hook:
     movea.l %d0,%a2
     movem.l (%sp)+,%d0-%d1/%a0-%a1
     rts
+
+| $C35D8: `jmp win_chan_hook` over `jmp $11692E` (the object-art streamer's
+| entry, from every stage loop; the nop after it stays): stage 2's third
+| window region given back to the streamer when its objects want it
+| (bossart.c win_chan).
+    .global win_chan_hook
+win_chan_hook:
+    movem.l %d0-%d1/%a0-%a1,-(%sp)
+    jsr     win_chan
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+    jmp     0x11692E
