@@ -219,6 +219,7 @@ hook_end_vbl:
     move.w  #prin_end-prin_tiles,%d0
     move.w  #0xA000,%d1
     jsr     0x704BE
+    jsr     prin_cram               | ending.c: her colours to line 2
     clr.b   end_upload
     movem.l (%sp)+,%d0-%d1/%a0-%a1
 1:  jmp     0x63FA

@@ -52,15 +52,15 @@
 #define ART_WF   RAM16(0xFF9206)        /* walk phase (0-6) */
 #define ART_WT   RAM16(0xFF9208)        /* its timer (2, 1, 0) */
 #define ART_DIR  RAM16(0xFF920A)        /* 0 right, 8 left */
-#define CAM_X    RAM16(0xFFA200)
-#define CAM_Y    RAM16(0xFFA202)
+#define CAM_X    RAM16(0xFF9100)
+#define CAM_Y    RAM16(0xFF9102)
 #define SPR      ((volatile u16 *)0xFFB500) /* sprite buffer: y, size | link, attributes, x */
 #define SPR_LAST RAM16(0xFFB20C)        /* its length in words - 1 */
 
 #define TILE     0x500                  /* VRAM $A000: mkprincess.py's tiles */
-#define T_WALK0  (TILE + 0)
-#define T_WALK1  (TILE + 8)
-#define T_HUG_P  (TILE + 16)
+#define T_WALK0  (0x4000 | (TILE + 0))       /* the princess's: line 2 (prin_cram) */
+#define T_WALK1  (0x4000 | (TILE + 8))
+#define T_HUG_P  (0x4000 | (TILE + 16))
 #define T_HUG_A  (TILE + 32)
 #define T_HEART  (TILE + 48)
 
@@ -342,4 +342,14 @@ void end_build_sprites(void)
     n = scene_sprites(n);
     link_all(n);
     SPR_LAST = 4 * n - 1;
+}
+
+/* ending_glue.s hook_end_vbl, with the scene's tile upload: the princess's
+ * colours to palette line 2 (unused on the screen in the final room; the
+ * opening after the scene loads its own CRAM) */
+void prin_cram(void)
+{
+    int k;
+    VDP_CTRLL = CRAM_W(64);
+    for (k = 0; k < 16; k++) VDP_DATA = prin_line2[k];
 }
