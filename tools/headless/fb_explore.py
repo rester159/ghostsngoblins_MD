@@ -54,7 +54,7 @@ def ladder_dir():
     """towards the nearest ladder cell beside or under him, up on it (as fb_campaign)"""
     fx, fy = g.r16(0xFF9001), g.r16(0xFF9004)
     best = None
-    for dy in (8, 24):
+    for dy in (8, 24, 40, 56):
         y = fy + dy
         for dx in range(-384, 385, 16):
             x = fx + dx
