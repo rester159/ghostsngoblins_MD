@@ -9,7 +9,7 @@
 
 Rebuild: `python3 tools/patch_gng.py "<input.bin>" build/GhostsNGoblins_fixed.bin`
 
-**Features build:** `build/GhostsNGoblins_plus.bin` (SHA-1 `f6d97e1260593818eb2a34f882f888d3cdcba106`,
+**Features build:** `build/GhostsNGoblins_plus.bin` (SHA-1 `2703f676568e66683a53f830a764c8e9306b654a`,
 checksum see header) contains all of the fixes below, plus the SEGA/CAPCOM boot intros, the menus and QoL code from `src_patch/` (see
 `src_patch/README.md`). It declares 8 KiB of battery SRAM at `$200001`, switched in through
 `$A130F1`, so on hardware it needs a cartridge or flashcart that supports SRAM on a 4 MiB ROM.
