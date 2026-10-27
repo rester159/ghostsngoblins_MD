@@ -834,6 +834,20 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     .969 .989 .985, co-op .921 .717 .806 .926 .802 .778, Firebrand .991 .915 .964 .930 .970 .968 (stages 1-6); the
     developer launch, a normal Start, the Home start and Firebrand's Quest start all reach play.
 
+73. **The crows' burst the arcade's way round** (`install_burst`; `$493C` stages 1-2, `$1052F4` stages 3-6). The port's
+    enemy burst is two sets of frames in its generic tables (`$14B5B0`/`$14C576`, `$239560`/`$23A526`): 37-42 unflipped
+    (the pieces at `$14C57A`) and 43-48 h-flipped, the mirror image; the crow's death (type 1; node table `$4E914`/`$105F1C`,
+    start nodes `$4E900`) took node 37 when the crow's x was at most Arthur's (`cmp.w 4(a3),d1` / `bls.s`) and node 43
+    otherwise. The arcade's burst (`$E85B`) is drawn h-flipped whatever the side (attribute `$54`; Fixed 63). Now node 43
+    always. They are the only users of frames 37-42 (the burst tiles are the devils' and skulls' in stage 5, Fixed 63, which
+    already draw the flipped way; stage 2's devils and the zombies have their own burst frames, matched). Measured with
+    `tools/re/sprite_audit.py` (below): the crows' burst frames 43-47 pair with the arcade's burst pieces at the arcade's
+    place (still and moving); the patched code is the `moveq #2,d0` path only (node `$2B` from `$4E902`). Speed (stages 1
+    and 5, 1P, seeds 1-3): identical (.993 .994 .994; .989 .991 .986).
+    Fault sweep with this (merged with Fixed 67-72; stages 1-6 x 1P, co-op, Firebrand, seed 7): no fault; updates per frame
+    1P .994 .946 .982 .959 .994 .989, co-op .914 .603 .853 .914 .892 .834, Firebrand .992 .879 .978 .934 .993 .986
+    (stages 1-6; stage 2 co-op is the seed's: Fixed 51's note, the devils on the screen).
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -879,16 +893,48 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   three in both on the update after their set-up at the life start and none as the Satan wakes; the rest are the Satan's
   (`$C066`, `$BFD2`, `$C147`). The old note (the port's crows missing three draws at the wake-up) predates Fixed 38.
 
+- **Sprite placement** (`tools/re/sprite_audit.py`; Fixed 21's audit redone headless): each game's displayed sprites as
+  pixel masks (the arcade's sprite list as its VBlank copies it, `gng.py` `spritebuf`; the port's VDP sprite table and
+  tiles from VRAM) against the objects in RAM (Arthur, the 40 enemy slots, the 6 enemy shots, the 30 platform objects);
+  every arcade 16x16 piece (24+ opaque pixels) is a key, found in the port's picture on the 16 px grid of its sprites, and
+  the two placements relative to the object are compared, separately for frames with the object and the camera still and
+  for moving ones. Runs of 6,000 frames per stage (stages 1-6 and the final room, random walking and firing, Arthur
+  invincible), 9,500-62,000 pairs per stage: the screens' constant is (0, 0) in every stage, and every enemy pose's still
+  pairs are at the arcade's place except misattributed pieces (a piece of another object put to the nearest slot shows as
+  one large offset of a single run of frames). Moving objects are drawn at their position at the end of the frame the list
+  is built in, in both games (arcade 95-99%; the port's remainder are frames without an update). The camera to measure
+  against is the one the background is drawn with: the arcade's `<$9C/<$9E` (its scroll registers), the port's
+  `$FF9100/2` (plane B scroll); `$FFA200/2`, read by the port's logic, is a frame behind it while scrolling, which put
+  moving sprites 1 px off when measured against it (the earlier "stage 2 zombie walk frames 26-29 1-2 px apart": the
+  zombies are stage 1's, and frames 26-29 now pair at the arcade's place still and moving, 1,760-1,800 pairs each).
+  Astaroth (the port's own art, no identical piece): the same box in both, x -32..30/31, y -32..31 from his position in
+  every pose (~5,000 arcade frames, ~5,900 port). Enemy shots: stage 5/6's type 4 pair at the arcade's place (430 and 830
+  moving pairs; their other direction counts as mirrored only because the arcade's runs showed one direction). Not
+  settled: the `$B110` builder's frames 1-4 (`$B042`, the shot pool's type 3, single 16x16 pieces) were never drawn in
+  these runs (no type-3 shot fired in any stage); stage 5's skull rise
+  (the port's own frames 1-2) pairs 8 px lower than the arcade's in 30 moving frames (no still ones; 3.5 px/frame of rise,
+  so possibly timing).
+- **Stage 4's Petite Devils** (subtype 1; Fixed 51): they spawn only after the checkpoint (Arthur put along stage 4 from its
+  start, x 3632-6700, y held: none; from the checkpoint: one every ~100 frames at x 4912, 4992, 5088, y 536). The port started
+  at the checkpoint with the restart-entry trick (stage index 3's entry = the checkpoint's, `00538040`) and the arcade
+  from `arc_start.py 3 1`, Arthur standing, 1,200 frames: the same slots (23, 22, 21), x/y at spawn, the same removal
+  positions (x 5249 y 651, x 4735 y 609, x 4735 y 684), and every spawn and removal 1,868 frames apart in both, except
+  the second spawn 1,867 (each devil lives one frame longer in the port: the frame-counter phase, which these runs didn't
+  line up as Fixed 51's did).
+- **Stage 3's collision map above the start** (Fixed 65's 13 cells): the map data is the arcade's. Logging the arcade's
+  writes, rows 49-55 of columns 0-12 hold the port's values when the camera climbs (row writes); at the stage start the
+  stage draw's column writes put zeros there (its 40-cell column buffer `$0388`, cells 24-39, holds an empty screen for
+  those columns, `$828E`/`$8262`), which the row writes replace before those rows come on the screen (row R + 16 written
+  at camera row R). Not reproduced (not reachable: the cells are 17-23 rows above the camera at the start).
+
 ## Open
 
-- **Sprite placement not checked:** the final-room boss (no pixel-identical piece to pair; its shots use the port's flame art), `$B110` frames
-  1-4 (ambiguous). Stage 2 zombie walk frames 26-29 matched arcade images 1-2 px apart, possibly the
-  streamed art arriving an update late (hypothesis).
+- **Sprite placement, what's left** (Matching (audited), `tools/re/sprite_audit.py`): the shot pool's type 3 (`$B042`, "`$B110`
+  frames 1-4") was never drawn in the audit runs; stage 5's skull rise (frames 1-2) pairs 8 px low in 30 moving frames
+  (lockstep would tell timing from placement).
 
-- **Petite Devils and skulls, what's left** (Fixed 51, 52; their art: Fixed 63): the port's own enemy burst (used for
-  them and its other enemies) is drawn mirrored relative to the arcade's in its own frame tables (`$14C57A`; Fixed 63
-  draws the arcade's way for these two). Stage 4's devils (subtype 1) weren't met in
-  a play run (checked on placed devils only). The spawner leaves the spawn's x/y fractions from RAM in both games, and
+- **Petite Devils and skulls, what's left** (Fixed 51, 52; their art: Fixed 63; the crows' burst: Fixed 73; stage 4:
+  Matching (audited)): the spawner leaves the spawn's x/y fractions from RAM in both games, and
   the slots it picks differ, so a devil can start a fraction apart (the lockstep runs set them equal). Co-op stage 2 runs
   at 0.73 updates per frame (was 0.81): the devils now stay on the screen as long as the arcade's, and drawing them is
   the cost (the same build with the devils not drawn: 0.88); co-op stage 5 0.98 -> 0.93 (skulls and devils on the screen).
@@ -929,7 +975,7 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   ~22 lines) and sprite build (`$B258`, ~12), and Maximo's context swaps (~12).
 - **Terrain map, what's left** (Fixed 65): cells outside all of the port's maps are tile 0 / attribute `$C0` where the
   arcade's world has its own (zeros under stage 5's start, walls under stage 3's floor, data below row 0 in stages 1-2);
-  stage 3's collision map repeats rows 33-39 at rows 49-55 in columns 0-12 (13 probe cells above its start).
+  stage 3's 13 cells above its start are the arcade's stage draw leaving them empty (Matching (audited)), not the map.
 
 - **Intro** (Fixed 62, 70, 71): the arcade's swoop, Arthur's fall, getting up and walk change every frame, the port's
   picture has 28, 11 and 24 steps for them (on arcade frames, the rest held); the frame before the arcade's HUD on black

@@ -557,7 +557,7 @@ def install_boxes(rom, sym):
 
 def install_burst(rom):
     """The crows' burst (type 1, frames 37-48 of $14B5B0/$14C576 and $239560/$23A526) the arcade's way round
-    (Fixed 74): the arcade draws its enemy burst ($E85B) h-flipped whatever the side ($54); the port started
+    (Fixed 73): the arcade draws its enemy burst ($E85B) h-flipped whatever the side ($54); the port started
     the flipped set (node 43, frames 43-48) when the crow was right of Arthur and the unflipped one (node 37,
     frames 37-42: the mirror image) when left of him. Now node 43 always."""
     for a in (0x493C, 0x1052F4):        # stages 1-2, stages 3-6

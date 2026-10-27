@@ -1,7 +1,8 @@
 """sprite_audit.py: where each game draws an object's sprites relative to the object (headless).
 
-Records, frame by frame, the sprites on the screen as pixel masks and the objects (Arthur and the 40 enemy
-slots) in either game, then pairs the arcade's 16x16 pieces with the identical pixels in the port's picture
+Records, frame by frame, the sprites on the screen as pixel masks and the objects (Arthur, the 40 enemy
+slots, the 6 enemy shots, type 100 (a port shot's pose is its type * 256 + its frame), and the 30
+platform/tombstone objects, type 200) in either game, then pairs the arcade's 16x16 pieces with the identical pixels in the port's picture
 and compares where each is drawn relative to its object.
 
   sprite_audit.py arc  <arcade state> <frames> <out.pkl>      the arcade (tools/arcade/gng.py) from a state
@@ -107,6 +108,14 @@ def cap_arc(state, frames, outp):
             a = 0x880 + 48 * i
             if m[a]:
                 raw.append((i, m[a + 0x15], m[a + 6] << 8 | m[a + 7], m[a + 9] << 8 | m[a + 10], m[a + 3]))
+        for k in range(6):                        # the 6 enemy shots ($13D0, 32 bytes, X = +$10): type 100
+            a = 0x13E0 + 32 * k
+            if m[a]:
+                raw.append((100 + k, 100, m[a + 6] << 8 | m[a + 7], m[a + 9] << 8 | m[a + 10], m[a + 3]))
+        for k in range(30):                       # the 30 platform/tombstone objects ($1010, 32 bytes): type 200
+            a = 0x1010 + 32 * k
+            if m[a - 15]:
+                raw.append((200 + k, 200, m[a - 10] << 8 | m[a - 9], m[a - 7] << 8 | m[a - 6], m[a + 5]))
         prev_objs, prev_raw = _objs(raw, (m[0x9C] << 8 | m[0x9D], m[0x9E] << 8 | m[0x9F]), prev_raw)
     pickle.dump(dict(game='arc', recs=recs), open(outp, 'wb'))
     print('arcade: %d frames recorded' % len(recs))
@@ -220,6 +229,14 @@ def cap_port(core, rom, frames, outp):
             a = 0xFFB800 + 48 * i
             if rd(r, a + 4, 1):
                 raw.append((i, rd(r, a + 10, 1), rd(r, a + 17, 2), rd(r, a + 21, 2), rd(r, a + 30, 2)))
+        for k in range(6):                        # the shot pool ($FFC100, 48 bytes; x/y words at +0/+2): type 100
+            a = 0xFFC100 + 48 * k
+            if rd(r, a + 4, 1):
+                raw.append((100 + k, 100, rd(r, a, 2), rd(r, a + 2, 2), rd(r, a + 10, 1) << 8 | rd(r, a + 30, 2) & 255))
+        for k in range(30):                       # the 30 platform/tombstone objects ($FFE000, 48 bytes): type 200
+            a = 0xFFE000 + 48 * k
+            if rd(r, a + 4, 1):
+                raw.append((200 + k, 200, rd(r, a, 2), rd(r, a + 2, 2), rd(r, a + 10, 1)))
         prev_objs, prev_raw = _objs(raw, (rd(r, 0xFF9100, 2), rd(r, 0xFF9102, 2)), prev_raw)
         prev_upd = rd(r, 0xFF7084, 4)
     pickle.dump(dict(game='port', recs=recs), open(outp, 'wb'))
