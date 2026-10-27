@@ -91,7 +91,8 @@ Without `--features` the patcher produces the compatibility-only ROM.
     | Firebrand | 0.99 | 0.97 | 0.99 | 1.00 | 0.98 | 0.98 |
 
     PAL co-op (same method): 1.00, 0.99, 1.00, 1.00, 0.95, 1.00. Single seeds vary by about ±0.05.
-  - Still slow: co-op in stages 2 and 5. Even with the build skipped, some updates there take more than a frame of game logic (the object passes, Maximo's duplicated player routines and context swap). In those moments sprites drop to 15 fps (every fourth frame); a 2-frame limit gave 0.84/0.86 there.
+  - Co-op slot loops (`speed.s`; `docs/ACCURACY.md` Fixed 82): the enemy passes pick each handler from one table, step over empty slots in a tight loop and answer waiting crows and type-10 enemies off the screen without calling their handlers; the type-5 and type-8 slot copies, the stage loops' `$FF9600` copy and the HUD rows are unrolled; the stage 1-2 sprite build skips empty and off-screen slots; eight slot loops test the on-screen flag first; the multi-piece builder `$705C8` works out each object's part of its tests once. Same RAM and VDP writes (`test_ab.py --vbl --dmadata`). Co-op in-play rates (3 seeds) went from 0.91 0.68 0.84 0.93 0.85 0.80 to 0.97 0.82 0.91 0.97 0.93 0.91 (stages 1-6).
+  - Still slow (Fixed 82 written before it): Even with the build skipped, some updates there take more than a frame of game logic (the object passes, Maximo's duplicated player routines and context swap). In those moments sprites drop to 15 fps (every fourth frame); a 2-frame limit gave 0.84/0.86 there.
 - Menu text uses the arcade font (ASCII `$20–$7F` from `rom/gg1.bin`).
 - **Tombstones** (all modes): the arcade's rules, translated from its check at `$9FAE` (gg3) and its box table at `$A052` (type 1: x ±12, y ±19, top at y + 19). The port had its own: landing within 20 px on a top at +20, and a side stop at 13 px that also worked in mid-air, so no jump could clear a tombstone. In the arcade a tombstone only blocks walking (probe x ± 1, y + 1); in the air it can only land you on it (probe x, y − 1, falling, inside the box: snapped to the top). Checked against the arcade (`tools/arcade/gng.py`) with the same runs: side stop at x 244 for the tombstone at 256 in both, a running jump from against it clears it in both, top at y 81 in both, and the clear/land/block takeoff ranges agree to within the 0.35 px the two start apart (see `docs/ACCURACY.md`).
 - **Input timing** (all modes, `arcade_input` in `pad.c`): as in the arcade, left/right count from their second frame (this frame AND last), and a jump from the ground takes off two frames after the press (a walk frame, a standing frame, then the jump) along the direction latched at the press. See `docs/ACCURACY.md`.
@@ -247,6 +248,15 @@ Without `--features` the patcher produces the compatibility-only ROM.
 | `$11C15E` | type-2 draw (`cmpi.b #1,$FFC512`) | `jmp pd_draw_hook`: a dying devil in stage 5 -> the burst (`pd_burst`) |
 | `$11C256`, `$11C09E`, `$10CE00` | devil frame count (`cmp.w $10E9A6`) | `cmp.w #47`: frames 41-46 added (`$FD`-`$FF` both ways) |
 | `$11C26E`, `$10CE16`; `$11C0A8` | devil frame art (`$10D526` + 128 n); its entry (`$10D392` -> `$10D3E4`) | `jsr pd_src_hook`; `jsr pd_entry_hook`: the port's 41 frames, then `bossart.c`'s |
+| `$69CA`, `$6BFC`, `$6B04` | stage 1-2 enemy pass: slot loop top, next slot, hit-test step | `jmp op12_top` / `op12_next` / `op12_hit` (`speed.s`): the handler by one table, empty runs stepped over |
+| `$1055DA`, `$10583C`, `$105790` | the same in stages 3-6 | `jmp op36_first` / `op36_next` / `op36_hit` |
+| `$44FE`, `$10505C`, `$11B1BC` | the type-1 (stages 1-2, 3-6) and type-10 handlers' entry | `jmp t1_entry` / `t1b_entry` / `ta_entry`: waiting off the screen answered without the register saves |
+| `$B282`, `$B36A` | stage 1-2 sprite build slot loop top and tail | `jmp spr12_top` / `spr12_tail`: empty and off-screen slots straight on |
+| `$3448`, `$34B4`; `$714C2`, `$714E0` | type-5 / type-8 slot copies (dbf loops) | `jmp t5_in` / `t5_out` / `t8_in` / `t8_out`: unrolled |
+| `$698` + 9 more stage loops | `$FF9600` -> `$FF9800` copy loop | `jsr copy9600` + `bra.s` |
+| `$11AE4E` | HUD rows (73 VDP words, dbf loops) | `jmp hud_rows` |
+| `$7064C` | multi-piece builder's piece loop | `jmp pieces8` |
+| `$9C5A`, `$A1BC`, `$71D8E`, `$106530`, `$106C44`, `$114588`, `$11525A`, `$11C304` | `tst.b 4(An)` / `tst.b 5(An)` | the two tests swapped (on-screen first) |
 
 Engine variables used: `$FFC000` score (BCD), `$FFC004` TOP SCORE, `$FFC500` lives,
 `$FFC501` difficulty rank, `$FFC561` rank floor, `$FFC512` stage index (0-5 = stages 1-6, 6 = the final room),

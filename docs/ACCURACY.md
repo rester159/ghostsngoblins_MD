@@ -996,6 +996,51 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     With R2 given back to the streamer (79): no faults in stages 1-6 x 1P/co-op/Firebrand (seed 1); stage 2 1P seeds 1-3
     0.919/0.952/0.922, co-op 0.721/0.670/0.708.
 
+82. **Co-op speed: the slot loops and per-update copies in fewer cycles** (`speed.s`, `install_speed`; `p2.c` `draw_hud`;
+    measured with `tools/re/uc_profile.py`, PCHIST and a per-slot attribution by type and on-screen flag). The arcade runs
+    every frame; the port's co-op took longer than a frame in most updates of stages 2, 3, 5 and 6 (stage 2: an update
+    with its sprite build ~270-310 lines on the probe build, `tools/re/probe_rom.py`, so updates alternated with a
+    skipped build). On the stage 2 co-op snapshot the update was ~220 lines (Unicorn estimate), and a third of the enemy
+    passes went to live enemies off the screen that change nothing: each one cost 600-1,200 cycles of jumps, context
+    copies and 11-register saves (stage 2's nine waiting window devils, type 10, and six crows, type 1; stage 3's crows
+    and the type-5 handler's slot copies; stage 6's dragon and type 8). Now, with the same RAM and VDP writes:
+    - The enemy passes (`$69A2` stages 1-2, `$1055D4` stages 3-6): the handler is picked from the type in one table
+      (was 4-5 jumps through `$114C90`/`$114BF2`, `$6A88`, obj_dispatch and its stub, or a pushed address and `rts`),
+      entered with the same d0-d4 and flags; the odd-frame step (`$114CDA`/`$114D50` -> `$114D76`, which only does
+      anything for type 13) is a type test; runs of empty slots are stepped over in a tight loop (their slot-counter
+      writes and the `$FFC9D8` clears repeat what the next live slot or the pass's end writes).
+    - Waiting crows (type 1, `$44FE` / `$10505C`) and type-10 enemies (`$11B1BC`) off the screen: the handlers' answer
+      (d0 = 0, nothing else changed) from their own state tests, without the register saves; from the passes' tables
+      directly, with their preambles' writes to the type block at `$FFC620`/`$FFC630`/`$FFC634` and no calls.
+    - The type-5 and type-8 handlers' 64-byte slot copies (`$3448`/`$34B4`, `$714C2`/`$714E0`) unrolled; the stage
+      loops' 128-byte `$FF9600` copy unrolled; the HUD rows (`$11AE4E`, 73 VDP words a frame) without dbf loops.
+    - The stage 1-2 sprite build (`$B258`) takes empty and off-screen slots straight to the next; eight slot loops test
+      the on-screen flag before the live flag (`$9C5A`, `$A1BC`, `$71D8E`, `$106530`, `$106C44`, `$114588`, `$11525A`,
+      `$11C304`; most live objects are off the screen, both branches go to the next slot); the multi-piece builder
+      `$705C8` works out each object's part of the camera tests and its attribute fix-up once.
+    - Maximo's HUD digits without a divide; the co-op test inline.
+    Maximo's context swap (~12 lines: 248 bytes exchanged twice an update, already straight-line movem) and his control
+    block (~14: the engine's player routines a second time) are unchanged.
+    Estimate (Unicorn, seed 1 frame 2,700, 8 updates, before -> after): co-op stage 2 223.2 -> 202.7 lines, stage 3
+    194.4 -> 181.6, stage 5 246.7 -> 232.6, stage 6 226.4 -> 212.7; 1P 189.8 -> 170.0, 187.7 -> 175.4, 192.4 -> 179.3,
+    174.8 -> 163.5.
+    In-play updates per frame (`tools/lockstep/bench.sh`, seeds 1-3, the merged head d702966 before -> after): co-op
+    stage 1 0.938/0.884/0.904 -> 0.961/0.960/0.977 (mean 0.909 -> 0.966), stage 2 0.713/0.669/0.671 -> 0.823/0.839/0.810
+    (0.684 -> 0.824), stage 3 0.832/0.826/0.872 -> 0.887/0.891/0.940 (0.843 -> 0.906), stage 4 0.931/0.951/0.899 ->
+    0.970/0.974/0.966 (0.927 -> 0.970), stage 5 0.797/0.851/0.887 -> 0.917/0.909/0.959 (0.845 -> 0.928), stage 6
+    0.758/0.838/0.812 -> 0.876/0.934/0.927 (0.803 -> 0.912); 1P means (stages 1-6) 0.991 0.929 0.978 0.956 0.992 0.977 ->
+    0.996 0.943 0.992 0.963 0.997 0.982; Firebrand 0.988 0.925 0.967 0.953 0.982 0.982 -> 0.996 0.929 0.987 0.961 0.996
+    0.990 (random input: runs part once a frame's timing differs; Firebrand stage 2 seed 2 0.950 -> 0.873 and seed 3
+    0.928 -> 0.993 are such runs). No faults in stages 1-6 x 1P/co-op/Firebrand x seeds 1-3 (54 runs, `$FFC9DC` 0
+    throughout).
+    Checked: `tools/re/test_ab.py --vbl` (the VBlank counter advanced each update, so the alternating halves of the
+    passes both run; random input on both pads; the render skip off, `fs_last` set) against the merged head without
+    this work, from 120 snapshots (stages 1-6 x 1P/co-op/Firebrand, seeds 1-3, frames 2,100-3,300, from the merged head d702966): the whole of RAM
+    (`$FF0000-$FFFBFF`) and every VDP write identical after every update over 300 updates each, and over 150 with the
+    build skipped every other update (`fs_force`). The p2.c change moves the patch's constant data, so a DMA from it is
+    compared by the words it transfers (`--dmadata`, new) instead of its source address; RAM holds no pointer into it.
+    Each step was also checked against the one before (20-120 snapshots, 40-60 updates).
+
 83. **The opening's picture, every frame the arcade's** (`opening.c` `ib_sprites`, `mkart.py` -> `ib_frame`, `ib_frame2`,
     `ib_lists`, `ib_tiles`; hooks as Fixed 70). The arcade's black part (999-1318 after Start at 800) is its sprites
     only (the Satan, the princess, Arthur; colours 0 and 2) over the HUD's top rows; the port showed `$E0C`'s plane
@@ -1188,11 +1233,12 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   building and past it (teleported to x 5488/5632/5760 and walking on, ~6,000 frames) every one was drawn whenever the
   game ran; the only frames without were the 8 paused, blank frames of the camera snap above (after a teleport). The Big Men's own
   stand-ins in that area (a clamp to x 5200-5808 and a floor assumed where the probe found none) were removed with Fixed 54. Fixed 78 later found every Big Man drawn split down the middle (the halves swapped since Fixed 21), which may be what was seen.
-- **Co-op speed:** with the enemies now behaving as the arcade's (devils staying on the screen as long, skulls, Big Men)
-  and the per-update fixes above, co-op runs slower than the last install (seed 1: stage 2 0.70, stage 5 0.89, stage 6
-  0.82 updates per frame; 1P and Firebrand stay 0.92-1.0). On identical RAM the per-update fixes cost ~3 scanlines of
-  ~165; the rest is the arcade's enemies on the screen. The big costs are the port's own stage 2 enemy pass (`$99C0`,
-  ~22 lines) and sprite build (`$B258`, ~12), and Maximo's context swaps (~12).
+- **Co-op speed** (Fixed 82): co-op now runs 0.82 (stage 2), 0.91-0.93 (stages 3, 5, 6) and 0.97 (stages 1, 4) in-play
+  updates per frame (3-seed means), 1P and Firebrand 0.93-1.0. What's left per update on the stage 2 co-op snapshot (~203
+  lines, Unicorn estimate): Maximo's context swap (~12, 248 bytes exchanged twice; every byte must stay as before), his
+  control block (~14, the engine's player routines a second time), the Petite Devils' C (~5 each on the screen,
+  `petite.c`), the type blocks' context copies of the enemies off the screen (~200 cycles each, their RAM writes kept)
+  and the platform, item and shot passes; each a few lines at most.
 - **Terrain map, what's left** (Fixed 65, 80): the ring is the arcade's world everywhere; what differs is the arcade's
   own stage draw at a camera column 0 (columns 0-12, rows R - 8 .. R - 1 and R + 17 .. R + 23, out of reach) and a few
   column writes' stale rows R + 15 .. R + 23 in stage 2 (above the screen), neither traced in the arcade's code.
