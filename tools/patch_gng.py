@@ -368,6 +368,33 @@ def install_features(rom, build_dir):
     # every other builder 352 (all five weapons and their burst frames)
     expect(rom, 0x115994, bytes.fromhex('06410168'), 'weapon sprite y')
     put(rom, 0x115994, bytes.fromhex('06410160'))
+    # Stage 1's background palette ($13FE2, loaded at $3B0): these entries were
+    # the arcade's 4-bit colours rounded down to 3 bits, a step too dark (the
+    # red-orange hill dirt and tree trunks, muddy greys). The nearest 3-bit
+    # colour of what the arcade shows there (tools/re/s1_bg_compare.py). Line 2's
+    # three are also the dirt sprites', the forest's flying knights' and the
+    # HUD's "PLAYER 1" shading, whose arcade colours round the same way. Line 3
+    # entry 9 stays: it is the HUD timer's second colour (215 background px).
+    for i, old, new in ((16 + 3, 0x026, 0x046), (16 + 6, 0x082, 0x084), (16 + 7, 0x222, 0x444),
+                        (16 + 8, 0x244, 0x444), (16 + 9, 0x26A, 0x46A), (16 + 10, 0x2A6, 0x4A6),
+                        (32 + 2, 0x022, 0x024), (32 + 3, 0x026, 0x046), (32 + 10, 0x268, 0x468),
+                        (48 + 2, 0x020, 0x040), (48 + 3, 0x022, 0x024)):
+        expect(rom, 0x13FE2 + 2 * i, be16(old), 'stage 1 palette entry')
+        put(rom, 0x13FE2 + 2 * i, be16(new))
+    # Stage 1's water (tiles 253-256 at $C062, only ever drawn as water with
+    # line 3): the arcade cycles its colours 42-44 ($EE00, glue.s water_cycle);
+    # the port's tiles were converted at the phase where 44, the wave crests, is
+    # black, so its crest pixels became black (1). They get line 3's 15 ($CA6,
+    # the crest colour; the HUD timer's too, so it stays fixed: lit, as the
+    # arcade's crests are 3 frames in 4).
+    for t, px in ((253, ((0, 2), (1, 1), (2, 3), (4, 5), (6, 6), (7, 1))),
+                  (254, ((1, 0), (1, 2), (1, 4), (4, 4), (4, 7), (5, 2), (6, 3), (6, 6))),
+                  (255, ((2, 1),))):
+        for x, y in px:
+            a = 0xC062 + (t - 1) * 32 + y * 4 + x // 2
+            sh = 0 if x & 1 else 4
+            assert rom[a] >> sh & 15 == 1, 'water crest pixel at %#x' % a
+            put(rom, a, bytes([rom[a] | 15 << sh]))
     # final-room flames (type 10, builder $AF4A): frames 1-30 had their left and
     # right 16 px halves swapped (records at $125620 via $123B3E)
     for f in range(1, 31):
@@ -432,10 +459,11 @@ def install_features(rom, build_dir):
     # co-op death handling (Arthur respawns instead of restarting the stage)
     expect(rom, 0x61DC, b'\x4a\x79' + be32(0xFFC570), 'death handling tst')
     put(rom, 0x61DC, jsr(sym['hook_p1_death']))
+    # ($644, stage 1's: the water colour cycle first, glue.s water_cycle)
     for a in (0x644, 0x104888, 0x10ECD0, 0x10FBA6, 0x110B7E,
               0x1115FA, 0x1177A6, 0x118816, 0x118D80, 0x119896):
         expect(rom, a, jsr(0x704BE), 'sprite table DMA')
-        put(rom, a, jsr(sym['hook_sat_dma']))
+        put(rom, a, jsr(sym['water_cycle' if a == 0x644 else 'hook_sat_dma']))
     # English / Japanese logo: title palette source and attract overlay sources
     lea = lambda reg, a: bytes([0x41 | (reg << 1), 0xF9]) + be32(a)
     expect(rom, 0xBB8, lea(0, 0x2045E8), 'title palette lea')

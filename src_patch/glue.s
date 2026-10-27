@@ -326,6 +326,24 @@ hook_sat_dma:
     movem.l (%sp)+,%d1/%a0-%a1
     jmp     0x704BE
 
+| $644, stage 1's sprite-table DMA: the arcade's water colour cycle first.
+| Every 8 frames the arcade ($EE00, stage 1) sets colours 42-44 from tables
+| $EE57/$EE6B by the frame counter's bits 3-4; the port's stage 1 palette has
+| 42 and 43 as line 3's 13 and 14 (water only) and 44, the crests, fixed
+| (patch_gng.py). The phase is the VBlank count's.
+    .global water_cycle
+water_cycle:
+    move.l  %d0,-(%sp)
+    move.w  0xFF7DFE,%d0
+    lsr.w   #1,%d0
+    andi.w  #0x0C,%d0
+    move.l  #0xC07A0000,0xC00004    | CRAM 61
+    move.l  water_tab(%pc,%d0.w),0xC00000
+    move.l  (%sp)+,%d0
+    bra     hook_sat_dma
+water_tab:                          | 61, 62: (0,8,10) $A80, (0,5,9) $840
+    .word   0x0A80, 0x0840, 0x0A80, 0x0A80, 0x0840, 0x0A80, 0x0A80, 0x0A80
+
 | $6938 (`jmp $114F58`, the first call of every stage-loop update):
 | `jmp pace_hook`. Decides this frame's render skip (pace.c), then goes on.
     .global pace_hook

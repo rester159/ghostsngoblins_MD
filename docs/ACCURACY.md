@@ -404,6 +404,25 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     is off (same run, 0 frames); the game RAM at the end is the same apart from a sound driver counter and the stack, and
     `tools/re/test_sound_scan.py` checks both scans against a model of them (300 random cases).
 
+45. **Stage 1's background colours and water** (`tools/patch_gng.py` after the weapon y; `glue.s` `water_cycle`). The
+    background is plane B, one 588-tile set (`$C062`) and the palette at `$13FE2` (loaded at `$3B0`), lines 1-3; the map
+    (`$19E64`) holds each entry's line. `tools/arcade/bg_capture.py` records the arcade's stage 1 map and palette and
+    `tools/re/s1_bg_compare.py` lines the two up pixel for pixel: of 38 background entries, 12 were not the nearest
+    3-bit colour of what the arcade shows there, each one step low in a channel (the 4-bit values rounded down). 11 are
+    now the nearest: line 1 3, 6-10; line 2 2, 3, 10; line 3 2, 3. Line 3's 9 stays (215 px; the HUD timer's second
+    colour). Line 2's three are also drawn by sprites (the zombies' dirt, the forest's flying knights; the arcade's
+    sprite colours for them round to the new values too) and the HUD's "PLAYER 1"; no sprite uses line 3 in stage 1
+    (sprite tables read every 3rd frame over the whole stage, graveyard to the Unicorn). Mean error per pixel (RGB,
+    0-255) against the arcade: line 2 19.9-21.9 -> 9.7-12.0, line 3 12.9-14.5 -> 8.7-10.6, line 1 after the last
+    puddle 15.1 -> 8.4. The other two entries were the water: the arcade sets colours 42-44 every 8 frames from tables
+    by its frame counter's bits 3-4 (`$EE00`, stage 1 only; 42/43 alternate (0,8,10) and (0,5,9) in 4-bit, 44 is
+    (6,10,12) three phases in four and black in one). Those are the port's line 3 13/14 (only the water tiles 253-256
+    use them) and, for 44, black: the tiles were converted at the black phase. `water_cycle`, at stage 1's sprite-table
+    DMA (`$644`, in VBlank), writes 61/62 by the VBlank count's bits 3-4; the 15 crest pixels of tiles 253-255 now use
+    line 3's 15, which is already the crest colour ($CA6) but also the HUD timer's, so the crests stay lit (the arcade's
+    are lit 3 frames in 4). Stage 1 over 12,000 frames with deaths, the map and game over: the cycle values only ever
+    appear with stage 1's palette in CRAM.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
