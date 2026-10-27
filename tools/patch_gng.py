@@ -521,6 +521,27 @@ def install_speed(rom, sym):
     put(rom, 0x44FE, jmp(sym['t1_entry']))
     expect(rom, 0x11B1BC, bytes.fromhex('48e70f9e4a2c000467000818'), 'type 10 handler')
     put(rom, 0x11B1BC, jmp(sym['ta_entry']))
+    # stage 3-6 enemy pass ($1055D4): as the stage 1-2 one
+    expect(rom, 0x1055DA, bytes.fromhex('300752401740'), 'stage 3-6 pass slot loop top')
+    put(rom, 0x1055DA, jmp(sym['op36_top']))
+    expect(rom, 0x10583C, bytes.fromhex('427900ffc9d8d8fc003051cffd92'), 'stage 3-6 pass next slot')
+    put(rom, 0x10583C, jmp(sym['op36_next']))
+    expect(rom, 0x105790, jmp(0x114D50), 'stage 3-6 pass hit-test step')
+    put(rom, 0x105790, jmp(sym['op36_hit']))
+    expect(rom, 0x1055EA, jmp(0x114BF2), 'stage 3-6 pass type step')
+    expect(rom, 0x114C22, b''.join(be16(v & 0xFFFF) for v in (6, 3, 13, 5, 12, 4, 16, 8, 7, 15, 9, 0, 11, 17, 14, -1, 1, 2, 10)),
+           'stage 3-6 pass type table')
+    expect(rom, 0x114C48, b''.join(be32(a) for a in (0x105764, 0x10576C, 0x10576C, 0x10589E, 0x1059C2, 0x105A5A, 0x105AD6,
+                                                     0x105B40, 0x105B4A, 0x105976, 0x105942, 0x105902, 0x105B9E, 0x105BEE,
+                                                     0x105C4E, 0x105C58, 0x105C6C, 0x105C62)), 'stage 3-6 pass handler table')
+    expect(rom, 0x114D50, bytes.fromhex('082b00000006660c4ef9') + be32(sym['dragon_wtest']), 'stage 3-6 pass hit step')
+    expect(rom, 0x10505C, bytes.fromhex('48e70f9e4a2c000467000436'), 'type 1 handler (stages 3-6)')
+    put(rom, 0x10505C, jmp(sym['t1b_entry']))
+    # the type-5 handler's slot copies unrolled
+    expect(rom, 0x3448, bytes.fromhex('204c246b0010700b24d851c8fffc7003204924d851c8fffc48e70048'), 'type 5 copy in')
+    put(rom, 0x3448, jmp(sym['t5_in']))
+    expect(rom, 0x34B4, bytes.fromhex('204c700b20da51c8fffc700322da51c8fffc600c'), 'type 5 copy back')
+    put(rom, 0x34B4, jmp(sym['t5_out']))
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)
