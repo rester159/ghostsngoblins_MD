@@ -508,6 +508,19 @@ def install_speed(rom, sym):
     put(rom, 0xB282, jmp(sym['spr12_top']))
     expect(rom, 0xB36A, bytes.fromhex('d8409e40da41d8fc003051ceff0c'), 'stage 1-2 build slot loop tail')
     put(rom, 0xB36A, jmp(sym['spr12_tail']))
+    # stage 1-2 enemy pass ($69A2): the handler pick by one table, the hit-test step inlined
+    expect(rom, 0x69CA, bytes.fromhex('300752401740'), 'stage 1-2 pass slot loop top')
+    put(rom, 0x69CA, jmp(sym['op12_top']))
+    expect(rom, 0x6BFC, bytes.fromhex('d8fc003051cf'), 'stage 1-2 pass next slot')
+    put(rom, 0x6BFC, jmp(sym['op12_next']))
+    expect(rom, 0x6B04, jmp(0x114CDA), 'stage 1-2 pass hit-test step')
+    put(rom, 0x6B04, jmp(sym['op12_hit']))
+    expect(rom, 0x69FA, bytes.fromhex('06030d050c04ff0807ff0900ffff0eff0102'), 'stage 1-2 pass type table')
+    # waiting enemies off the screen: the handlers' answer without their register saves
+    expect(rom, 0x44FE, bytes.fromhex('48e70f9e4a2c00046700046c'), 'type 1 handler (stages 1-2)')
+    put(rom, 0x44FE, jmp(sym['t1_entry']))
+    expect(rom, 0x11B1BC, bytes.fromhex('48e70f9e4a2c000467000818'), 'type 10 handler')
+    put(rom, 0x11B1BC, jmp(sym['ta_entry']))
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)

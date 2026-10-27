@@ -115,6 +115,11 @@ for path in args[4:]:
             diff = [i for i, (x, y) in enumerate(zip(a.state(), b.state())) if x != y]
             result = 'DIFFERENT at update %d: RAM %s, VDP writes %s' % (
                 it, ' '.join('%X' % (0xFF0000 + i) for i in diff[:8]), 'same' if a.vdp == b.vdp else 'differ')
+            if a.vdp != b.vdp:
+                k = next((i for i, (x, y) in enumerate(zip(a.vdp, b.vdp)) if x != y), min(len(a.vdp), len(b.vdp)))
+                result += ' (write %d of %d/%d: A %s, B %s)' % (k, len(a.vdp), len(b.vdp),
+                                                              ['%X:%d:%X' % w for w in a.vdp[k:k + 3]],
+                                                              ['%X:%d:%X' % w for w in b.vdp[k:k + 3]])
             bad += 1
             break
         a.vdp.clear(); b.vdp.clear()
