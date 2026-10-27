@@ -885,6 +885,43 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     are lit 3 frames in 4). Stage 1 over 12,000 frames with deaths, the map and game over: the cycle values only ever
     appear with stage 1's palette in CRAM.
 
+76. **Big Men at a floor's edge** (`bigman.s` `bm_nofloor`/`bm_turn0`/`bm_turn1`, `install_big_man_edge`; hooks `$11B800`,
+    `$11B35C`, `$11B4A0`, `$11B493`; arcade `$D0A4`, `$D047`, `$D144`, `$D13B`). The arcade's edge probe (`$D0A4`: the floor
+    2 px below, `$8CA7`; every 16 frames while walking, every step while facing Arthur) notes the facing of the first step
+    over an edge (`$14`, `$F` = 1) and keeps it until a floor is found again (`$F`, `$15` cleared). Walking (sub-state 0) it
+    turns round when it faces that way (`$D047`); facing Arthur (sub-state 1, Arthur 10 px below to 45 above it) it backs
+    off the edge toward him once (`$15`) or, with the edge on his side, stands (`$D144`); Arthur leaving its height clears
+    `$15` (`$D13B`). The port's (`$11B798` and callers; slot +37/+38/+39 = `$F`/`$14`/`$15`) rewrote +38 at every step over
+    the edge, turned while walking only on every second check (+39 used as a count), in sub-state 1 had both tests the
+    wrong way round (it never turned and walked on over the edge) and cleared +37 instead of +39. Measured with a life
+    start on stage 2's first Big Man's ledge (restart entry `001450A0`, arcade `401450A0`: x 5200, y 159; the frame
+    counters lined up with `rng_lag`; `tools/lockstep/slots.py` / `cmp_slots.py`, update for update), 900 frames: before,
+    the port's Big Man walked past the ledge's end at x 5174 where the arcade's turns (frame 51), and fired its first shot
+    away from Arthur (left from x 5158; the arcade's right from 5190, frame 83), apart from frame 51 on; now the Big Man
+    (state bytes, x, y, facing, the edge bytes) and its nine shots are identical on every frame.
+
+77. **The Big Men's shots** (shot type 3; `$AD4C`; arcade projectile type 3: made by `$D1FD`, moved by `$FEBE`). The shot
+    pool's type 3 (drawn by `$B042`: the sprite audit's "`$B110` frames 1-4") is the Big Man's: `$D1FD` (in the type-10
+    handler `$CF36`; the port's `$11B908`) makes it at x +-16 sideways in sub-state 1 or at y - 8 going down in sub-state 2
+    (Arthur within 10 px in x and below it; 10 frames into its 30-frame stop, `$D281`), 2 px a frame (`$5D9B`), and `$FEBE` moves and animates it
+    and takes it out only out of range (`$8F62`: 128 px past the screen's sides, 64 below); type 3 has no floor test
+    (types 4 and 10 have, `$FEA3`). The port's pool pass (`$ACB8`) also took it out after 120 frames (+33): on the ledge
+    the arcade's shots flew to x 5458 and 4942, the port's stopped at 5444 and 4966. Now out of range only: the nine shots
+    of the ledge start are made and gone on the arcade's frames at the arcade's places (5458, 4942). The down shots (life
+    start under the ledge, `00145A50`: x 5210, y 79; 600 frames) fall through the floor below as the arcade's and were
+    already identical (108 frames of flight). The frames (audit, 420 frames): poses 769-772 (frames 1-4: the arcade's
+    `$1F0`/`$1F8`, 4 frames each, mirrored by direction) all at the arcade's place, 244 moving pairs, the pose changing
+    on the arcade's frames. Kept: the port takes a shot out when stage 2's art bank changes (`$FFB028`, camera column 349),
+    as its pictures go with it.
+
+78. **Big Men drawn whole** (`bigman.s` `bm_piece_x`, `$AFB2`; the type-10 builder `$AF1E`/`$AF4A`, records `$125620` via
+    `$123B3E`). Fixed 21 swapped the 16 px halves of frames 1-30 for the final room's flames, but the same records draw the
+    Big Men of stages 2 and 5, whose pieces are the arcade's art placed as the original records place them: every Big
+    Man since was split down the middle, its left half on the right (the audit, ledge start, 420 frames: all 11 poses 16 px
+    off, left or right, none at the arcade's place). The swap is now made in the builder in the final room only
+    (`$FFC512` = 6), the records are the original's: every Big Man pair at the arcade's place (513 still, 439 moving), and
+    the final room's sprite table (1,200 frames, flames on 339) identical to the old build's on every frame.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -946,18 +983,24 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   zombies are stage 1's, and frames 26-29 now pair at the arcade's place still and moving, 1,760-1,800 pairs each).
   Astaroth (the port's own art, no identical piece): the same box in both, x -32..30/31, y -32..31 from his position in
   every pose (~5,000 arcade frames, ~5,900 port). Enemy shots: stage 5/6's type 4 pair at the arcade's place (430 and 830
-  moving pairs; their other direction counts as mirrored only because the arcade's runs showed one direction). Not
-  settled: the `$B110` builder's frames 1-4 (`$B042`, the shot pool's type 3, single 16x16 pieces) were never drawn in
-  these runs (no type-3 shot fired in any stage); stage 5's skull rise
-  (the port's own frames 1-2) pairs 8 px lower than the arcade's in 30 moving frames (no still ones; 3.5 px/frame of rise,
-  so possibly timing).
+  moving pairs; their other direction counts as mirrored only because the arcade's runs showed one direction). The shot
+  pool's type 3 (the Big Men's shots, `$B042`) pairs at the arcade's place (Fixed 77). Stage 5's skull rise (the port's
+  frames 1-2), which paired 8 px low: walked in from the stage start in both (right held), the rise is 3 frames in both
+  (`$A2`/`$A3` twice, `$A4`/`$A5`) on the same frames with the pieces at (-16, -8)/(0, -8) from the skull and the same
+  pixels; those pieces are the standing skull's upper row (drawn at y -16 in its 2 x 2), so the rise's offset was under
+  the key filter's 5% and the rise was compared with the standing place (now counted "at a rare arcade place"). The
+  pairs still listed as a few px off while moving (the asleep skull +2..+4 px in x while the camera scrolls, one rise
+  frame) are frames on which the port shows the previous sprite table (`pace.c`'s held frames, `hook_sat_dma`: 102 of 399
+  frames in that walk), not placement.
 - **Stage 4's Petite Devils** (subtype 1; Fixed 51): they spawn only after the checkpoint (Arthur put along stage 4 from its
   start, x 3632-6700, y held: none; from the checkpoint: one every ~100 frames at x 4912, 4992, 5088, y 536). The port started
   at the checkpoint with the restart-entry trick (stage index 3's entry = the checkpoint's, `00538040`) and the arcade
   from `arc_start.py 3 1`, Arthur standing, 1,200 frames: the same slots (23, 22, 21), x/y at spawn, the same removal
   positions (x 5249 y 651, x 4735 y 609, x 4735 y 684), and every spawn and removal 1,868 frames apart in both, except
-  the second spawn 1,867 (each devil lives one frame longer in the port: the frame-counter phase, which these runs didn't
-  line up as Fixed 51's did).
+  the second spawn 1,867. That frame was the frame-counter phase: with the port's `$FFA206` lined up with `<$21`
+  (`rng_lag` on the first frame, as Fixed 51) and the port's 2 skipped updates taken out (`tools/lockstep/slots.py` /
+  `cmp_slots.py`), 1,300 frames from the checkpoint are identical (every devil's x/y on every frame): spawns on frames
+  1, 54, 153, 967, 1048 and 1147, removals on 629, 729 and 787, in both.
 - **Stage 3's collision map above the start** (Fixed 65's 13 cells): the map data is the arcade's. Logging the arcade's
   writes, rows 49-55 of columns 0-12 hold the port's values when the camera climbs (row writes); at the stage start the
   stage draw's column writes put zeros there (its 40-cell column buffer `$0388`, cells 24-39, holds an empty screen for
@@ -965,10 +1008,6 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   at camera row R). Not reproduced (not reachable: the cells are 17-23 rows above the camera at the start).
 
 ## Open
-
-- **Sprite placement, what's left** (Matching (audited), `tools/re/sprite_audit.py`): the shot pool's type 3 (`$B042`, "`$B110`
-  frames 1-4") was never drawn in the audit runs; stage 5's skull rise (frames 1-2) pairs 8 px low in 30 moving frames
-  (lockstep would tell timing from placement).
 
 - **Petite Devils and skulls, what's left** (Fixed 51, 52; their art: Fixed 63; the crows' burst: Fixed 73; stage 4:
   Matching (audited)): the spawner leaves the spawn's x/y fractions from RAM in both games, and
@@ -1004,7 +1043,7 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   a check that every live, on-screen Big Man has sprites with pixels in the sprite table on every frame, over the ladder
   building and past it (teleported to x 5488/5632/5760 and walking on, ~6,000 frames) every one was drawn whenever the
   game ran; the only frames without were the 8 paused, blank frames of the camera snap above (after a teleport). The Big Men's own
-  stand-ins in that area (a clamp to x 5200-5808 and a floor assumed where the probe found none) were removed with Fixed 54.
+  stand-ins in that area (a clamp to x 5200-5808 and a floor assumed where the probe found none) were removed with Fixed 54. Fixed 78 later found every Big Man drawn split down the middle (the halves swapped since Fixed 21), which may be what was seen.
 - **Co-op speed:** with the enemies now behaving as the arcade's (devils staying on the screen as long, skulls, Big Men)
   and the per-update fixes above, co-op runs slower than the last install (seed 1: stage 2 0.70, stage 5 0.89, stage 6
   0.82 updates per frame; 1P and Firebrand stay 0.92-1.0). On identical RAM the per-update fixes cost ~3 scanlines of
