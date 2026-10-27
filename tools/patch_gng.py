@@ -405,16 +405,8 @@ def install_features(rom, build_dir):
             sh = 0 if x & 1 else 4
             assert rom[a] >> sh & 15 == 1, 'water crest pixel at %#x' % a
             put(rom, a, bytes([rom[a] | 15 << sh]))
-    # final-room flames (type 10, builder $AF4A): frames 1-30 had their left and
-    # right 16 px halves swapped (records at $125620 via $123B3E)
-    for f in range(1, 31):
-        a = 0x125620 + struct.unpack('>h', rom[0x123B3E + 2 * f:0x123B40 + 2 * f])[0]
-        expect(rom, a, b'\x00\x04', 'flame pieces')
-        for i in range(4):
-            r = a + 2 + 6 * i
-            dx = rom[r:r + 2]
-            expect(rom, r, dx if dx in (b'\xff\xf0', b'\x00\x00') else b'?', 'flame piece x')
-            put(rom, r, b'\x00\x00' if dx == b'\xff\xf0' else b'\xff\xf0')
+    # final-room flames (type 10, builder $AF4A): their left and right 16 px halves swapped, in the final room
+    # only (the same records draw the Big Men of stages 2 and 5): bigman.s bm_piece_x, install_big_man_edge
     # zombies coming out of the ground or sinking: the arcade's 1- and 2-piece
     # frames 8 px higher (glue.s zombie_y)
     expect(rom, 0x7CF8, bytes.fromhex('3a873b7c0f000002'), 'zombie sprite y')
@@ -497,6 +489,8 @@ def install_features(rom, build_dir):
     install_terrain(rom, sym)
     install_boxes(rom, sym)
     install_burst(rom)
+    install_big_man_edge(rom, sym)
+    install_win_chan(rom, sym)
     install_speed(rom, sym)
 
 
@@ -833,6 +827,44 @@ def install_big_man(rom):
     put(rom, 0x11B746, b'\x60\x44')
     expect(rom, 0x11B7D0, bytes.fromhex('0c39000100ffc5126626'), 'Big Man stage 2 floor')
     put(rom, 0x11B7D0, b'\x60\x2e')
+
+
+def install_win_chan(rom, sym):
+    """Stage 2's third window region (bossart.c, Fixed 79): before the object-art streamer
+    ($11692E, reached through $C35D8 from every stage loop) its tiles go back to the streamer's
+    channels 2 and 4 when their objects want them."""
+    jmp = lambda a: b'\x4e\xf9' + be32(a)
+    expect(rom, 0xC35D8, jmp(0x11692E) + b'\x4e\x71', 'object-art streamer entry')
+    put(rom, 0xC35D8, jmp(sym['win_chan_hook']))
+
+
+def install_big_man_edge(rom, sym):
+    """Big Men at a floor's edge (bigman.s; arcade $D0A4, $D047, $D144, $D13B): the facing of the first step
+    over an edge kept (+38, +37) until a floor is found, a turn on the next check when walking, the back-off
+    toward Arthur once (+39) or standing still when facing him; the port rewrote +38 at every step, turned on
+    every second check (+39 a count) and walked on over the edge when facing Arthur."""
+    jmp = lambda a: b'\x4e\xf9' + be32(a)
+    expect(rom, 0x11B800, bytes.fromhex('196c00180026197c00010025546c0002'), 'Big Man no floor')
+    put(rom, 0x11B800, jmp(sym['bm_nofloor']))
+    expect(rom, 0x11B35C, bytes.fromhex('4a2c00256728522c00270c2c00020027'), 'Big Man walk turn')
+    put(rom, 0x11B35C, jmp(sym['bm_turn0']))
+    expect(rom, 0x11B4A0, bytes.fromhex('4a2c0025673c3014b06b00046216'), 'Big Man back-off')
+    put(rom, 0x11B4A0, jmp(sym['bm_turn1']))
+    # Arthur out of its height range in sub-state 1 ($D13B): the arcade clears $15 (+39), not $F (+37)
+    expect(rom, 0x11B490, bytes.fromhex('422c0025426c0008'), 'Big Man sub-state 1 exit')
+    # the type-10 builder: the flames' half swap (Fixed 21) made in the final room only, so the Big Men are
+    # drawn whole again (records at $125620 via $123B3E as the original's)
+    for f in range(1, 31):
+        a = 0x125620 + struct.unpack('>h', rom[0x123B3E + 2 * f:0x123B40 + 2 * f])[0]
+        expect(rom, a, b'\x00\x04', 'type 10 frame pieces')
+        expect(rom, a + 2, b'\xff\xf0', 'type 10 frame first piece x')
+    expect(rom, 0xAFB2, bytes.fromhex('3412d4519453'), 'type 10 piece x')
+    put(rom, 0xAFB2, jsr(sym['bm_piece_x']))
+    put(rom, 0x11B493, b'\x27')
+    # their shots (shot type 3, pool pass $ACB8; arcade projectile type 3, $FEBE: move, animate, the range test
+    # $8F62 only): the port also took one out after 120 frames (+33)
+    expect(rom, 0xAD4C, bytes.fromhex('532c00216772'), 'type 3 shot life')
+    put(rom, 0xAD4C, bytes.fromhex('4e714e714e71'))
 
 
 FRAME = 0x200                  # 32x32 4bpp, 16 tiles column-major

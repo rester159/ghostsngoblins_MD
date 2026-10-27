@@ -885,6 +885,117 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     are lit 3 frames in 4). Stage 1 over 12,000 frames with deaths, the map and game over: the cycle values only ever
     appear with stage 1's palette in CRAM.
 
+76. **Big Men at a floor's edge** (`bigman.s` `bm_nofloor`/`bm_turn0`/`bm_turn1`, `install_big_man_edge`; hooks `$11B800`,
+    `$11B35C`, `$11B4A0`, `$11B493`; arcade `$D0A4`, `$D047`, `$D144`, `$D13B`). The arcade's edge probe (`$D0A4`: the floor
+    2 px below, `$8CA7`; every 16 frames while walking, every step while facing Arthur) notes the facing of the first step
+    over an edge (`$14`, `$F` = 1) and keeps it until a floor is found again (`$F`, `$15` cleared). Walking (sub-state 0) it
+    turns round when it faces that way (`$D047`); facing Arthur (sub-state 1, Arthur 10 px below to 45 above it) it backs
+    off the edge toward him once (`$15`) or, with the edge on his side, stands (`$D144`); Arthur leaving its height clears
+    `$15` (`$D13B`). The port's (`$11B798` and callers; slot +37/+38/+39 = `$F`/`$14`/`$15`) rewrote +38 at every step over
+    the edge, turned while walking only on every second check (+39 used as a count), in sub-state 1 had both tests the
+    wrong way round (it never turned and walked on over the edge) and cleared +37 instead of +39. Measured with a life
+    start on stage 2's first Big Man's ledge (restart entry `001450A0`, arcade `401450A0`: x 5200, y 159; the frame
+    counters lined up with `rng_lag`; `tools/lockstep/slots.py` / `cmp_slots.py`, update for update), 900 frames: before,
+    the port's Big Man walked past the ledge's end at x 5174 where the arcade's turns (frame 51), and fired its first shot
+    away from Arthur (left from x 5158; the arcade's right from 5190, frame 83), apart from frame 51 on; now the Big Man
+    (state bytes, x, y, facing, the edge bytes) and its nine shots are identical on every frame.
+
+77. **The Big Men's shots** (shot type 3; `$AD4C`; arcade projectile type 3: made by `$D1FD`, moved by `$FEBE`). The shot
+    pool's type 3 (drawn by `$B042`: the sprite audit's "`$B110` frames 1-4") is the Big Man's: `$D1FD` (in the type-10
+    handler `$CF36`; the port's `$11B908`) makes it at x +-16 sideways in sub-state 1 or at y - 8 going down in sub-state 2
+    (Arthur within 10 px in x and below it; 10 frames into its 30-frame stop, `$D281`), 2 px a frame (`$5D9B`), and `$FEBE` moves and animates it
+    and takes it out only out of range (`$8F62`: 128 px past the screen's sides, 64 below); type 3 has no floor test
+    (types 4 and 10 have, `$FEA3`). The port's pool pass (`$ACB8`) also took it out after 120 frames (+33): on the ledge
+    the arcade's shots flew to x 5458 and 4942, the port's stopped at 5444 and 4966. Now out of range only: the nine shots
+    of the ledge start are made and gone on the arcade's frames at the arcade's places (5458, 4942). The down shots (life
+    start under the ledge, `00145A50`: x 5210, y 79; 600 frames) fall through the floor below as the arcade's and were
+    already identical (108 frames of flight). The frames (audit, 420 frames): poses 769-772 (frames 1-4: the arcade's
+    `$1F0`/`$1F8`, 4 frames each, mirrored by direction) all at the arcade's place, 244 moving pairs, the pose changing
+    on the arcade's frames. Kept: the port takes a shot out when stage 2's art bank changes (`$FFB028`, camera column 349),
+    as its pictures go with it.
+
+78. **Big Men drawn whole** (`bigman.s` `bm_piece_x`, `$AFB2`; the type-10 builder `$AF1E`/`$AF4A`, records `$125620` via
+    `$123B3E`). Fixed 21 swapped the 16 px halves of frames 1-30 for the final room's flames, but the same records draw the
+    Big Men of stages 2 and 5, whose pieces are the arcade's art placed as the original records place them: every Big
+    Man since was split down the middle, its left half on the right (the audit, ledge start, 420 frames: all 11 poses 16 px
+    off, left or right, none at the arcade's place). The swap is now made in the builder in the final room only
+    (`$FFC512` = 6), the records are the original's: every Big Man pair at the arcade's place (513 still, 439 moving), and
+    the final room's sprite table (1,200 frames, flames on 339) identical to the old build's on every frame.
+
+79. **Stage 2's windows, any number open** (`bossart.c` `win_step`/`win_vblanks`/`win_ring`/`win_chan`, `bossart_glue.s` `win_chan_hook` at `$C35D8`;
+    supersedes Fixed 61's two slots).
+    The arcade's windows are bg tiles: `$B457` writes the step's 2 x 2 tiles at the cell kept in `$18,X` (the devil's x - 16,
+    y when the window opens, `$B432`/`$8DD2`), so there is no limit of its own: every window stays as last written (a dead
+    devil's too, Fixed 69) until its ring column is written over or the screen is redrawn. The port had two 16-tile slots,
+    one per window, so a dead devil's open window closed when two live windows needed both. Now a pose's 16 tiles go into
+    a region and every window showing that pose points at it (8 window records instead of 2; the pose uploaded at the
+    vblank of each step to it, 512 bytes as before): R0 `$6AC`-`$6BB` and R1 `$6BC`-`$6C7` + `$5F4`-`$5F7` (Fixed 61's;
+    `$5F4`-`$5FB` is otherwise written only by the unreachable `$6434` and by the Satans' star in stages 5-6), and R2
+    `$5F8`-`$5FB` + `$6D0`-`$6DB` for a third pose at once. `$6D0`-`$6D7` and `$6D8`-`$6DB` are the object-art streamer's
+    channels 2 and 4 (`$1169B8`, reached through `$C35D8` -> `$11692E` from every stage loop, its requests set by `$1168E2`):
+    the second item slot (`$FFCEA0`, frames from `$29CA00`) and the stage-end key (`$FFCC20`, run only once the boss is
+    dead, from `$E085C`); channel 0 (`$F300`) is the first item slot. While those objects are absent the channels hold
+    their frame 0 (loaded `$FF97C2`/`$FF97C4` = asked `$FF97C8`/`$FF97CA` = 0). R2 is taken only then, and `win_chan`, put
+    before the streamer at `$C35D8`, gives it back as soon as one of them is live or asked for, or no window uses it: its
+    windows are first pointed at R0/R1 (holding or taking their pose) or closed (a live devil's shows again at its next
+    step, a dead one's is given up, Fixed 69's behaviour), with the interrupts off, then the channels' loaded frames are set
+    to `$FFFF` so the streamer loads them again in the same update. Without R2, a third pose takes a dead devil's
+    window's region (it closes, as before Fixed 79). Random runs never spawned the second item slot or the key in stage 2
+    (12 runs of 9,000 frames, 1P and co-op: the first item slot live in 11, the second and the key in none), so the case
+    was forced: in the window run below with the first devil removed 7 frames into its closing (`KDELAY=7`: 312,7 left at
+    F4 in both games, f163 / r165, until the redraw f511 / r517) the second live window at F2 makes three poses (r229) and
+    takes R2; an item put into the second slot at r231 (a copy of a live first-slot item from a 1P run): R2 is given back
+    in that update, the window goes closed on that frame and shows F4 at its next step (r234), the tiles `$6D0`-`$6DB` are
+    the streamer's frame 0 again on the same frame, no window ever showed them, no fault; with the item live a third pose
+    then closed the dead window (r248); without the item R2 is taken and given back twice (r229-r234, r248-r253), the
+    dead window at F4 throughout, `$6D0`-`$6DB` back at frame 0 after each. Firebrand's and player 2's tiles are `$690`-`$69F`
+    (`p2.c`, `firebrand.c`), the life start's load at `$4F4` writes `$6C8`-`$6CF` only (128 words), neither in R0-R2. And as the arcade's
+    window tiles are in its terrain map, a step now writes the same four cells of the port's ring (tiles `$F0`-`$FF`,
+    attribute `$87`, at the cell kept when the window opened). Forced case, side by side from the checkpoint (both 30
+    frames after the restart, walking right, `arc_windows.py` / `port_windows.py` with `LOAD`): the first window devil
+    removed on its closing's first frame (`KILL=1`): arcade window 312,7 open (F6) from f143, two live windows 308,11
+    (f203-f249) and 310,9 (f220-f266) open and close, 312,7 stays open until the death's redraw (f511). Port before: the
+    dead window closed at r225 when 310,9 took its slot; now open from r147 to the redraw (r516; its F6 2 frames later than
+    the old build's r145, an update lost to the frame pacing), the live windows' poses within a frame of the old build's
+    (r205-r270). `KILL=-1` (every window devil removed on its closing): arcade and port both
+    keep all three open to the redraw (f511 / r512). The terrain ring along that walk (`ring_sweep.py`, 34 cameras): 78
+    cells differed without the ring writes, 46 with them (the rest: Fixed 80).
+
+80. **The terrain map's other cells, from the arcade's world** (`terrain.c`, `mkworld.py` -> `build/world.inc`; Fixed 65's
+    "what's left"). The arcade's world map is in gg5 (banked at `$4000`): page 2 `$4000` + (screen row << 5 | screen column)
+    holds a screen's id (the stage-start pointer `<$6C` and the restart entries' `$4000 | y << 5 | x` point here; the column
+    and row writes step it, `$81E7`, `$828E`), page 2 `$4200` + 2 x id the base of its blocks in page 1, page 0 `$4000` + `$40`
+    x id its 8 x 8 block numbers (column by column, bottom first; `$82AA`, `$8262`), and a block is 2 x 2 cells (tiles at
+    + (column & 1) x 2 + (row & 1), attributes 4 bytes on): 32 x 16 screens of 16 x 16 cells, 512 columns by 256 rows,
+    wrapping as the screen pointer does. Decoded in Python, it holds the port's seven maps byte for byte (all 34,816 cells);
+    the cells outside them were the port's tile 0 / attribute `$C0`. `mkworld.py` writes the world's tables (15,568 bytes,
+    in the `.intro` data at `$350000`), and `terrain.c`'s column and row writes read every cell from it (the screen looked
+    up once per 16 cells, the block once per 2; quicker than the old per-cell search of the maps: the first version, maps
+    first and the world for the rest, made stage 1's start hold 3 frames longer; now the update counter is identical frame
+    for frame to frame 1,700 of dev launches of stages 1, 3 and 5 co-op, and the code blob is 68 bytes smaller). The two
+    rings byte for byte (`tools/re/ring_cmp.py`, all 1,024 cells, "floor" = a different answer to Arthur's floor probe,
+    the port's rule `$860C` with its table `$14A6E`), at the stage starts (both 30 frames after the restart), before ->
+    after: stage 1 528 (18 floor) -> 195 (0), stage 2 264 (0) -> 0, stage 3 371 (15) -> 195 (13), stage 4 256 -> 0, stage 5
+    8 -> 0, stage 6 256 -> 0; along walks right from the starts, at every camera multiple of 16 both reached
+    (`ring_sweep.py`): stage 1, 78 cameras, 40,160 (388 floor) -> 4,095 (0); stage 3, 49 cameras, 14,365 (243) -> 3,285
+    (219); stage 5, 26 cameras, 1,104 -> 0; stage 6, 13 cameras, 3,328 -> 0; stage 2 from the checkpoint, 34 cameras, 8,791
+    (10) -> 46 (9, with Fixed 79's window cells). What's left is the arcade's, not its world: at a stage start with the
+    camera at column 0 (stages 1 and 3) its stage draw (`$726E`/`$80A0`) leaves columns 0-12 with other data in rows R - 8
+    .. R - 1 and R + 17 .. R + 23 (195 cells; stage 3's 13 floors are Matching (audited)'s "Stage 3's collision map above
+    the start"), which stay until those columns are written again (all of stage 1's: below row 0 and 17 rows up, never
+    on the screen or under Arthur); a few column writes in stage 2 leave rows R + 15 .. R + 23 of the arcade's column as its
+    buffer had them (12 cells at cameras 5200 and 5280, 15 and more rows above the screen's bottom); and at 2 of the 34
+    cameras the port's sample (taken at the frame's end) fell between its camera update and its ring write in an update
+    running over a frame's end (one column, the next sample equal).
+    With 79: no faults in stages 1-6 x 1P/co-op/Firebrand (`bench.sh`, seed 1); in-play updates per frame, 1P, seeds 1-3,
+    before -> after: stage 1 0.994/0.992/0.994 -> 0.991/0.990/0.993, stage 2 0.919/0.946/0.922 -> 0.908/0.952/0.924,
+    stage 3 0.979/0.978/0.983 -> 0.981/0.982/0.986, stage 4 0.969/0.927/0.973 -> 0.970/0.932/0.985, stage 5
+    0.989/0.990/0.984 -> 0.992/0.993/0.991, stage 6 0.985/0.961/0.989 -> 0.985/0.963/0.988; stage 2 seeds 4-7 1P
+    0.967/0.906/0.959/0.938 -> 0.966/0.931/0.967/0.942, co-op seeds 1-7 0.713/0.689/0.700/0.691/0.718/0.684/0.706 ->
+    0.708/0.686/0.689/0.700/0.713/0.717/0.684 (mean 0.700 both; random input: the runs part once anything differs).
+    With R2 given back to the streamer (79): no faults in stages 1-6 x 1P/co-op/Firebrand (seed 1); stage 2 1P seeds 1-3
+    0.919/0.952/0.922, co-op 0.721/0.670/0.708.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -946,18 +1057,24 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   zombies are stage 1's, and frames 26-29 now pair at the arcade's place still and moving, 1,760-1,800 pairs each).
   Astaroth (the port's own art, no identical piece): the same box in both, x -32..30/31, y -32..31 from his position in
   every pose (~5,000 arcade frames, ~5,900 port). Enemy shots: stage 5/6's type 4 pair at the arcade's place (430 and 830
-  moving pairs; their other direction counts as mirrored only because the arcade's runs showed one direction). Not
-  settled: the `$B110` builder's frames 1-4 (`$B042`, the shot pool's type 3, single 16x16 pieces) were never drawn in
-  these runs (no type-3 shot fired in any stage); stage 5's skull rise
-  (the port's own frames 1-2) pairs 8 px lower than the arcade's in 30 moving frames (no still ones; 3.5 px/frame of rise,
-  so possibly timing).
+  moving pairs; their other direction counts as mirrored only because the arcade's runs showed one direction). The shot
+  pool's type 3 (the Big Men's shots, `$B042`) pairs at the arcade's place (Fixed 77). Stage 5's skull rise (the port's
+  frames 1-2), which paired 8 px low: walked in from the stage start in both (right held), the rise is 3 frames in both
+  (`$A2`/`$A3` twice, `$A4`/`$A5`) on the same frames with the pieces at (-16, -8)/(0, -8) from the skull and the same
+  pixels; those pieces are the standing skull's upper row (drawn at y -16 in its 2 x 2), so the rise's offset was under
+  the key filter's 5% and the rise was compared with the standing place (now counted "at a rare arcade place"). The
+  pairs still listed as a few px off while moving (the asleep skull +2..+4 px in x while the camera scrolls, one rise
+  frame) are frames on which the port shows the previous sprite table (`pace.c`'s held frames, `hook_sat_dma`: 102 of 399
+  frames in that walk), not placement.
 - **Stage 4's Petite Devils** (subtype 1; Fixed 51): they spawn only after the checkpoint (Arthur put along stage 4 from its
   start, x 3632-6700, y held: none; from the checkpoint: one every ~100 frames at x 4912, 4992, 5088, y 536). The port started
   at the checkpoint with the restart-entry trick (stage index 3's entry = the checkpoint's, `00538040`) and the arcade
   from `arc_start.py 3 1`, Arthur standing, 1,200 frames: the same slots (23, 22, 21), x/y at spawn, the same removal
   positions (x 5249 y 651, x 4735 y 609, x 4735 y 684), and every spawn and removal 1,868 frames apart in both, except
-  the second spawn 1,867 (each devil lives one frame longer in the port: the frame-counter phase, which these runs didn't
-  line up as Fixed 51's did).
+  the second spawn 1,867. That frame was the frame-counter phase: with the port's `$FFA206` lined up with `<$21`
+  (`rng_lag` on the first frame, as Fixed 51) and the port's 2 skipped updates taken out (`tools/lockstep/slots.py` /
+  `cmp_slots.py`), 1,300 frames from the checkpoint are identical (every devil's x/y on every frame): spawns on frames
+  1, 54, 153, 967, 1048 and 1147, removals on 629, 729 and 787, in both.
 - **Stage 3's collision map above the start** (Fixed 65's 13 cells): the map data is the arcade's. Logging the arcade's
   writes, rows 49-55 of columns 0-12 hold the port's values when the camera climbs (row writes); at the stage start the
   stage draw's column writes put zeros there (its 40-cell column buffer `$0388`, cells 24-39, holds an empty screen for
@@ -966,18 +1083,13 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
 
 ## Open
 
-- **Sprite placement, what's left** (Matching (audited), `tools/re/sprite_audit.py`): the shot pool's type 3 (`$B042`, "`$B110`
-  frames 1-4") was never drawn in the audit runs; stage 5's skull rise (frames 1-2) pairs 8 px low in 30 moving frames
-  (lockstep would tell timing from placement).
-
 - **Petite Devils and skulls, what's left** (Fixed 51, 52; their art: Fixed 63; the crows' burst: Fixed 73; stage 4:
   Matching (audited)): the spawner leaves the spawn's x/y fractions from RAM in both games, and
   the slots it picks differ, so a devil can start a fraction apart (the lockstep runs set them equal). Co-op stage 2 runs
   at 0.73 updates per frame (was 0.81): the devils now stay on the screen as long as the arcade's, and drawing them is
   the cost (the same build with the devils not drawn: 0.88); co-op stage 5 0.98 -> 0.93 (skulls and devils on the screen).
 
-- **Stage 2's devils, what's left** (Fixed 39; the windows: Fixed 61, 69): a dead devil's open window closes when two
-  live windows need both slots (the arcade keeps all three open); sound `$12` at the opening is played by id, not compared by ear; the change into a Red
+- **Stage 2's devils, what's left** (Fixed 39; the windows: Fixed 61, 69, 79): sound `$12` at the opening is played by id, not compared by ear; the change into a Red
   Arremer after 1200-3600 frames and the subtype 0/2 states (no such spawn records seen in stage 2) are translated but weren't
   reached in a run (the change into an Arremer was since forced in both games: Matching (audited), Red Arremers).
 
@@ -999,20 +1111,25 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   camera held at 5578) both games snap the camera to the next section (5833); the port blanks the display and refills
   the whole plane (`$93D6`, 32 columns, ~830 scanlines of work) over 8 paused frames where the arcade shows it on the next
   frame. Not reached in play: walked from the checkpoint (x 4736) through the town to x 6024, the camera scrolls past
-  5578 one pixel a frame (Arthur 130 px ahead of it), with an update every frame and no refill.
+  5578 one pixel a frame (Arthur 130 px ahead of it), with an update every frame and no refill. Not cheap to change: the
+  snap is stage 2's streamer (`$11A89C`) finding the camera off its window or in another section and taking the stage's
+  full reload (`$11A7C0`): display off, the section's tiles and palette uploaded again (`$B12` from the section table at
+  `$FFB020`, `$B3D2`, `$B416`), the plane's 32 columns refilled, display on. The arcade's bg tiles are all in ROM, so it
+  only rewrites its bg RAM; showing the port's on the next frame would mean uploading the section's art while the old
+  picture is shown (no free VRAM to hold both) and a refill under a frame, for a case only a teleport reaches.
 - **"Invisible troll" (itch.io report, stage 2 by the brick building after the ladder building):** not reproduced. With
   a check that every live, on-screen Big Man has sprites with pixels in the sprite table on every frame, over the ladder
   building and past it (teleported to x 5488/5632/5760 and walking on, ~6,000 frames) every one was drawn whenever the
   game ran; the only frames without were the 8 paused, blank frames of the camera snap above (after a teleport). The Big Men's own
-  stand-ins in that area (a clamp to x 5200-5808 and a floor assumed where the probe found none) were removed with Fixed 54.
+  stand-ins in that area (a clamp to x 5200-5808 and a floor assumed where the probe found none) were removed with Fixed 54. Fixed 78 later found every Big Man drawn split down the middle (the halves swapped since Fixed 21), which may be what was seen.
 - **Co-op speed:** with the enemies now behaving as the arcade's (devils staying on the screen as long, skulls, Big Men)
   and the per-update fixes above, co-op runs slower than the last install (seed 1: stage 2 0.70, stage 5 0.89, stage 6
   0.82 updates per frame; 1P and Firebrand stay 0.92-1.0). On identical RAM the per-update fixes cost ~3 scanlines of
   ~165; the rest is the arcade's enemies on the screen. The big costs are the port's own stage 2 enemy pass (`$99C0`,
   ~22 lines) and sprite build (`$B258`, ~12), and Maximo's context swaps (~12).
-- **Terrain map, what's left** (Fixed 65): cells outside all of the port's maps are tile 0 / attribute `$C0` where the
-  arcade's world has its own (zeros under stage 5's start, walls under stage 3's floor, data below row 0 in stages 1-2);
-  stage 3's 13 cells above its start are the arcade's stage draw leaving them empty (Matching (audited)), not the map.
+- **Terrain map, what's left** (Fixed 65, 80): the ring is the arcade's world everywhere; what differs is the arcade's
+  own stage draw at a camera column 0 (columns 0-12, rows R - 8 .. R - 1 and R + 17 .. R + 23, out of reach) and a few
+  column writes' stale rows R + 15 .. R + 23 in stage 2 (above the screen), neither traced in the arcade's code.
 
 - **Intro** (Fixed 62, 70, 71): the arcade's swoop, Arthur's fall, getting up and walk change every frame, the port's
   picture has 28, 11 and 24 steps for them (on arcade frames, the rest held); the frame before the arcade's HUD on black

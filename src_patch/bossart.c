@@ -73,18 +73,36 @@ void sat_art_init(void)
  * ($B457: 4 steps of 5 frames, at the devil's x - 16 .. + 15 and its tile
  * row and the one above). Here the same poses go onto plane B ($C000, 64 x 32
  * cells; a window at world x X, y Y is at column ((X >> 4) - 1) * 2, row
- * 30 - 2 * (Y >> 4), 4 x 4 cells), from two 16-tile slots ($6AC-$6BB and
- * $6BC-$6C7 + $5F4-$5F7, unused in stage 2; $6A4-$6C7 is the second
- * Unicorn's art slot, $71DF0, only at the stage's end), uploaded at the
- * vblank of the step; the closed window's cells, saved when it opens, are put
- * back at the end. A window off the camera's reach (the plane holds 512 px)
- * is left alone. */
+ * 30 - 2 * (Y >> 4), 4 x 4 cells). The arcade's windows are bg tiles, so it
+ * has no limit of its own: any number stay open, each at its last pose (a
+ * dead devil's too), until the ring is written over. Here a pose's 16 tiles
+ * go into a region and every window showing that pose points at it (Fixed 79):
+ * R0 $6AC-$6BB and R1 $6BC-$6C7 + $5F4-$5F7 (nothing else writes them in
+ * stage 2: $6A4-$6C7 is the second Unicorn's art slot, $71DF0, only at the
+ * stage's end; $5F4-$5FB the Satans' star, stages 5-6, and otherwise only the
+ * unreachable $6434), and R2 $5F8-$5FB + $6D0-$6DB, needed only when three
+ * different poses show at once. $6D0-$6D7 / $6D8-$6DB are the object-art
+ * streamer's channels 2 and 4 ($1169B8: the second item slot $FFCEA0, frames
+ * from $29CA00; the stage-end key $FFCC20, from $E085C), which hold their
+ * frame 0 while those objects are absent: R2 is taken only then, and given
+ * back (the streamer made to load its frames again) as soon as one of them is
+ * wanted or no window uses it (win_chan, before the streamer). Without R2 a
+ * dead devil's window gives its region up (Fixed 69's behaviour). A pose is
+ * uploaded at the vblank of each step to it; a window's closed cells, saved
+ * when it opens, are put back at the end. A window off the camera's reach
+ * (the plane holds 512 px) is left alone. */
 #define WIN_PLANE 0xC000
-typedef struct { u8 *owner; u16 wx; u8 col, row, pend, saved; u16 cell[16]; } Win;
-static Win win[2];
-static const u16 win_tile[2][16] = {
+#define NWIN 8
+#define NOREG 0xFF
+typedef struct { u8 *owner; u16 wx; u8 col, row, pend, saved, reg, pad; u16 cell[16]; } Win;
+static Win win[NWIN];
+static u8 win_any;                      /* an entry has a pend */
+static u8 reg_pose[3];                  /* the pose (1-3) each region holds, 0 none */
+static u8 r2_held;
+static const u16 win_tile[3][16] = {
     { 0x6AC, 0x6AD, 0x6AE, 0x6AF, 0x6B0, 0x6B1, 0x6B2, 0x6B3, 0x6B4, 0x6B5, 0x6B6, 0x6B7, 0x6B8, 0x6B9, 0x6BA, 0x6BB },
-    { 0x6BC, 0x6BD, 0x6BE, 0x6BF, 0x6C0, 0x6C1, 0x6C2, 0x6C3, 0x6C4, 0x6C5, 0x6C6, 0x6C7, 0x5F4, 0x5F5, 0x5F6, 0x5F7 } };
+    { 0x6BC, 0x6BD, 0x6BE, 0x6BF, 0x6C0, 0x6C1, 0x6C2, 0x6C3, 0x6C4, 0x6C5, 0x6C6, 0x6C7, 0x5F4, 0x5F5, 0x5F6, 0x5F7 },
+    { 0x5F8, 0x5F9, 0x5FA, 0x5FB, 0x6D0, 0x6D1, 0x6D2, 0x6D3, 0x6D4, 0x6D5, 0x6D6, 0x6D7, 0x6D8, 0x6D9, 0x6DA, 0x6DB } };
 
 static int win_reach(const Win *w)
 {
@@ -101,47 +119,89 @@ static int win_orphan(const Win *w)
     return !q[4] || q[10] != 4 || q[7] != 1 || q[8] != 4;
 }
 
-/* give up a slot: its closed cells go back at the vblank (pend $FF) while the
- * window is in reach; out of reach they are the streamer's again */
+/* give up an entry: its closed cells go back at the vblank (pend $FF) while
+ * the window is in reach; out of reach they are the streamer's again */
 static void win_free(Win *w)
 {
-    if (win_reach(w) && w->saved == 1) { w->pend = 0xFF; return; }
-    w->owner = 0; w->saved = 0; w->pend = 0;
+    if (win_reach(w) && w->saved == 1) { w->pend = 0xFF; win_any = 1; return; }
+    w->owner = 0; w->saved = 0; w->pend = 0; w->reg = NOREG;
 }
 
 static int win_free_slot(void)
 {
     int k;
-    for (k = 0; k < 2; k++)
+    for (k = 0; k < NWIN; k++)
         if (!win[k].owner) return k;
     return -1;
 }
 
+/* the windows on the plane pointing at region r, but w */
+static int reg_users(int r, const Win *w)
+{
+    int k, n = 0;
+    for (k = 0; k < NWIN; k++)
+        if (&win[k] != w && win[k].owner && win[k].saved == 1 && win[k].reg == r && win_reach(&win[k]))
+            n++;
+    return n;
+}
+
+/* the streamer's channels 2 and 4 idle at their frame 0 (loaded $FF97C2/C4,
+ * asked $FF97C8/CA; their objects' live flags $FFCEA4, $FFCC24) */
+static int chan_idle(void)
+{
+    return !RAM8(0xFFCEA4) && !RAM8(0xFFCC24) && !RAM16(0xFF97C2) && !RAM16(0xFF97C4)
+        && !RAM16(0xFF97C8) && !RAM16(0xFF97CA);
+}
+
+/* the arcade's $B457 writes the step's tiles into its bg RAM, which is its terrain map: $Fn at
+ * the window's cell, $Fn+1 right of it, $Fn+8 and $Fn+9 the row below, attribute $87 (n = 0
+ * closed, 2/4/6 open), the window's cell being the devil's x - 16, y when it opens ($B432,
+ * $8DD2, kept in $18,X for the closing after the devil has left); the same four cells of the
+ * port's ring ($FF0000, terrain.c's layout), the cell kept per enemy slot */
+static u8 wr_col[40], wr_row[40];
+
+static void win_ring(const u8 *p, int closing, int n)
+{
+    u16 sl = ((u16)(u32)p - 0xB800) / 48, i;
+    u8 code;
+    if (sl >= 40) return;
+    if (!closing && n == 1) {
+        u16 x = p[17] << 8 | p[18], y = p[21] << 8 | p[22];
+        wr_col[sl] = (x >> 4) - 1;
+        wr_row[sl] = y >> 4;
+    }
+    code = 0xF0 + 2 * (closing ? 4 - n : n - 1);
+    for (i = 0; i < 4; i++) {
+        u16 off = ((wr_col[sl] + (i & 1)) & 31) << 5 | (((wr_row[sl] - (i >> 1)) ^ 15) & 31);
+        RAM8(0xFF0000 + off) = code + (i & 1) + (i >> 1) * 8;
+        RAM8(0xFF0400 + off) = 0x87;
+    }
+}
+
 /* tdevil.c's window_tiles, at each of its steps (n = 1-4). A window whose
- * devil dies or leaves before it is closed keeps its slot and its pose, as
- * the arcade's stays open; the slot is given up only when a new window finds
- * none free (preferring one off the camera's reach), and then its closed
- * cells are put back: the arcade can show three open windows, there are two
- * slots. The new window takes its slot at its first pose (step 2: step 1
- * writes it closed), so a slot given up at step 1 is free by then. */
+ * devil dies or leaves before it is closed keeps its entry and its pose, as
+ * the arcade's stays open. The new window takes an entry at its first pose
+ * (step 2: step 1 writes it closed); with all NWIN in use one whose devil is
+ * gone is given up at the new window's step 1, off the camera's reach first. */
 void win_step(u8 *p, int closing, int n)
 {
     Win *w = 0;
     int k;
     if (RAM8(0xFFC512) != 1) return;
-    for (k = 0; k < 2; k++)
+    win_ring(p, closing, n);
+    for (k = 0; k < NWIN; k++)
         if (win[k].owner == p) w = &win[k];
     if (!closing && n == 1) {                   /* a window opens */
-        if (w) win_free(w);                     /* the slot's last devil's window */
+        if (w) win_free(w);                     /* the entry's last devil's window */
         if (win_free_slot() < 0) {
             Win *v = 0;
-            for (k = 0; k < 2; k++)
+            for (k = 0; k < NWIN; k++)
                 if (win[k].pend != 0xFF && win_orphan(&win[k]) && (!v || !win_reach(&win[k]))) v = &win[k];
             if (v) win_free(v);
         }
         return;
     }
-    if (!w && !closing && n == 2) {             /* its first pose: take a slot */
+    if (!w && !closing && n == 2) {             /* its first pose: take an entry */
         u16 x = p[17] << 8 | p[18], y = p[21] << 8 | p[22];     /* (odd addresses) */
         k = win_free_slot();
         w = &win[k < 0 ? 0 : k];
@@ -151,33 +211,77 @@ void win_step(u8 *p, int closing, int n)
         w->row = (30 - 2 * (y >> 4)) & 31;
         w->saved = 0;
         w->pend = 0;
+        w->reg = NOREG;
     }
     if (!w) return;
     k = closing ? 4 - n : n - 1;                /* 0 closed, 1-3 the open poses */
     w->pend = k ? k : 0xFF;
+    win_any = 1;
 }
 
-static void win_vblank(Win *w, int k)
+/* pose n (1-3) into region r, row by row from win_art */
+static void win_upload(int n, int r)
+{
+    u32 a = (u32)(win_art + (n - 1) * 256);
+    if (r == 0) dma_vram(a, 512, 0x6AC * 32);
+    else if (r == 1) { dma_vram(a, 384, 0x6BC * 32); dma_vram(a + 384, 128, 0x5F4 * 32); }
+    else { dma_vram(a, 128, 0x5F8 * 32); dma_vram(a + 128, 384, 0x6D0 * 32); }
+}
+
+static void win_restore(Win *w)
 {
     int r, c;
-    u16 a;
-    if (!w->pend) return;
+    if (w->saved == 1 && win_reach(w))
+        for (r = 0; r < 4; r++) {
+            VDP_CTRLL = VRAM_W(WIN_PLANE + ((w->row + r) & 31) * 128 + w->col * 2);
+            for (c = 0; c < 4; c++) VDP_DATA = w->cell[r * 4 + c];
+        }
+    w->saved = 0;                               /* closed again: the entry is free */
+    w->owner = 0;
+    w->pend = 0;
+    w->reg = NOREG;
+}
+
+/* a region for pose n: the one holding it, else one no window shows, else R2
+ * if the streamer's channels are idle, else one a dead devil's window gives up */
+static int win_region(int n, const Win *w)
+{
+    int r, k, pass;
+    for (pass = 0; pass < 2; pass++) {
+        for (r = 0; r < 3; r++)
+            if (reg_pose[r] == n && (r < 2 || r2_held)) return r;
+        for (r = 0; r < 2; r++)
+            if (!reg_users(r, w)) return r;
+        if (r2_held ? !reg_users(2, w) : chan_idle()) { r2_held = 1; return 2; }
+        for (k = 0; k < NWIN; k++)          /* Fixed 69: a dead devil's window closes */
+            if (&win[k] != w && win[k].owner && win[k].reg != NOREG && win[k].saved == 1
+                && win_reach(&win[k]) && win_orphan(&win[k]) && win[k].pend != 0xFF) {
+                win_restore(&win[k]);
+                break;
+            }
+        if (k == NWIN) break;
+    }
+    return -1;
+}
+
+static void win_vblank(Win *w, u8 *done)
+{
+    int r, c, g;
+    const u16 *t;
     if (!win_reach(w)) {
         if (w->pend == 0xFF) { w->owner = 0; w->saved = 0; }
         w->pend = 0;
+        w->reg = NOREG;
         return;
     }
-    if (w->pend == 0xFF) {
-        if (w->saved == 1)
-            for (r = 0; r < 4; r++) {
-                VDP_CTRLL = VRAM_W(WIN_PLANE + ((w->row + r) & 31) * 128 + w->col * 2);
-                for (c = 0; c < 4; c++) VDP_DATA = w->cell[r * 4 + c];
-            }
-        w->saved = 0;                           /* closed again: the slot is free */
-        w->owner = 0;
-        w->pend = 0;
-        return;
+    if (w->pend == 0xFF) { win_restore(w); return; }
+    g = win_region(w->pend, w);
+    if (g < 0) { w->pend = 0; return; }        /* no region: it keeps its pose a step */
+    if (!(*done & 1 << g) || reg_pose[g] != w->pend) {
+        win_upload(w->pend, g);
+        *done |= 1 << g;
     }
+    reg_pose[g] = w->pend;
     if (!w->saved) {
         for (r = 0; r < 4; r++) {
             VDP_CTRLL = VRAM_R(WIN_PLANE + ((w->row + r) & 31) * 128 + w->col * 2);
@@ -185,14 +289,72 @@ static void win_vblank(Win *w, int k)
         }
         w->saved = 1;
     }
-    a = (w->pend - 1) * 256;                    /* 16 tiles of 16 words */
-    if (k == 0) dma_vram((u32)(win_art + a), 512, 0x6AC * 32);
-    else { dma_vram((u32)(win_art + a), 384, 0x6BC * 32); dma_vram((u32)(win_art + a + 192), 128, 0x5F4 * 32); }
+    t = win_tile[g];
     for (r = 0; r < 4; r++) {
         VDP_CTRLL = VRAM_W(WIN_PLANE + ((w->row + r) & 31) * 128 + w->col * 2);
-        for (c = 0; c < 4; c++) VDP_DATA = (w->cell[r * 4 + c] & 0xE000) | win_tile[k][r * 4 + c];
+        for (c = 0; c < 4; c++) VDP_DATA = (w->cell[r * 4 + c] & 0xE000) | t[r * 4 + c];
     }
+    w->reg = g;
     w->pend = 0;
+}
+
+/* the steps of this update: each region a pose goes to is uploaded once (the
+ * tiles may have been written over since: the Unicorn's slot, a life start),
+ * then the window's cells */
+static void win_vblanks(void)
+{
+    int k;
+    u8 done = 0;
+    if (!win_any) return;
+    win_any = 0;
+    for (k = 0; k < NWIN; k++)
+        if (win[k].pend) win_vblank(&win[k], &done);
+}
+
+/* $C35D8 (before the object-art streamer $11692E, every stage loop): R2 is
+ * given back when one of channels 2 and 4 is wanted (or reset: a life start)
+ * or no window shows it. Its windows are moved off it here, before the
+ * streamer loads the channels' frames again (so no window ever shows them):
+ * to R0/R1 when one holds or can take their pose, else closed (a live devil's
+ * window shows again at its next step; a dead one's is given up, Fixed 69).
+ * The VDP is written with the interrupts off (the vblank's uploads use it). */
+void win_chan(void)
+{
+    int k, r, c, g;
+    u16 sr;
+    if (!r2_held) return;
+    if (chan_idle() && reg_users(2, 0)) return;
+    __asm__ volatile ("move.w %%sr,%0\n\tmove.w #0x2700,%%sr" : "=d" (sr) :: "cc");
+    r2_held = 0;
+    for (k = 0; k < NWIN; k++) {
+        Win *w = &win[k];
+        if (!w->owner || w->reg != 2) continue;
+        if (w->saved != 1 || !win_reach(w)) { w->reg = NOREG; continue; }
+        g = -1;
+        for (r = 0; r < 2; r++)
+            if (reg_pose[r] == reg_pose[2]) g = r;
+        if (g < 0)
+            for (r = 0; r < 2; r++)
+                if (!reg_users(r, w)) { g = r; win_upload(reg_pose[2], r); reg_pose[r] = reg_pose[2]; break; }
+        if (g >= 0) {
+            const u16 *t = win_tile[g];
+            for (r = 0; r < 4; r++) {
+                VDP_CTRLL = VRAM_W(WIN_PLANE + ((w->row + r) & 31) * 128 + w->col * 2);
+                for (c = 0; c < 4; c++) VDP_DATA = (w->cell[r * 4 + c] & 0xE000) | t[r * 4 + c];
+            }
+            w->reg = g;
+        } else if (win_orphan(w))
+            win_restore(w);
+        else {
+            u8 *o = w->owner;
+            win_restore(w);
+            w->owner = o;                       /* its next step saves and draws again */
+        }
+    }
+    reg_pose[2] = 0;
+    RAM16(0xFF97C2) = 0xFFFF;
+    RAM16(0xFF97C4) = 0xFFFF;
+    __asm__ volatile ("move.w %0,%%sr" :: "d" (sr) : "cc");
 }
 
 void hide_vblank(void);                 /* opening.c */
@@ -202,8 +364,7 @@ void sat_vblank(void)
 {
     int b;
     hide_vblank();
-    win_vblank(&win[0], 0);
-    win_vblank(&win[1], 1);
+    win_vblanks();
     for (b = 0; b < 2; b++) {
         if (sb_want[b] && sb_want[b] != sb_have[b]) {
             dma_vram((u32)sb_want[b], (u16)sb_nart[b] * 128, (b ? SAT_BUF1 : SAT_BUF0) * 32);
