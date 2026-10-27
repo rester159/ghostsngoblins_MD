@@ -721,6 +721,59 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     its skipped steps, the jump off it, the landing and the walk on to the water at x 4248. The stepping stones (type 4,
     x 6032-6608) take the same test but weren't reached in a run; the carry gate on the other movers (stages 3-5) wasn't run.
 
+67. **Stepping down, and the walk test's reach** (stage 5 room and all stages; `arthur.s` `ground_snap` at `$8698`, `glue.s`
+    `tomb_walk` in `box_walk`). Both games from a life start at x 7008, y 1615 on the room's top floor (stage index 4's
+    restart entry pointed there: arcade RAM `$6CFD` = `40 DB 60 50`, port test copy `$1040DC`), the port's x fraction set
+    to the arcade's, walking right (`tools/lockstep/route.py` `R7300`), x and y every frame. (1) At x 7048 the floor is a
+    pixel lower: the arcade's walk (`$91D1`) finds no floor at its feet (`$8CA7`) and no object at y - 1 (`$9674`/`$9FAE`),
+    so it moves to the fall state (`$91F2`, `INC -$C,X`); that frame walks no further, its fall (`$965A`, 4.25 px) lands
+    back on the floor (`$8CA7`/`$91EC`): x 7048 for two frames, y 1615 -> 1614. The port's floor search (`$8744`) probed a
+    second time 8 px down and snapped him down in the walking update, so from there he was a frame ahead. The ground step
+    now takes the floor at his own y (`$8784`) and then the objects (`$84B8`, `$8744`'s last step), never the probe below:
+    no floor is a fall, as the arcade's (the ladder-bottom and stage-start cases of Fixed 23-29 were this rule already).
+    (2) On this base the port's Arthur then stopped at x 7167 for good (main's build, before Fixed 66, walked on): the walk
+    test probes the old x + 1 in its low byte with the high byte kept (as the arcade's, `$946E`/`$9FDC`), so at x 7167 it
+    probes 6912, and its y test is a byte one: stage 5's type 5 object at x 6936, y 1112, 503 px below, matched. The
+    arcade's objects (`$1010`, 30 x 32 bytes) are only live near the screen (none in the room), the port's are live for the
+    whole stage; the test now also needs the object within 128 px in y. Before: the walk 7008 -> 7300 differed from x 7048
+    on (and stopped at 7167); now 400 frames identical (two 1 px steps, the second one up). (3) The ladder from the floor at
+    y 1455: reached in play from the same start (down the ladder at x 7248 to y 1535, down the one at 7184 to 1455), 56
+    targets x 7160-7215 in each game: both take it from x 7168-7199 and put Arthur at x 7184. The old note's 7200 came from
+    a life start at x 7233 on that floor: there the arcade's stage draw leaves its whole bg ring one column off (column
+    c's cells hold column c - 1's data; at the x 7008 start they're right), so its ladder is 16 px right. Stage 5's own
+    restart points (x 6736, 6784) are far from it, so it isn't reached in play; the port writes the map as it is. Other
+    stages per update (`dual_updates.py`, walking right, fractions zeroed), before and after alike: stage 2 from the
+    checkpoint 388 updates identical (to the water, whose death y is Fixed 46's), stage 3's start 900, stage 4's start 90 (to
+    its pit).
+
+68. **The Satans' burst, its last pose** (`glue.s` `hook_satan_die`, `bossart.c` `sat_burst`; `$110826`). Stage 5 room,
+    Arthur throwing from x 7233 with the Satan's hit points held at 1, the arcade's sprite buffer and the port's sprite
+    table read every frame from the kill: the arcade (`$C368` on the kill frame k, `$E8A7` k+1 .. k+22, `$C375` from k+23,
+    state 3 at k+85, removed k+86) shows the pose to k+1, the 2x2 3 frames, A B A B 4 each, C 3 (k+21 .. k+23), the score
+    from k+24. The port's burst count runs a frame behind (its count 1 still shows the pose), so its 22 counts gave C 2
+    frames and the score a frame early, with the removal on the arcade's frame. Now 23 counts (C for 21-23) and a score
+    phase of 62 frames: C 3 frames, the score from the arcade's frame, state 3 and the removal unchanged. The old note that
+    the arcade's small burst leaves the flying pose's right column on the screen wasn't reproduced: killed (state set to
+    2) on 14 frames covering the hover poses A B C and the flight pose in both facings, at mid-screen and at both edges,
+    the arcade's sprite buffer holds the 2x2's 4 pieces only for its 3 frames (the buffer as DMA'd at `$65C4`, checked equal
+    to `gng.py`'s copy on every frame of a kill); the port draws the same 4.
+
+69. **Stage 2's windows when their devil is gone** (`bossart.c` `win_step`/`win_vblank`). The arcade writes a window's
+    tiles only from its devil's window state (`$B457` from `$B41E`/`$B51B`), so a devil killed or removed before the
+    closing is done leaves the window as it was. From the checkpoint walking right, the first window devil removed on its
+    closing's first frame (f158): window 312,7 stays open (F6) while two more open and close (f203-f266), until the screen
+    is cleared at the death (f511); without intervention a devil gone at F2 left its window at F2 (f376). The port gave a
+    window's slot to the next window that opened, taking the first slot whose devil was gone, without putting back the dead
+    window's cells: they still pointed at the slot, so the dead window showed the new one's poses and then its last pose.
+    Now a window keeps its slot while its devil is gone (not live, not type 4, or out of state 1/4); a new window takes a
+    free slot at its first pose, and only when none is free is one given up (a dead devil's, off the camera's reach
+    first), its closed cells put back. Port, same test: before, the dead window followed the next two windows' poses; now
+    it stays open until the redraw at the death (r549). Not matched: a dead devil's open window with two live ones at
+    once (the arcade shows all three; there are two slots, so the dead one closes).
+    With 67-69: no faults in stages 1-6 x 1P/co-op/Firebrand (`bench.sh`, seed 1); in-play updates per frame, 1P, seeds
+    1-3, before -> after: stage 2 0.918/0.941/0.924 -> 0.918/0.941/0.922, stage 5 0.993/0.987/0.991 -> 0.987/0.988/0.990,
+    stage 6 0.983/0.963/0.988 -> 0.984/0.963/0.988.
+
 
 70. **The opening's black part and the stage start after it** (`opening.c` `intro_scene`, `intro_sched` from `mkart.py`;
     hooks `$C48`, `$943C`, `pad.c` `stage_hold` -> `intro_hold`/`hide_frame`, `bossart.c` `sat_vblank` -> `hide_vblank`).
@@ -840,12 +893,8 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   at 0.73 updates per frame (was 0.81): the devils now stay on the screen as long as the arcade's, and drawing them is
   the cost (the same build with the devils not drawn: 0.88); co-op stage 5 0.98 -> 0.93 (skulls and devils on the screen).
 
-- **The Satans, what's left** (art: Fixed 60): the burst's last pose shows 2 frames (arcade 3), as the port's score
-  phase starts a frame earlier; the arcade's small burst leaves the flying pose's right column on the screen for its 3
-  frames (its sprite list isn't cleared; not drawn here). (Their spawn fractions: Fixed 53.)
-
-- **Stage 2's devils, what's left** (Fixed 39; the windows: Fixed 61): a window whose devil dies before it closes keeps its
-  slot until another opens (the arcade leaves it open); sound `$12` at the opening is played by id, not compared by ear; the change into a Red
+- **Stage 2's devils, what's left** (Fixed 39; the windows: Fixed 61, 69): a dead devil's open window closes when two
+  live windows need both slots (the arcade keeps all three open); sound `$12` at the opening is played by id, not compared by ear; the change into a Red
   Arremer after 1200-3600 frames and the subtype 0/2 states (no such spawn records seen in stage 2) are translated but weren't
   reached in a run (the change into an Arremer was since forced in both games: Matching (audited), Red Arremers).
 
@@ -860,10 +909,9 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   likeliest source was stage 5's Big Men (Fixed 54). Stage 2's water death y (24 in the arcade, 25 in the port) came from
   the restart's y fraction (Fixed 46): with the fractions equal the fall and the death are identical (y 79, 74, ... 24).
 
-- **Stage 5 room, Arthur:** walking right from x 7008 on the top floor the arcade's Arthur stands still for a frame where
-  the floor steps down a pixel (x 7048, y 1615 -> 1614) and the port's doesn't, so he is a frame ahead from there; the
-  ladder up from the floor at y 1455 is climbed from x 7200 in the arcade (Arthur put at x 7200 on it) and from x 7196 in
-  the port (put at x 7184; up at x 7200 doesn't take it). Not traced.
+- **Stage 5 room, the arcade's ring at an x 7233 life start** (Fixed 67): a life start there (a test restart entry, not
+  reached in play) leaves the arcade's bg ring one column off, so its ladders sit 16 px right; the port writes the map as
+  it is. Not traced in the arcade's stage draw (`$726E`/`$80A0`).
 - **Camera snaps (only after a debug teleport):** when Arthur is put far ahead of the camera (stage 2: x 5961 with the
   camera held at 5578) both games snap the camera to the next section (5833); the port blanks the display and refills
   the whole plane (`$93D6`, 32 columns, ~830 scanlines of work) over 8 paused frames where the arcade shows it on the next

@@ -92,7 +92,38 @@ static int win_reach(const Win *w)
     return d < 384;
 }
 
-/* tdevil.c's window_tiles, at each of its steps (n = 1-4) */
+/* a window whose devil no longer steps it: dead, removed, or out of its
+ * window state (the arcade's tiles then stay as they were: $B457 is their
+ * only writer, from the devil's own window state) */
+static int win_orphan(const Win *w)
+{
+    const u8 *q = w->owner;
+    return !q[4] || q[10] != 4 || q[7] != 1 || q[8] != 4;
+}
+
+/* give up a slot: its closed cells go back at the vblank (pend $FF) while the
+ * window is in reach; out of reach they are the streamer's again */
+static void win_free(Win *w)
+{
+    if (win_reach(w) && w->saved == 1) { w->pend = 0xFF; return; }
+    w->owner = 0; w->saved = 0; w->pend = 0;
+}
+
+static int win_free_slot(void)
+{
+    int k;
+    for (k = 0; k < 2; k++)
+        if (!win[k].owner) return k;
+    return -1;
+}
+
+/* tdevil.c's window_tiles, at each of its steps (n = 1-4). A window whose
+ * devil dies or leaves before it is closed keeps its slot and its pose, as
+ * the arcade's stays open; the slot is given up only when a new window finds
+ * none free (preferring one off the camera's reach), and then its closed
+ * cells are put back: the arcade can show three open windows, there are two
+ * slots. The new window takes its slot at its first pose (step 2: step 1
+ * writes it closed), so a slot given up at step 1 is free by then. */
 void win_step(u8 *p, int closing, int n)
 {
     Win *w = 0;
@@ -100,22 +131,26 @@ void win_step(u8 *p, int closing, int n)
     if (RAM8(0xFFC512) != 1) return;
     for (k = 0; k < 2; k++)
         if (win[k].owner == p) w = &win[k];
-    if (!closing && n == 1) {                   /* a window opens (this step writes it closed) */
-        u16 x = p[17] << 8 | p[18], y = p[21] << 8 | p[22];     /* (odd addresses) */
-        if (!w) {
-            for (k = 0; k < 2 && !w; k++) {
-                u8 *q = win[k].owner;
-                if (!q || !q[4] || q[10] != 4) w = &win[k];     /* free, or its devil is gone */
-            }
-            if (!w) w = &win[0];
+    if (!closing && n == 1) {                   /* a window opens */
+        if (w) win_free(w);                     /* the slot's last devil's window */
+        if (win_free_slot() < 0) {
+            Win *v = 0;
+            for (k = 0; k < 2; k++)
+                if (win[k].pend != 0xFF && win_orphan(&win[k]) && (!v || !win_reach(&win[k]))) v = &win[k];
+            if (v) win_free(v);
         }
+        return;
+    }
+    if (!w && !closing && n == 2) {             /* its first pose: take a slot */
+        u16 x = p[17] << 8 | p[18], y = p[21] << 8 | p[22];     /* (odd addresses) */
+        k = win_free_slot();
+        w = &win[k < 0 ? 0 : k];
         w->owner = p;
         w->wx = ((x >> 4) - 1) << 4;
         w->col = (((x >> 4) - 1) * 2) & 63;
         w->row = (30 - 2 * (y >> 4)) & 31;
         w->saved = 0;
         w->pend = 0;
-        return;
     }
     if (!w) return;
     k = closing ? 4 - n : n - 1;                /* 0 closed, 1-3 the open poses */
@@ -127,7 +162,11 @@ static void win_vblank(Win *w, int k)
     int r, c;
     u16 a;
     if (!w->pend) return;
-    if (!win_reach(w)) { w->pend = 0; return; }
+    if (!win_reach(w)) {
+        if (w->pend == 0xFF) { w->owner = 0; w->saved = 0; }
+        w->pend = 0;
+        return;
+    }
     if (w->pend == 0xFF) {
         if (w->saved == 1)
             for (r = 0; r < 4; r++) {
@@ -235,12 +274,13 @@ void sat_draw(u8 *p, const u16 *cam, Spr *o)
 }
 
 /* the burst ($E8A7 for size class 4: $5B89's 2x2 for 3 frames, then $5B24's
- * 3x3, 4 frames a pose) by the port's burst count (+9, 1-22, hook_satan_die;
+ * 3x3, 4 frames a pose) by the port's burst count (+9, 1-23, hook_satan_die;
  * 0 = the pose stays). Lined up with the arcade on the frame the Satan dies:
- * the pose for 3 frames, the 2x2 for 3, A B A B for 4 each, then C, which the
- * arcade shows 3 frames and the port 2 (its score comes a frame earlier). */
-const u8 sat_burst[23] = {
-    0, 0, 12, 12, 12, 13, 13, 13, 13, 14, 14, 14, 14, 13, 13, 13, 13, 14, 14, 14, 14, 15, 15 };
+ * the pose for 3 frames, the 2x2 for 3, A B A B for 4 each, then C for 3,
+ * then the score (the port's count is a frame behind the arcade's, so it
+ * needs 23 of them for the arcade's 22). */
+const u8 sat_burst[24] = {
+    0, 0, 12, 12, 12, 13, 13, 13, 13, 14, 14, 14, 14, 13, 13, 13, 13, 14, 14, 14, 14, 15, 15, 15 };
 
 /* the star's frames for the shot draw ($117238: count, then dx, dy, attr) */
 const s16 star_frames[2][4] = { { 1, -8, 8, STAR_T }, { 1, -8, 8, STAR_T + 4 } };
