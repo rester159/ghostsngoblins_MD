@@ -523,7 +523,7 @@ def install_speed(rom, sym):
     put(rom, 0x11B1BC, jmp(sym['ta_entry']))
     # stage 3-6 enemy pass ($1055D4): as the stage 1-2 one
     expect(rom, 0x1055DA, bytes.fromhex('300752401740'), 'stage 3-6 pass slot loop top')
-    put(rom, 0x1055DA, jmp(sym['op36_top']))
+    put(rom, 0x1055DA, jmp(sym['op36_first']))
     expect(rom, 0x10583C, bytes.fromhex('427900ffc9d8d8fc003051cffd92'), 'stage 3-6 pass next slot')
     put(rom, 0x10583C, jmp(sym['op36_next']))
     expect(rom, 0x105790, jmp(0x114D50), 'stage 3-6 pass hit-test step')

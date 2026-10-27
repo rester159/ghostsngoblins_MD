@@ -66,11 +66,12 @@ spr12_tail:
 | type 13 only.
     .global op12_top, op12_next, op12_hit
 op12_top:
+    tst.b   4(%a4)
+    beq.w   6f
+op12_live:
     move.w  %d7,%d0
     addq.w  #1,%d0
     move.b  %d0,7(%a3)
-    tst.b   4(%a4)
-    beq.w   op12_next
     moveq   #0,%d0
     move.b  10(%a4),%d0
     cmpi.w  #18,%d0
@@ -137,6 +138,17 @@ op12_next:
     lea     48(%a4),%a4
     dbf     %d7,op12_top
     jmp     0x6C04
+| A run of empty slots: each set the slot counter 7(a3) (= d7 + 1, through
+| d0's low word) and went on; nothing reads it before the next live slot sets
+| it again or the pass clears it at the end ($6C04), so only d0 is kept: its
+| low word is 1 when the last slot was empty, as before.
+6:  lea     48(%a4),%a4
+    dbf     %d7,7f
+    move.w  #1,%d0
+    jmp     0x6C04
+7:  tst.b   4(%a4)
+    beq.s   6b
+    bra.w   op12_live
 
 | ---------------------------------------------------------------------------
 | Waiting enemies off the screen. Each handler below saved and restored 11
@@ -210,13 +222,22 @@ ta_entry:
 | `lsr.w #2,d4` / `jmp handler`: the same d0-d2, d4 = k and the flags of that
 | lsr (X clear). After the handler, odd frames ran $114D76 for every slot
 | (only type 13 does anything there), even frames dragon_wtest (unchanged).
-    .global op36_top, op36_next, op36_hit
+| The first slot comes in at op36_first (the hook at $1055DA): an empty one
+| clears $FFC9D8 as its pass end did, then empty runs go as in op12 (their
+| clears repeat the one after the slot before).
+    .global op36_first, op36_top, op36_next, op36_hit
+op36_first:
+    tst.b   4(%a4)
+    bne.s   op36_live
+    clr.w   0xFFC9D8
+    bra.w   6f
 op36_top:
+    tst.b   4(%a4)
+    beq.w   6f
+op36_live:
     move.w  %d7,%d0
     addq.w  #1,%d0
     move.b  %d0,7(%a3)
-    tst.b   4(%a4)
-    beq.w   op36_next
     moveq   #0,%d4                  | $114BF2
     move.b  10(%a4),%d4
     cmpi.w  #18,%d4
@@ -288,6 +309,13 @@ op36_next:
     lea     48(%a4),%a4
     dbf     %d7,op36_top
     jmp     0x10584A
+6:  lea     48(%a4),%a4
+    dbf     %d7,7f
+    move.w  #1,%d0
+    jmp     0x10584A
+7:  tst.b   4(%a4)
+    beq.s   6b
+    bra.w   op36_live
 
 | Type 1 in stages 3-6 ($10505C; from $10589E): state 1, waiting (+8 = 0,
 | +9 non-zero), off the screen, +6 = 2 (anything else the fault). `jmp
