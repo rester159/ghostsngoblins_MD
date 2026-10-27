@@ -29,7 +29,10 @@ static void vram_copy(const u16 *src, u16 words, u16 tile)
  * arcade's frame of the same event (intro_sched; the cloak's on and off steps
  * repeated as the arcade's blinking). The top score is the live one, as the
  * arcade's ($D0: 8 digits at row 1, columns 12-19, leading zeros blank).
- * Start skips both, from 826 and from the black part's 21st frame, as before. */
+ * Start skips both, from 826 and from the black part's 21st frame, as before.
+ * After the second clear (end_restart) the arcade's graveyard comes 3 frames
+ * after the last text's, its bg alone for 5 frames, and runs 3 frames shorter:
+ * the same here (isc_ev). */
 #define ISC_DARK 1                              /* black frames after Start before the graveyard */
 #define AF(f) ((f) - 804)                       /* graveyard frame n of the arcade's frame f */
 void intro_wait(void);                          /* bossart_glue.s: the VBlank ($EDE's wait) */
@@ -43,6 +46,18 @@ void intro_tick(void);                          /* ... then the sound ($8990) an
 #define TOP_ROW_E (0xC000 + 1 * 128 + 12 * 2)   /* the top score's 8 cells in $E0C's plane */
 
 u8 intro_hide;                                  /* the black part ran to its end: stage_hold hides the stage */
+u8 intro_after_end;                             /* ending_glue.s end_restart: after the second clear */
+static u8 after_end;
+/* the graveyard's events (frame n from its first): the sprites, the two
+ * fades, Arthur's head, Start's first frame, the cloak on, off, on, off, the
+ * black part. After Start (arcade frames, Start at 800: the bg at 804) and
+ * after the second clear (the arcade's from the last text's end R: the bg at
+ * R + 3 (here R + 2), the sprites at R + 8,
+ * the fades at R + 68 and R + 132, the head at R + 153, the cloak at R + 191
+ * and R + 193, the black part at R + 196). */
+static const u16 isc_ev[2][10] = {
+    { AF(805), AF(871), AF(935), AF(955), AF(826), AF(993), AF(994), AF(996), AF(997), AF(999) },
+    { 5, 65, 129, 150, 22, 188, 189, 190, 191, 193 } };
 static u16 isc_top[8];                          /* the top score's digits (10 = blank) */
 static const u16 *ib_blink[2];                  /* steps 8 and 9 (the cloak on, off) */
 static const u16 *ib_p;                         /* step ib_s's data */
@@ -143,9 +158,9 @@ static int load_step(void)
     u16 sr;
     if (ld_at >= E0C_NT + 2048 + 10) return 0;
     sr = irq_off();
-    if (!win_clear) {
-        vram_zero(0xD000 + 64 * 2, 32 * 30);    /* the window's other rows */
-        win_clear = 1;
+    if (win_clear < 2) {                        /* the window's other rows, in 2 */
+        vram_zero(0xD000 + 64 * 2 + win_clear * 32 * 30, 32 * 15);
+        win_clear++;
     } else if (ld_at < E0C_NT) {
         n = E0C_NT - ld_at < 512 ? E0C_NT - ld_at : 512;
         VDP_CTRLL = VRAM_W((u32)ld_at * 2);
@@ -180,6 +195,7 @@ static int start_pressed(void) { return !(RAM8(0xFF7000) & 1); }
 int intro_scene(void)
 {
     u16 n, k, sr;
+    const u16 *ev;
     G_STATE = 0x494E5452;                       /* 'INTR', as $E0C */
     intro_hide = 0;
     top_digits();
@@ -203,24 +219,27 @@ int intro_scene(void)
     vdp_reg(18, 0x02);                          /* the window: the top 2 rows */
     VDP_CTRL = 0x8164;                          /* display on (the VBlank flag is set while it's off) */
     irq_restore(sr);
-    for (n = 0; n < ISC_DARK; n++) { intro_wait(); intro_tick(); }
+    after_end = intro_after_end ? 1 : 0;
+    intro_after_end = 0;
+    for (n = after_end ? 1 : 0; n < ISC_DARK; n++) { intro_wait(); intro_tick(); }
     ld_at = 0;
     win_clear = 0;
     ib_p = (const u16 *)E0C_STEPS;
     ib_s = 0;
-    for (n = 0; n < ISC_FRAMES; n++) {
+    ev = isc_ev[after_end];
+    for (n = 0; n < ev[9]; n++) {
         intro_wait();
         sr = irq_off();
         if (n == 0) isc_cram(isc_cram0);
-        if (n == AF(805)) isc_sprites(isc_spr870, ISC_NSPR870);
-        if (n == AF(871)) isc_cram(isc_cram1);
-        if (n == AF(935)) isc_cram(isc_cram2);
-        if (n == AF(955) || n == AF(994) || n == AF(997)) isc_sprites(isc_spr955, ISC_NSPR955);
-        if (n == AF(993) || n == AF(996)) isc_sprites(isc_spr993, ISC_NSPR993);
+        if (n == ev[0]) isc_sprites(isc_spr870, ISC_NSPR870);
+        if (n == ev[1]) isc_cram(isc_cram1);
+        if (n == ev[2]) isc_cram(isc_cram2);
+        if (n == ev[3] || n == ev[6] || n == ev[8]) isc_sprites(isc_spr955, ISC_NSPR955);
+        if (n == ev[5] || n == ev[7]) isc_sprites(isc_spr993, ISC_NSPR993);
         irq_restore(sr);
         intro_tick();
         load_step();
-        if (n >= 22 && start_pressed()) { ib_regs_normal(); return 1; }
+        if (n >= ev[4] && start_pressed()) { ib_regs_normal(); return 1; }
     }
     while (load_step()) ;                       /* (all there by now) */
     /* the black part */
@@ -250,6 +269,7 @@ int intro_scene(void)
     }
     if (n == IB_FRAMES) {
         intro_wait();                           /* its last frame shows whole */
+        if (after_end) intro_wait();            /* (the arcade's ends a frame later there) */
         intro_hide = 1;
     }
     ib_regs_normal();
