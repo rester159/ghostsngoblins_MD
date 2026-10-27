@@ -6,7 +6,7 @@ A reworked version of the Ghosts 'n Goblins Mega Drive / Genesis port: fixed to
 run on real hardware and accurate emulators, faster, with 2-player co-op as
 Maximo and a campaign as Firebrand, the Red Arremer.
 
-File: Ghosts'nGoblinsMD_Alpha_0.5.bin  (4 MiB, regions J/U/E, NTSC and PAL)
+File: Ghosts'nGoblinsMD_Alpha_0.6.bin  (4 MiB, regions J/U/E, NTSC and PAL)
 SHA-1: 2703f676568e66683a53f830a764c8e9306b654a
 
 
@@ -61,8 +61,8 @@ saved to SRAM. There's also a hidden developer menu.
 
 KNOWN ISSUES
 ------------
-- Co-op in stages 2 and 5 can still slow down when the screen is busy. In
-  those moments sprites may update only every fourth frame.
+- Co-op can still slow down a little when the screen is busy (stage 2
+  most), as both players' routines run every frame.
 - Maximo's and Firebrand's art is temporary.
 - The high-score table is drawn over the live stage (same as the original).
 
