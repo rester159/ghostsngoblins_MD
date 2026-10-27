@@ -48,6 +48,10 @@ HOME
   FIREBRAND'S QUEST . play as the Red Arremer. Hold jump at the top of a jump
                       to hover for up to 2 seconds. Fireballs only; pickups
                       give points. No armor: one hit and you're dead.
+                      In the air, push into a wall to cling to it; jump to
+                      hop up it. Fire level with Astaroth to hurt him.
+  FIREBRAND'S QUEST PLUS  appears once the quest is beaten: top difficulty
+                      throughout, half the hover time.
   OPTIONS ........... lives, continues, bonus life, difficulty, English or
                       Japanese (Makaimura) title, sound test
 
