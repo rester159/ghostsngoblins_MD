@@ -16,6 +16,9 @@
  *    get there, but Firebrand flies. A move that puts his body in one is
  *    undone (scenery_block): sideways he stops at its surface, rising he stops
  *    as under a ceiling, and dropping onto one refills the hover.
+ *  - the top of the screen is a ceiling too (screen_top): stage 6's boss room
+ *    has no ceiling cells, and above a stage's map he walked on the terrain
+ *    ring's wrapped copies of floors 512 px further down, off screen.
  *  - one attack: the lance's mechanics, drawn as the fireball (uploaded where
  *    the game uploads the lance art for each shot slot, $11711E); the game's
  *    fire icon is in the HUD weapon box.
@@ -188,9 +191,24 @@ static u32 prev_x, prev_y;              /* his last position outside solid scene
 static u8 prev_ok;
 #define POS_Y16 RAM32(0xFF9400)         /* y 16.8; POS_Y is its pixel copy */
 
+/* The top of the screen is a ceiling: his sprite's top stays on screen
+ * (screen y = 224 + camera y - y). Arthur never jumps that high, so the
+ * stages have no ceiling over their open tops (stage 6's boss room), and
+ * above a stage's map the terrain ring holds other parts of the world. */
+static u32 screen_top(u32 y)
+{
+    u32 top = (u32)(RAM16(0xFF9102) + 224) << 8;
+    if (y <= top || RAM8(0xFF9459)) return y;
+    if (JUMP_PHASE == 1) JUMP_PHASE = 2;    /* as under a ceiling, below */
+    JUMP_SPEED = 0;
+    POS_Y16 = top;
+    POS_Y = (u16)(top >> 8);
+    return top;
+}
+
 static void scenery_block(void)
 {
-    u32 x = POS_X & 0xFFFFFF, y = POS_Y16;
+    u32 x = POS_X & 0xFFFFFF, y = screen_top(POS_Y16);
     if (RAM8(0xFF9459) || RAM8(0xFFC342) || !prev_ok || !body_solid(x, y)) {
         prev_x = x; prev_y = y; prev_ok = 1;
         return;
