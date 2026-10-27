@@ -26,6 +26,10 @@ build/ending_glue.o: build/princess.inc
 build/ending.o: build/endfont.h
 build/intro.o: build/intro.inc
 
+build/world.inc: mkworld.py ../rom/gg5.bin
+	python3 -I mkworld.py ../rom $@
+build/terrain.o: build/world.inc
+
 build/art.inc: mkart.py ../rom/gg12.bin
 	python3 -I mkart.py ../rom $@
 build/bossart.o: build/art.inc

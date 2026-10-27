@@ -131,11 +131,37 @@ static int win_free_slot(void)
  * (step 2: step 1 writes it closed); with all NWIN in use (never seen: the
  * stage's window section has at most 3 at once in reach) one whose devil is
  * gone is given up at the new window's step 1, off the camera's reach first. */
+/* the arcade's $B457 writes the step's tiles into its bg RAM, which is its terrain map: $Fn at
+ * the window's cell, $Fn+1 right of it, $Fn+8 and $Fn+9 the row below, attribute $87 (n = 0
+ * closed, 2/4/6 open), the window's cell being the devil's x - 16, y when it opens ($B432,
+ * $8DD2, kept in $18,X for the closing after the devil has left); the same four cells of the
+ * port's ring ($FF0000, terrain.c's layout), the cell kept per enemy slot */
+static u8 wr_col[40], wr_row[40];
+
+static void win_ring(const u8 *p, int closing, int n)
+{
+    u16 sl = ((u16)(u32)p - 0xB800) / 48, i;
+    u8 code;
+    if (sl >= 40) return;
+    if (!closing && n == 1) {
+        u16 x = p[17] << 8 | p[18], y = p[21] << 8 | p[22];
+        wr_col[sl] = (x >> 4) - 1;
+        wr_row[sl] = y >> 4;
+    }
+    code = 0xF0 + 2 * (closing ? 4 - n : n - 1);
+    for (i = 0; i < 4; i++) {
+        u16 off = ((wr_col[sl] + (i & 1)) & 31) << 5 | (((wr_row[sl] - (i >> 1)) ^ 15) & 31);
+        RAM8(0xFF0000 + off) = code + (i & 1) + (i >> 1) * 8;
+        RAM8(0xFF0400 + off) = 0x87;
+    }
+}
+
 void win_step(u8 *p, int closing, int n)
 {
     Win *w = 0;
     int k;
     if (RAM8(0xFFC512) != 1) return;
+    win_ring(p, closing, n);
     for (k = 0; k < NWIN; k++)
         if (win[k].owner == p) w = &win[k];
     if (!closing && n == 1) {                   /* a window opens */
