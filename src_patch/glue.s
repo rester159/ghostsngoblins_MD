@@ -267,6 +267,34 @@ gcall:
     movem.l (%sp)+,%d2-%d7/%a2-%a6
     rts
 
+| s32 wall_probe(u32 addr, u32 x, u32 y, u32 table): the game's wall probe
+| ($8510 right / $8538 left, table $1486E / $1496E) at pixel (x, y): how far
+| into the wall (d1), or -1 for no wall.
+    .global wall_probe
+wall_probe:
+    movem.l %d2-%d7/%a2-%a6,-(%sp)
+    movea.l 48(%sp),%a1
+    move.l  52(%sp),%d0
+    move.l  56(%sp),%d1
+    movea.l 60(%sp),%a3
+    lea     0xFF0000,%a0
+    jsr     (%a1)
+    tst.l   %d0
+    bne.s   1f
+    moveq   #-1,%d1
+1:  move.l  %d1,%d0
+    movem.l (%sp)+,%d2-%d7/%a2-%a6
+    rts
+
+| void jump_sfx(void): the jump sound ($88AA, queue at a6 = $FF9500)
+    .global jump_sfx
+jump_sfx:
+    move.l  %a6,-(%sp)
+    lea     0xFF9500,%a6
+    jsr     0x88AA
+    movea.l (%sp)+,%a6
+    rts
+
 | void dma_vram(u32 src, u16 bytes, u16 vram): the game's checked DMA helper
     .global dma_vram
 dma_vram:
@@ -300,6 +328,24 @@ hook_sat_dma:
     addq.l  #4,%sp
     movem.l (%sp)+,%d1/%a0-%a1
     jmp     0x704BE
+
+| $644, stage 1's sprite-table DMA: the arcade's water colour cycle first.
+| Every 8 frames the arcade ($EE00, stage 1) sets colours 42-44 from tables
+| $EE57/$EE6B by the frame counter's bits 3-4; the port's stage 1 palette has
+| 42 and 43 as line 3's 13 and 14 (water only) and 44, the crests, fixed
+| (patch_gng.py). The phase is the VBlank count's.
+    .global water_cycle
+water_cycle:
+    move.l  %d0,-(%sp)
+    move.w  0xFF7DFE,%d0
+    lsr.w   #1,%d0
+    andi.w  #0x0C,%d0
+    move.l  #0xC07A0000,0xC00004    | CRAM 61
+    move.l  water_tab(%pc,%d0.w),0xC00000
+    move.l  (%sp)+,%d0
+    bra     hook_sat_dma
+water_tab:                          | 61, 62: (0,8,10) $A80, (0,5,9) $840
+    .word   0x0A80, 0x0840, 0x0A80, 0x0A80, 0x0840, 0x0A80, 0x0A80, 0x0A80
 
 | $6938 (`jmp $114F58`, the first call of every stage-loop update):
 | `jmp pace_hook`. Decides this frame's render skip (pace.c), then goes on.
@@ -439,6 +485,13 @@ hook_map_marker:
 | zero ones: the same requests in the same ascending order, the same bit
 | clears and the same calls of $11CB5C (d0 = id >> 8, d1 = id & $FF,
 | d2 = $FF8410[id]; it keeps d3-d5/a0 only, so the counters are saved).
+| One change: the frequencies go in pairs, $A4+c then $A0+c. The YM2612 has
+| one latch for $A4-$A6, taken by the next $A0-$A2 write, so the original's
+| ascending order ($A0, $A1, $A2, then $A4-$A6) gave each restored channel
+| the block and high fnum bits of whatever $A4-$A6 was written last. That
+| happens after every PCM effect (channel 6's $1A2/$1A6, set by $11CA40) and
+| FM jingle: the held note went to another octave or semitone (B1 -> B2 or
+| F2, C2 -> F#2 -20 cents) until the music's next note on that channel.
     .global sound_scan
 sound_scan:
     lea     0xFF8650,%a1
@@ -451,13 +504,48 @@ sound_scan:
     jmp     0x11CB28
 1:  tst.b   (%a1,%d6.w)
     beq.s   4f
-    moveq   #0,%d5                  | bit 0-7 (id & 7)
+    move.w  %d6,%d0
+    andi.w  #0x1F,%d0
+    cmp.w   #0x14,%d0               | $A0-$A7 / $1A0-$1A7: frequencies in pairs
+    bne.s   7f
+    moveq   #0,%d5                  | channel 0-2
+8:  move.b  (%a1,%d6.w),%d0
+    move.b  %d0,%d1
+    lsr.b   #4,%d1
+    or.b    %d0,%d1
+    btst    %d5,%d1                 | $A0+c or $A4+c requested
+    beq.s   9f
+    bclr    %d5,(%a1,%d6.w)
+    addq.w  #4,%d5
+    bclr    %d5,(%a1,%d6.w)
+    bsr.s   send                    | $A4+c first: it only sets the latch ...
+    subq.w  #4,%d5
+    bsr.s   send                    | ... that the $A0+c write takes
+9:  addq.w  #1,%d5
+    cmp.w   #3,%d5
+    bcs.s   8b
+7:  moveq   #0,%d5                  | bit 0-7 (id & 7)
 2:  btst    %d5,(%a1,%d6.w)
     beq.s   3f
     bclr    %d5,(%a1,%d6.w)
+    bsr.s   send
+3:  addq.w  #1,%d5
+    cmp.w   #8,%d5
+    bcs.s   2b
+4:  addq.w  #1,%d6
+    cmp.w   #64,%d6
+    bcc.s   6f
+    move.w  %d6,%d0
+    andi.w  #3,%d0
+    bne.s   1b                      | still inside this long
+    bra.s   5b
+6:  jmp     0x11CB28
+
+| d6 = byte, d5 = bit: send the music's cached value of that id if it has one
+send:
     lea     0xFF8610,%a0
     btst    %d5,(%a0,%d6.w)
-    beq.s   3f
+    beq.s   1f
     move.w  %d6,%d3
     lsl.w   #3,%d3
     or.w    %d5,%d3                 | id
@@ -471,17 +559,7 @@ sound_scan:
     movem.l %d5-%d6/%a1,-(%sp)
     jsr     0x11CB5C
     movem.l (%sp)+,%d5-%d6/%a1
-3:  addq.w  #1,%d5
-    cmp.w   #8,%d5
-    bcs.s   2b
-4:  addq.w  #1,%d6
-    cmp.w   #64,%d6
-    bcc.s   6f
-    move.w  %d6,%d0
-    andi.w  #3,%d0
-    bne.s   1b                      | still inside this long
-    bra.s   5b
-6:  jmp     0x11CB28
+1:  rts
 
 | The game's random source. The arcade's is its frame counter ($20-21, `inc`
 | in the interrupt at $65CA, read as <$21: zombie waits $D336, rise/walk

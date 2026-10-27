@@ -17,6 +17,8 @@ SETS = {                           # facing comes from each picture's hflip
     'jump': ('fly', [2, 3, 4, 5, 6, 7]),
     'fly': ('fly', [8, 9, 10, 11, 12, 13]),
     'land': ('fly', [14, 15]),
+    'cling': ('cling', [0]),       # on a wall at his right (dc_boot.py --recipe cling)
+    'clingfire': ('cling', [2]),   # firing from it, twisted away from the wall
     'shot': ('shot', [12, 13, 14]),
     'burst': ('shot', [15, 16, 17]),
 }

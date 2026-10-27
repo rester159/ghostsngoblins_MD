@@ -1,15 +1,16 @@
 // Firebrand pixel editor: palette-locked editing of Firebrand's sprite bank.
 // A bank frame is 0x300 bytes (art/firebrand/src/build.py): 512 bytes = the 32x32
 // body in Arthur's layout (16 tiles, column-major, canvas x 8..39), then two 8x32
-// wing columns of 4 tiles each (x 0..7 and x 40..47). 108 frames: Arthur's 84
-// frame slots, then Firebrand's walk and hover cycles (right, left).
+// wing columns of 4 tiles each (x 0..7 and x 40..47). 112 frames: Arthur's 84
+// frame slots, then Firebrand's walk and hover cycles (right, left), then the wall
+// cling (facing right = wall on his left, facing left) and the cling while firing.
 // firebrand_flags.bin, one byte per frame: bit0/bit1 wing columns used, bit2 palette
 // line 2, bit3 a walking slot (the game shows the walk cycle), bit4 faces left.
 (() => {
   const D = window.FIREBRAND_DATA;
-  const W = 48, H = 32, FRAME_BYTES = 0x300, COUNT = 108;
+  const W = 48, H = 32, FRAME_BYTES = 0x300, COUNT = 112, OLD_COUNT = 108;
   const F_PAL2 = 4, F_RUN = 8, F_FACES_LEFT = 16;
-  const FB_WALK = 84, FB_FLY = 96;
+  const FB_WALK = 84, FB_FLY = 96, FB_CLING = 108;
   const MARGIN = 3;
   const STORE = 'firebrand_editor_v1';
   const LINES = { 0: D.line0, 2: D.line2 };
@@ -70,6 +71,7 @@
   const NAMES = Array.from({ length: COUNT }, (_, s) => {
     if (s < 11) return 'boot A' + s;
     if (s < 84) { const k = s - 11; return k < 8 ? STREAM[k] : k === 8 ? 'B0/A10' : 'B' + (k - 8); }
+    if (s >= FB_CLING) return ['Cling →', 'Cling ←', 'Cling fire →', 'Cling fire ←'][s - FB_CLING];
     const c = ['Walk →', 'Walk ←', 'Hover →', 'Hover ←'][Math.floor((s - 84) / 6)];
     return `${c} ${(s - 84) % 6 + 1}`;
   });
@@ -489,9 +491,11 @@
   $('loadBin').onchange = async e => {
     for (const file of e.target.files) {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      if (bytes.length === COUNT) continue;
-      if (bytes.length !== COUNT * FRAME_BYTES) { alert(`${file.name}: expected firebrand_bank.bin (${COUNT * FRAME_BYTES} bytes), got ${bytes.length}`); continue; }
-      frames.forEach((f, s) => { pushUndo(f); f.cur = decodeFrame(bytes, s * FRAME_BYTES); });
+      if (bytes.length === COUNT || bytes.length === OLD_COUNT) continue;
+      // a bank from before the cling frames (108) leaves those slots as they are
+      const n = bytes.length / FRAME_BYTES;
+      if (n !== COUNT && n !== OLD_COUNT) { alert(`${file.name}: expected firebrand_bank.bin (${COUNT * FRAME_BYTES} bytes), got ${bytes.length}`); continue; }
+      frames.forEach((f, s) => { if (s < n) { pushUndo(f); f.cur = decodeFrame(bytes, s * FRAME_BYTES); } });
     }
     e.target.value = '';
     save(); refreshAll();
