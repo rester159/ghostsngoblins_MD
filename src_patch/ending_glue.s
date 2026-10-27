@@ -168,8 +168,7 @@ end_restart:
     st      end_rand_keep
     clr.b   0xFF7FC2
     moveq   #0x3A,%d0
-    jsr     0x89E4
-    jsr     0xE0C
+    jsr     intro_hook              | the opening, as after Start (bossart.c)
     jmp     loop_again
 
 | $414 (the game start, after its inits): `jsr hook_end_restore` over `jsr

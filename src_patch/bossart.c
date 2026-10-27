@@ -21,7 +21,6 @@
 #include "md.h"
 typedef signed char s8;
 #include "build/art.inc"
-#include "build/intro_waits.inc"     /* intro_waits[], ISC_FRAMES */
 
 void dma_vram(u32 src, u16 bytes, u16 vram);
 
@@ -157,10 +156,13 @@ static void win_vblank(Win *w, int k)
     w->pend = 0;
 }
 
+void hide_vblank(void);                 /* opening.c */
+
 /* hook_sat_dma: the uploads for the sprites about to be shown */
 void sat_vblank(void)
 {
     int b;
+    hide_vblank();
     win_vblank(&win[0], 0);
     win_vblank(&win[1], 1);
     for (b = 0; b < 2; b++) {
@@ -242,69 +244,6 @@ const u8 sat_burst[23] = {
 
 /* the star's frames for the shot draw ($117238: count, then dx, dy, attr) */
 const s16 star_frames[2][4] = { { 1, -8, 8, STAR_T }, { 1, -8, 8, STAR_T + 4 } };
-
-/* ---- the opening: the graveyard before the black part ------------------
- * The arcade shows stage 1's graveyard with Arthur sitting in his boxers, the
- * princess and the armour for 193 frames after Start, fading its bg palettes
- * at +65 and +129 (Arthur turns his head at +149), then goes on on black; the
- * port's intro ($E0C) was only the black part. intro_scene draws the arcade's
- * picture (mkart.py) and waits that long, then $E0C runs, its 155 steps
- * paced by intro_waits so its events come when the arcade's do. Start skips
- * both after 20 frames, as in $E0C. */
-void intro_frame(void);                         /* bossart_glue.s: $EDE + $BF72 */
-
-static void vram_fill_plane(const u16 *src, u16 base)
-{
-    int r, c;
-    for (r = 0; r < 28; r++) {
-        VDP_CTRLL = VRAM_W(base + r * 128);
-        for (c = 0; c < 32; c++) VDP_DATA = *src++;
-    }
-}
-
-static void isc_sprites(const u16 (*s)[3])
-{
-    int k;
-    VDP_CTRLL = VRAM_W(0xF000);
-    for (k = 0; k < ISC_NSPR; k++) {
-        VDP_DATA = s[k][0];
-        VDP_DATA = 0x0500 | (k + 1 < ISC_NSPR ? k + 1 : 0);
-        VDP_DATA = s[k][2];
-        VDP_DATA = s[k][1];
-    }
-}
-
-static void isc_cram(const u16 *c)
-{
-    int k;
-    VDP_CTRLL = CRAM_W(0);
-    for (k = 0; k < 64; k++) VDP_DATA = c[k];
-}
-
-int intro_scene(void)
-{
-    u16 n;
-    u32 k;
-    VDP_CTRL = 0x8104;                          /* display off, as $E0C */
-    VDP_CTRLL = VRAM_W(0);
-    for (k = 0; k < 0x4000; k++) VDP_DATAL = 0;
-    vram_copy(isc_tiles, sizeof isc_tiles / 2, 0);
-    vram_fill_plane(isc_planeb, 0xC000);
-    vram_fill_plane(isc_planea, 0xE000);
-    isc_sprites(isc_spr870);
-    isc_cram(isc_cram0);
-    VDP_CTRLL = VSRAM_W(0);
-    VDP_DATA = 0; VDP_DATA = 0;
-    VDP_CTRL = 0x8164;                          /* display on */
-    for (n = 0; n < ISC_FRAMES; n++) {
-        intro_frame();
-        if (n == 65) isc_cram(isc_cram1);
-        if (n == 129) isc_cram(isc_cram2);
-        if (n == 149) isc_sprites(isc_spr955);
-        if (n >= 20 && !(RAM8(0xFF7000) & 1)) return 1;
-    }
-    return 0;
-}
 
 /* ---- stage 5's skulls and Petite Devils ----------------------------------
  * The burst both die in ($E85B for class 3: 2 x 2 pieces, 5 poses after 3
