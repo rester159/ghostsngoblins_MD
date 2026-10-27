@@ -13,6 +13,7 @@ Improving, or completely redrawing, Firebrand's sprite frames, pixel by pixel:
 - cleaning up the scaled-down Demon's Crest art (stray pixels, muddy shading, the head)
 - making his walk and hover cycles read clearly at real size
 - giving poses like crouch, throw (fire) and the ladder climb more personality
+- drawing his **wall cling** (resting and firing), new with the Gargoyle's Quest-style wall grab
 - or, if you're feeling brave, **starting from a blank sheet** and drawing your own Firebrand
 
 ## The rules (the tool enforces them, so you can't break anything)
@@ -40,7 +41,7 @@ You can mix and match frame by frame:
 
 ### The screen
 
-- **Left side:** all of Firebrand's frame slots. Each slot is named after the move of Arthur's it replaces (A0, B9, …), and the last ones are Firebrand's own **walk** and **hover** cycles.
+- **Left side:** all of Firebrand's frame slots. Each slot is named after the move of Arthur's it replaces (A0, B9, …), and the last ones are Firebrand's own **walk** and **hover** cycles and his **wall cling** (facing right means the wall is on his left; then the same while firing).
   - Orange dot = changed.
   - "line 2" = a flames slot.
   - Slots marked like "= Walk → 1" are ones the game never shows directly. Clicking one takes you to the frame that's really used.
@@ -53,7 +54,7 @@ You can mix and match frame by frame:
 
 ### Test your animations
 
-Every move was recorded from the real game at its real speed (60 fps), and the tester plays it exactly the way the Firebrand campaign shows it: idle, walking (Firebrand's own walk cycle), crouching, jumping, throwing fire (standing, crouching and in the air), hovering, climbing ladders and burning up. Each one comes facing left and right.
+Every move was recorded from the real game at its real speed (60 fps), and the tester plays it exactly the way the Firebrand campaign shows it: idle, walking (Firebrand's own walk cycle), crouching, jumping, throwing fire (standing, crouching and in the air), hovering, clinging to a wall (resting and firing), climbing ladders and burning up. Each one comes facing left and right.
 
 - Pick a move from the list (or use `↑`/`↓`). It plays **your** frames next to the current in-game version.
 - Your edits show up immediately.

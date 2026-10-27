@@ -177,8 +177,8 @@ def install_features(rom, build_dir):
     # Firebrand: his frames (with wing columns), flags and fireball, in the
     # 128 KiB DMA block at $3A0000
     fb = os.path.join(os.path.dirname(build_dir.rstrip('/')), '..', 'art', 'firebrand')
-    for name, at, size in (('firebrand_bank.bin', 0x3A0000, 108 * 0x300),
-                           ('firebrand_flags.bin', 0x3B6000, 108),
+    for name, at, size in (('firebrand_bank.bin', 0x3A0000, 112 * 0x300),
+                           ('firebrand_flags.bin', 0x3B6000, 112),
                            ('firebrand_fire.bin', 0x3B6100, 0x100),
                            ('firebrand_mapicon.bin', 0x3B6200, 0x80)):
         data = open(os.path.join(fb, name), 'rb').read()

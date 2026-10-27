@@ -267,6 +267,34 @@ gcall:
     movem.l (%sp)+,%d2-%d7/%a2-%a6
     rts
 
+| s32 wall_probe(u32 addr, u32 x, u32 y, u32 table): the game's wall probe
+| ($8510 right / $8538 left, table $1486E / $1496E) at pixel (x, y): how far
+| into the wall (d1), or -1 for no wall.
+    .global wall_probe
+wall_probe:
+    movem.l %d2-%d7/%a2-%a6,-(%sp)
+    movea.l 48(%sp),%a1
+    move.l  52(%sp),%d0
+    move.l  56(%sp),%d1
+    movea.l 60(%sp),%a3
+    lea     0xFF0000,%a0
+    jsr     (%a1)
+    tst.l   %d0
+    bne.s   1f
+    moveq   #-1,%d1
+1:  move.l  %d1,%d0
+    movem.l (%sp)+,%d2-%d7/%a2-%a6
+    rts
+
+| void jump_sfx(void): the jump sound ($88AA, queue at a6 = $FF9500)
+    .global jump_sfx
+jump_sfx:
+    move.l  %a6,-(%sp)
+    lea     0xFF9500,%a6
+    jsr     0x88AA
+    movea.l (%sp)+,%a6
+    rts
+
 | void dma_vram(u32 src, u16 bytes, u16 vram): the game's checked DMA helper
     .global dma_vram
 dma_vram:

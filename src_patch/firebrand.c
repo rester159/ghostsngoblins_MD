@@ -6,6 +6,11 @@
  *    Wide frames (wings out) add two 8x32 columns beside Arthur's 32x32 sprite.
  *  - hover: holding jump after the top of a jump holds the altitude for up to
  *    2 s, steering left/right at walking speed; landing refills it.
+ *  - walls: in the air, pushing into a wall (a map cell the engine's wall
+ *    probe stops him at, never an object) makes him cling to it, facing out,
+ *    for as long as he likes; he fires away from it. Jump leaps straight up
+ *    and he grabs the wall again at the top of the leap if still pushing into
+ *    it; pushing away lets go. A grab refills the hover.
  *  - one attack: the lance's mechanics, drawn as the fireball (uploaded where
  *    the game uploads the lance art for each shot slot, $11711E); the game's
  *    fire icon is in the HUD weapon box.
@@ -16,6 +21,8 @@
 
 void dma_vram(u32 src, u16 bytes, u16 vram);
 u32  gcall(u32 addr, u32 d0, u32 a3);   /* glue.s: jsr addr, a0=$FF0000 a4=$FF9000 a5=$FF9100 */
+long wall_probe(u32 addr, u32 x, u32 y, u32 table);    /* glue.s: px into the wall, or -1 */
+void jump_sfx(void);                    /* glue.s */
 void score_event(u16 idx);              /* glue.s: score table entry idx */
 
 #define FB_BANK     0x3A0000UL          /* placed by tools/patch_gng.py from art/firebrand */
@@ -27,6 +34,7 @@ void score_event(u16 idx);              /* glue.s: score table entry idx */
 #define FB_FRAME    0x300
 #define FB_WALK     84                  /* 6-frame walk cycle, facing right then left */
 #define FB_FLY      96                  /* 6-frame flight cycle, the same */
+#define FB_CLING    108                 /* clinging facing right, left; then firing, the same */
 #define ARTHUR_A    0x109E2UL           /* 11 frames */
 #define ARTHUR_B    0x40000UL           /* 73 frames, streamed in play */
 #define COL_TILE    0x690               /* free in every stage (VRAM $D200) */
@@ -35,11 +43,24 @@ void score_event(u16 idx);              /* glue.s: score table entry idx */
 #define ARMOR_SET   RAM8(0xFFC328)      /* 0 armored, 1 boxers */
 #define JUMP_PHASE  RAM16(0xFF9410)     /* 0 ground, 1 rising, 2 falling */
 #define JUMP_SPEED  RAM32(0xFF9404)
+#define ON_GROUND   RAM16(0xFF9408)
+#define JUMP_DIR    RAM16(0xFF9414)     /* the jump's sideways motion: 0 none, 1 right, 2 left */
+#define JUMP_DX     RAM32(0xFF9418)
+#define JUMP_POSE   RAM16(0xFF941C)
+#define FACING      RAM16(0xFF920A)     /* 0 right, $800 left */
+#define POS_X       RAM32(0xFF9000)     /* 16.8 */
+#define POS_Y       RAM16(0xFF9004)
 #define SCORE_1000  8
 
 enum { F_LEFT = 1, F_RIGHT = 2, F_PAL2 = 4, F_RUN = 8, F_FACES_LEFT = 16 };
+enum { WALL_RIGHT = 1, WALL_LEFT = 2 };
 
 static u8  hover_t, hovering, flap, walk_t;
+static u8  cling;                       /* the side of the wall he holds, 0 = none */
+static u8  wall_jump;                   /* rising from a wall: no grab until the top */
+static u8  jump_was;                    /* jump held last frame */
+static u8  shots_was, cling_fire;       /* shots out last frame; frames of the cling-fire pose left */
+#define CLING_FIRE  15                  /* Demon's Crest holds it about as long */
 static s16 shown;                       /* bank frame in VRAM + 1, 0 = unknown */
 static u32 shown_src;                   /* non-Firebrand frame (the frog) in VRAM */
 
@@ -68,9 +89,39 @@ static int bank_index(u32 a)
     return -1;
 }
 
+/* Is the wall on this side within 2 px? If so, move him flush against it.
+ * The probe tests one point (x +- 16, y - 8) against the cell's wall edge,
+ * as the walk and the jump do. */
+static int touch_wall(u8 side)
+{
+    u16 x = POS_X >> 8;
+    long in = side == WALL_RIGHT ? wall_probe(0x8510, x + 2, POS_Y, 0x1486E)
+                                : wall_probe(0x8538, x - 2, POS_Y, 0x1496E);
+    if (in < 0) return 0;
+    in -= 2;                            /* px into the wall where he is */
+    if (in) {
+        POS_X = (POS_X + ((side == WALL_RIGHT ? -in : in) << 8)) & 0xFFFFFF;
+        gcall(0xA35C, 0, 0);            /* the camera, as after a walk step */
+    }
+    return 1;
+}
+
+/* held on the wall: still in the air (falling at 0 px), facing out, and the
+ * engine sees no left/right (it would turn him to the wall to fire or jump) */
+static void hold_wall(void)
+{
+    JUMP_PHASE = 2;
+    JUMP_SPEED = 0;
+    JUMP_DIR = 0;
+    JUMP_DX = 0;
+    FACING = cling == WALL_RIGHT ? 0x800 : 0;
+    G_P1 |= 3;
+}
+
 /* every gameplay frame, from the pad routine (before Arthur's update) */
 void fb_frame(void)
 {
+    u8 in, jump, toward;
     if (!fb_on()) return;
     WEAPON = 1;
     ARMOR_SET = 1;
@@ -78,16 +129,57 @@ void fb_frame(void)
         shown = 0;
         shown_src = 0;
         hovering = 0;
+        cling = wall_jump = 0;
         hover_t = hover_max();
         return;
     }
+    /* jump is bit 5 of the input byte, active low; 2 = right held, 1 = left */
+    in = G_P1;
+    jump = !(in & 0x20);
+    toward = (in & 3) == 2 ? WALL_RIGHT : (in & 3) == 1 ? WALL_LEFT : 0;
+    {   /* a shot thrown from the wall: the firing pose for a moment */
+        u8 n = (RAM8(0xFF9608) != 0) + (RAM8(0xFF9628) != 0) + (RAM8(0xFF9648) != 0);
+        if (!cling) cling_fire = 0;
+        else if (n > shots_was) cling_fire = CLING_FIRE;
+        else if (cling_fire) cling_fire--;
+        shots_was = n;
+    }
     if (JUMP_PHASE == 0 || RAM8(0xFFC342)) {
         hovering = 0;
+        cling = wall_jump = 0;
         if (JUMP_PHASE == 0) hover_t = hover_max();
+        jump_was = jump;
         return;
     }
-    /* jump is bit 5 of the input byte, active low */
-    if (JUMP_PHASE == 2 && !(G_P1 & 0x20) && hover_t) {
+    if (cling) {
+        if (toward && toward != cling) {
+            cling = 0;                  /* pushed away: let go */
+        } else if (jump && !jump_was) {
+            cling = 0;                  /* leap straight up */
+            wall_jump = 1;
+            JUMP_PHASE = 1;
+            ON_GROUND = 0;
+            JUMP_SPEED = 0x44000;       /* Arthur's jump ($B4CA) */
+            JUMP_DIR = 0;
+            JUMP_DX = 0;
+            JUMP_POSE = 8;
+            jump_sfx();
+        } else if (touch_wall(cling)) {
+            hold_wall();
+        } else {
+            cling = 0;                  /* the wall ended */
+        }
+    }
+    if (JUMP_PHASE == 2) wall_jump = 0;
+    if (!cling && toward && !wall_jump && touch_wall(toward)) {
+        cling = toward;
+        hovering = 0;
+        hover_t = hover_max();
+        hold_wall();
+    }
+    jump_was = jump;
+    if (cling) return;
+    if (JUMP_PHASE == 2 && jump && hover_t) {
         hover_t--;
         hovering = 1;
         JUMP_SPEED = 0;                 /* this frame's fall moves 0 px */
@@ -183,7 +275,9 @@ u16 fb_sat(u16 len)
         /* Firebrand's own cycles: Arthur's walk has only four distinct frames.
          * Frames Arthur draws pre-mirrored (facing left) take the left set. */
         u8 left = FB_FLAGS[idx] & F_FACES_LEFT ? 6 : 0;
-        if (hovering) {
+        if (cling) {
+            idx = FB_CLING + (cling == WALL_RIGHT) + (cling_fire ? 2 : 0);
+        } else if (hovering) {
             if (++flap >= 36) flap = 0;
             idx = FB_FLY + left + flap / 6;
         } else if (FB_FLAGS[idx] & F_RUN) {

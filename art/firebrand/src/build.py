@@ -9,7 +9,9 @@ A bank frame is 0x300 bytes:
   +0x200  128 bytes  8x32 column left of it  (x -24..-16)              -> tile $690
   +0x280  128 bytes  8x32 column right of it (x +16..+24)              -> tile $694
 Bank order: Arthur's 84 frames, walk cycle facing right, then left (6 + 6),
-flight cycle facing right, then left (6 + 6).
+flight cycle facing right, then left (6 + 6), wall cling facing right (the wall
+on his left, at canvas x 8: the engine's wall probe is at Arthur's x - 16),
+then left (wall at x 40), then the same two firing.
 firebrand_flags.bin, one byte per frame: bit0 left column, bit1 right column,
 bit2 palette line 2 (the burn-up flames), bit3 a walking frame of Arthur's (the
 runtime shows the walk cycle instead), bit4 faces left.
@@ -132,7 +134,7 @@ def pose_image(set_name, i, air):
         x0, y0, x1, y1 = head.FIRE_BOX
         best = (0, x0, y0, x1 - x0, y1 - y0)
         st = head.stamp(head.FIRE_STAMP)
-    else:
+    elif set_name not in ('cling', 'clingfire'):   # facing the wall: no profile head
         for tpl, (bx, by, bw, bh) in head_templates():
             sc, hx, hy = head.find(tpl, idx)
             if sc <= head.MAX_MISMATCH and (best is None or sc < best[0]):
@@ -206,7 +208,18 @@ def images(rom):
         out.append((mirror(g) if facing == L else g, extra))
     out += [(g, 0) for g in walk] + [(mirror(g), 16) for g in walk]
     out += [(g, 0) for g in fly] + [(mirror(g), 16) for g in fly]
+    for g in (cling_image(False), cling_image(True)):
+        out += [(g, 0), (mirror(g), 16)]
     return out
+
+
+def cling_image(firing):
+    """On a wall at his left, facing right: Demon's Crest's wall cling (dc sets
+    'cling' / 'clingfire', captured on a wall at his right, so mirrored), its
+    wall side at canvas x 8."""
+    g = mirror(pose_image('clingfire' if firing else 'cling', 0, True))
+    x0 = min(x for r in g for x, c in enumerate(r) if c)
+    return [r[x0 - 8:] + [0] * (x0 - 8) if x0 >= 8 else [0] * (8 - x0) + r[:W - (8 - x0)] for r in g]
 
 
 def main(rom_path, dst):
