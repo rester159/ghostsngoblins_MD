@@ -14,7 +14,7 @@ and compares where each is drawn relative to its object.
 
 Capture options (environment): SEED (random input with fire; 0 = none), INV=0 (Arthur not kept invincible
 and his lives not kept at 3),
-FROM (first frame recorded), TP=frame:x,... (Arthur put at x), WALK=1 (the random input goes right), POKE (port, lr.py's form), PIN=y (Arthur's y
+FROM (first frame recorded), TP=frame:x,... (Arthur put at x), HOLD=frame:x:y (Arthur held there from that frame), WALK=1 (the random input goes right), POKE (port, lr.py's form), PIN=y (Arthur's y
 held), PAD (a fixed pad mask, the game's own bits).
 
 What is compared. Displayed on frame N+1 in both games: the arcade's sprite list as its VBlank copies it
@@ -33,7 +33,10 @@ picture (the union of all sprites' opaque pixels, pen 0 transparent) every 16x16
 any sprite within 48 px of an object is looked up by its pixels among the same type's keys. The port's pose
 (slot +30, the builders' frame number) is kept with each pair, so a frame drawn in the wrong place, or with
 the art of another pose (streamed art arriving late), is listed by it; a window that is an arcade piece
-mirrored is counted as mirrored.
+mirrored is counted as mirrored. A moving pair at an offset the arcade drew that piece at only rarely (at
+least twice, but under the 5% the key filter keeps: the same art used by a short pose, e.g. stage 5's
+skull rise, whose pieces are the standing skull's upper row drawn 8 px lower) is counted as 'at a rare
+arcade place' rather than off.
 """
 import collections
 import os
@@ -53,6 +56,12 @@ def rand_pad(seed, n, bits):
     while f < n:
         m = rnd.choice(bits); k = rnd.randint(8, 40); out += [m] * (k + 1); f += k + 1
     return out
+
+
+def _hold():
+    """HOLD=frame:x:y: Arthur held at x, y from that frame on"""
+    h = os.environ.get('HOLD')
+    return tuple(map(int, h.split(':'))) if h else None
 
 
 def _tps():
@@ -85,7 +94,7 @@ def cap_arc(state, frames, outp):
     bits = [1, 0x11, 0x21, 1, 0x10, 0x31, 1] if os.environ.get('WALK') else [1, 0x11, 0x10, 0x21, 2, 0x12, 0, 0x14, 1]
     pads = rand_pad(seed, frames + 50, bits) if seed else None
     fixed = int(os.environ.get('PAD', '0'), 16)
-    tps = _tps(); pin = os.environ.get('PIN'); first = int(os.environ.get('FROM', '1'))
+    tps = _tps(); hold = _hold(); pin = os.environ.get('PIN'); first = int(os.environ.get('FROM', '1'))
     inv = os.environ.get('INV', '1') != '0'
     recs = []; prev_objs = None; prev_raw = None
     for f in range(1, frames + 1):
@@ -93,6 +102,7 @@ def cap_arc(state, frames, outp):
         for tf, tx in tps:
             if tf <= f < tf + 3: m[0x506] = tx >> 8; m[0x507] = tx & 255
         if pin: y = int(pin); m[0x509] = y >> 8; m[0x50A] = y & 255
+        if hold and f >= hold[0]: m[0x506] = hold[1] >> 8; m[0x507] = hold[1] & 255; m[0x509] = hold[2] >> 8; m[0x50A] = hold[2] & 255
         g.set_inputs(0, pads[f] if pads else fixed, 0); g.run_frame()
         # displayed now: spritebuf (sprite RAM at the end of the previous frame) against prev_objs
         if prev_objs is not None and f >= first:
@@ -157,7 +167,7 @@ def cap_port(core, rom, frames, outp):
         if pk.strip():
             pf, pa, pv = pk.split(':'); pokes.append((int(pf), int(pa, 16), pv))
     first = int(os.environ.get('FROM', '1')); inv = os.environ.get('INV', '1') != '0'
-    pin = os.environ.get('PIN'); tps = _tps()
+    pin = os.environ.get('PIN'); tps = _tps(); hold = _hold()
     p = L.retro_get_memory_data(2)
 
     def w8(a, v):
@@ -176,6 +186,8 @@ def cap_port(core, rom, frames, outp):
         if live and f >= first:
             if inv: w8(0xFFC309, 60); w8(0xFFC500, 3)    # invincible, lives kept
             if pin: y = int(pin); w8(0xFF9004, y >> 8); w8(0xFF9005, y)
+            if hold and f >= hold[0]:
+                w8(0xFF9001, hold[1] >> 8); w8(0xFF9002, hold[1]); w8(0xFF9004, hold[2] >> 8); w8(0xFF9005, hold[2])
             for tf, tx in tps:
                 if tf <= f < tf + 3: w8(0xFF9001, tx >> 8); w8(0xFF9002, tx)
             SCRIPT[:] = [(f, f, pads[f] if pads else fixed)]
@@ -368,6 +380,7 @@ def report(arcp, portp):
         elif not st:
             if dd in idx_all[k]: per[t][pose]['moving ok'] += 1
             elif pv is not None and (pv[0] - K[0], pv[1] - K[1]) in idx_all[k]: per[t][pose]['moving N-1'] += 1
+            elif allr[k][dd] >= 2: per[t][pose]['rare'] += 1
             else:
                 best = min(idx_all[k], key=lambda a: abs(a[0] - dd[0]) + abs(a[1] - dd[1]))
                 per[t][pose][('moving', dd[0] - best[0], dd[1] - best[1])] += 1
@@ -379,9 +392,11 @@ def report(arcp, portp):
         for pose in sorted(per[t]):
             c = per[t][pose]
             so, mo, m1, mi = c.pop('still ok', 0), c.pop('moving ok', 0), c.pop('moving N-1', 0), c.pop('mirrored', 0)
+            ra = c.pop('rare', 0)
             bad = ', '.join('%s %+d,%+d x%d' % (k[0], k[1], k[2], v) for k, v in c.most_common(3))
-            print('   pose %3d: still %5d at the arcade place, moving %5d (%d at N-1)%s%s'
-                  % (pose, so, mo, m1, ('; mirrored %d' % mi) if mi else '', ('; off: ' + bad) if bad else ''))
+            print('   pose %3d: still %5d at the arcade place, moving %5d (%d at N-1)%s%s%s'
+                  % (pose, so, mo, m1, ('; at a rare arcade place %d' % ra) if ra else '',
+                     ('; mirrored %d' % mi) if mi else '', ('; off: ' + bad) if bad else ''))
     ex = os.environ.get('SHOW')                   # SHOW=type:pose prints that pose's still pairs
     if ex:
         t0, p0 = map(int, ex.split(':')); seen_k = set()
