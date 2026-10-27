@@ -696,7 +696,10 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     What's left: cells in none of the port's maps keep its tile 0 / attribute `$C0` where the arcade has its world's (zeros
     under stage 5's start, walls under stage 3's floor and below stage 1-2's row 0: no floor in either game's probe); stage
     3's 13 cells are its collision map itself (rows 49-55 of columns 0-12 repeat rows 33-39 in the port's, empty in the
-    arcade's), 300 px above the start.
+    arcade's), 300 px above the start. With 64 and 66: no faults in stages 1-6 x 1P/co-op/Firebrand (`bench.sh`, seed 7);
+    in-play updates per frame, 3 seeds each, before -> after: stage 2 1P 0.931 -> 0.928, co-op 0.710 -> 0.699; stage 5 1P
+    0.994 -> 0.990, co-op 0.842 -> 0.854; stage 6 1P 0.980 -> 0.978, co-op 0.834 -> 0.805 (random input: the runs part
+    once the terrain or a jump differs, so single seeds move both ways).
 
 66. **Stage 2's ledge-edge jump and elevator walk steps** (`pad.c` `arcade_input`, `arthur.s` `ground_snap`/`carry_gate`,
     `glue.s` `tomb_check`/`box_walk`; hooks `$8698`, `$9DFC`, `$10F602`, `$11A432`, `$11A650` and the eight stage loops'
