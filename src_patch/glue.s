@@ -752,12 +752,16 @@ hook_satan:
 | burst frames count in +9 (cleared by the weapon code at the kill), and
 | the slot shows the arcade's burst for them (bossart.c `sat_burst`, by the count). The death
 | sound moves to the first of them (its own call at $11082C is removed).
+| The port's count runs a frame behind the arcade's (its pose stays at count
+| 1), so the burst takes 23 counts and the score phase 62 frames
+| (tools/patch_gng.py: $110826's 63), the arcade's last pose 3 frames and its
+| score 63, the removal on the same frame (docs/ACCURACY.md, Fixed 68).
     .global hook_satan_die
 hook_satan_die:
     tst.b   8(%a4)
     bne.s   2f                      | the port's countdown is running
     addq.b  #1,9(%a4)
-    cmpi.b  #23,9(%a4)
+    cmpi.b  #24,9(%a4)
     bcc.s   1f                      | burst done: the port's death from $110814
     cmpi.b  #1,9(%a4)
     bne.s   3f
@@ -895,7 +899,7 @@ tomb_walk:
     lsr.l   #8,%d3                  | old x
     move.w  %d3,%d2
     cmp.w   %d3,%d5
-    beq.s   9f                      | not moving
+    beq.w   9f                      | not moving
     bgt.s   4f
     subq.b  #2,%d2                  | moving left: old x - 1
 4:  addq.b  #1,%d2                  | moving right: old x + 1
@@ -927,6 +931,12 @@ tomb_walk:
     sub.b   3(%a2),%d0
     add.b   2(%a1),%d0
     cmp.b   3(%a1),%d0
+    bhi.s   7f
+    move.l  0xFF922A,%d0            | and within 128 in y (word): the arcade's
+    lsr.l   #8,%d0                  | test is a byte one, but its objects live
+    sub.w   2(%a2),%d0              | only near the screen; the port's stay live
+    addi.w  #0x81,%d0               | the whole stage (stage 5: a type 5 512 px
+    cmpi.w  #0x100,%d0              | below stopped Arthur at x 7167)
     bhi.s   7f
     move.l  0xFF9220,0xFF9000       | blocked: the move doesn't happen
     bra.s   9f

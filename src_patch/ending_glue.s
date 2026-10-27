@@ -156,9 +156,10 @@ end_to_map:
 
 | C: void end_restart(void): after the second clear, the game starts over
 | from its opening scene, score and lives kept, as the arcade's ($73F3,
-| $7446: mode 0, the opening, then stage 1). Here the port's opening (its
-| music $3A and the picture sequence $E0C that the title plays at a game
-| start) and then glue.s loop_again (the port's restart through the game
+| $7446: mode 0, the opening, then stage 1). Here the opening a game start
+| plays (its music $3A and opening.c's graveyard and picture: the arcade's
+| opening; the port played only its picture sequence $E0C) and then glue.s
+| loop_again (the port's restart through the game
 | start, $2CC, which keeps score and lives). The game start reseeds the
 | arcade's random (player_init); the arcade's restart doesn't, so its state
 | is kept here and put back with the score and lives (hook_end_restore).
@@ -167,9 +168,9 @@ end_restart:
     move.l  0xFFC62C,end_rand
     st      end_rand_keep
     clr.b   0xFF7FC2
+    st      intro_after_end
     moveq   #0x3A,%d0
-    jsr     0x89E4
-    jsr     0xE0C
+    jsr     intro_hook              | the opening, as after Start (opening.c)
     jmp     loop_again
 
 | $414 (the game start, after its inits): `jsr hook_end_restore` over `jsr
@@ -204,10 +205,13 @@ hook_end_build:
 1:  jmp     0xC35E8
 
 | $1115D6 (after the VBlank, Z80 bus held): `jsr hook_end_vbl` + 2 nops
-| over `jsr $113B00` (the text layer's upload) and `jsr $63FA`. The scene's
-| tiles go to VRAM $A000 (Astaroth's art, free after his removal) once.
+| over `jsr $113B00` (the text layer's upload) and `jsr $63FA`. The text layer
+| is ending.c's end_tupload's (the arcade's colours); the scene's tiles go to
+| VRAM $A000 (Astaroth's art, free after his removal) once.
 hook_end_vbl:
-    jsr     0x113B00
+    movem.l %d0-%d1/%a0-%a1,-(%sp)
+    jsr     end_tupload
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
     tst.b   end_upload
     beq.s   1f
     movem.l %d0-%d1/%a0-%a1,-(%sp)

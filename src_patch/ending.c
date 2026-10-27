@@ -40,10 +40,10 @@
  * port's palette line 0), put in the VRAM Astaroth's art used ($A000), drawn
  * as sprites here. Arthur's walk is the port's own art and animation. */
 #include "md.h"
+#include "build/endfont.h"
 
 #define LOOPED   RAM8(0xFF7FC0)         /* the arcade's <$7F: 1 after the first clear */
 #define TEXT_ON  RAM8(0xFF7FC2)         /* the port's text layer is shown (uploaded each frame) */
-#define FONT_LD  RAM8(0xFF7FC6)         /* the text font goes to VRAM $6000 at the next upload */
 #define TBUF     ((volatile u8 *)0xFFD000)  /* the text layer: 32 x 32, rows 9-20 shown as screen rows 7-18 */
 #define STAGE    RAM8(0xFFC512)
 #define ART_X    RAM32(0xFF9000)        /* x 16.8 in the low 3 bytes */
@@ -76,6 +76,58 @@ void end_sound(int id);
 void end_to_map(void);                  /* stage 1 from its map (no return) */
 void end_restart(void);                 /* stage 1 from its opening scene (glue.s loop_again) */
 int  fb_on(void);                       /* firebrand.c */
+
+void dma_vram(u32 src, u16 bytes, u16 vram);   /* glue.s */
+
+/* ---- the texts -----------------------------------------------------------
+ * The port's text writer ($113A88) puts a text's chars into the text layer
+ * (TBUF) at the arcade's rows and columns; its upload ($113B00) drew them all
+ * in one colour with its font at VRAM $6000, where Arthur's frame also goes
+ * (so a frame of his could replace letters: the first clear's text came out
+ * with A-P missing). end_tupload draws each row in its arcade colour (fg colour
+ * 0, 4, 5, 8, 9 or 11 by text and row, the arcade's attributes) with the
+ * arcade's chars in those colours (mkprincess.py, build/endfont.h) at $AF00.
+ * Both games show a text whole on its first frame (the arcade's printer
+ * writes all its chars in one frame; the first clear's in 2). */
+#define FONT_VRAM 0xAF00                /* tiles $578-$5D1 */
+static u8 row_slot[32];                 /* each TBUF row's colour (end_glyph's slot) */
+static u8 font_pending;
+
+static void text(int id)
+{
+    int r;
+    u8 dflt = id == 44 ? 3 : id == 45 ? 2 : 5;     /* colours 8, 5, 11 */
+    for (r = 0; r < 32; r++) row_slot[r] = dflt;
+    if (id == 44) { row_slot[15] = 4; row_slot[17] = 1; }     /* colours 9 and 4 */
+    if (id == 45) row_slot[9] = 0;                  /* CONGRATULATION: colour 0 */
+    if (id == 48) row_slot[11] = 2;                 /* RETURN TO STARTING POINT: 5 */
+    end_text(id);
+    font_pending = 1;
+}
+
+/* hook_end_vbl (after the VBlank) in place of $113B00: rows 9-20 of the text
+ * layer to plane A rows 7-18 */
+void end_tupload(void)
+{
+    int r, c;
+    if (!TEXT_ON) return;
+    if (font_pending) {
+        dma_vram((u32)end_font, sizeof end_font, FONT_VRAM);
+        font_pending = 0;
+    }
+    vdp_reg(15, 2);
+    for (r = 9; r <= 20; r++) {
+        const u8 *g = end_glyph[row_slot[r]];
+        u16 attr = 0x8000 | (u16)end_slot_line[row_slot[r]] << 13 | ((FONT_VRAM >> 5) - 1);
+        volatile u8 *t = TBUF + r * 32;
+        VDP_CTRLL = VRAM_W(0xE000 + (r - 2) * 128);
+        for (c = 0; c < 32; c++) {
+            u8 ch = t[c];
+            u8 k = ch >= 32 && ch < 96 ? g[ch - 32] : 0;
+            VDP_DATA = k ? attr + k : 0;
+        }
+    }
+}
 
 /* the scene's state */
 static u8 phase;                        /* 0 waiting, 1 first clear's text, 2 princess scene, 3 its texts */
@@ -151,27 +203,26 @@ static void text_start(void)
 {
     switch (tx) {
     case 0:                             /* $7399 */
-        end_text(45);
+        text(45);
         end_50k();                      /* its bonus life comes in play (bonus.c) */
         score_now();
         count = 540;
         break;
     case 1:                             /* $73B4 */
         end_time_off();
-        end_text(47);
+        text(47);
         end_sound(26);                  /* the port's own (the arcade's text queue has none) */
         count = 420;
         break;
     case 2:                             /* $73CF */
         black = 1;
         end_black_all();
-        end_text(48);
+        text(48);
         end_sound(26);
         count = 180;
         break;
     }
     TEXT_ON = 1;
-    FONT_LD = 1;
 }
 
 /* each text's first frame counts (the arcade's state falls through into its
@@ -198,9 +249,8 @@ int end_update(void)
             phase = 1;
             black = 1;
             end_black();
-            end_text(44);
+            text(44);
             TEXT_ON = 1;
-            FONT_LD = 1;
             count = 300;
         } else {                        /* $7EDC */
             phase = 2;

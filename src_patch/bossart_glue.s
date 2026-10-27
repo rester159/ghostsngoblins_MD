@@ -78,55 +78,40 @@ star_sel:
 1:  jmp     0x1172B6
 
 | $C48 (`jsr $89E4` + `jsr $E0C`, the intro's music and the intro):
-| `jsr intro_hook` + nop. The arcade's graveyard first (intro_scene), then the
-| port's intro unless Start skipped it.
+| `jsr intro_hook` + nop. The opening (bossart.c intro_scene: the arcade's
+| graveyard, then the port's intro picture on the arcade's frames) in place of
+| $E0C, which it leaves as $E0C does (interrupts off).
 | intro_rest: the same after the music (the Home start, glue.s hook_title).
-    .global intro_hook, intro_rest, intro_frame, intro_loop
+    .global intro_hook, intro_rest, intro_wait, intro_tick
 intro_hook:
     jsr     0x89E4                  | the intro music (d0 = 58)
 intro_rest:
     movem.l %d0-%d7/%a0-%a6,-(%sp)
     jsr     intro_scene
-    tst.l   %d0
     movem.l (%sp)+,%d0-%d7/%a0-%a6
-    bne.s   1f
-    jmp     0xE0C
-1:  move.w  #0x2700,%sr             | as $E0C leaves it
+    move.w  #0x2700,%sr             | as $E0C leaves it
     rts
 
-| one frame: $EDE (VBlank wait, sound) and $BF72 (pads -> $FF7000)
-intro_frame:
+| the VBlank's start, as $EDE waits for it
+intro_wait:
+    move.l  %d0,-(%sp)
+1:  move.w  0xC00004,%d0
+    btst    #3,%d0
+    bne.s   1b
+2:  move.w  0xC00004,%d0
+    btst    #3,%d0
+    beq.s   2b
+    move.l  (%sp)+,%d0
+    rts
+
+| then the rest of a frame of $E0C's: the sound ($8990, as $EDE) and the pads
+| ($BF72 -> $FF7000)
+intro_tick:
     movem.l %d0-%d7/%a0-%a6,-(%sp)
-    jsr     0xEDE
+    jsr     0x8990
     jsr     0xBF72
     movem.l (%sp)+,%d0-%d7/%a0-%a6
     rts
-
-| $E92 (`bsr.w $EDE` + `lea $210088,a2`): `jmp intro_loop` + 2 nops. $E0C's
-| step loop with a wait per step (intro_waits, bossart.c) instead of 2 frames
-| each; Start skips from the 21st frame as before. $E0C saved d0-a2.
-intro_loop:
-    jsr     0xEDE
-    lea     0x210088,%a2
-    moveq   #0,%d3                  | step
-    moveq   #0,%d4                  | frames
-1:  lea     intro_waits,%a0
-    move.b  (%a0,%d3.w),%d5
-2:  jsr     0xEDE
-    jsr     0xBF72
-    addq.w  #1,%d4
-    cmpi.w  #20,%d4
-    bls.s   3f
-    btst    #0,0xFF7000
-    beq.s   9f
-3:  subq.b  #1,%d5
-    bhi.s   2b
-    cmpi.w  #155,%d3
-    beq.s   9f
-    jsr     0xEFC
-    addq.w  #1,%d3
-    bra.s   1b
-9:  jmp     0xED4
 
 | $11C15E (the type-2 draw, stages 3-6): `jmp pd_draw_hook` + nop over
 | `cmpi.b #1,$FFC512`. A dying devil in stage 5: the burst (pd_burst).

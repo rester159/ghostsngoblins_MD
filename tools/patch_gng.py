@@ -296,6 +296,9 @@ def install_features(rom, build_dir):
     put(rom, 0x11080E, jsr(sym['hook_satan_die']))
     expect(rom, 0x11082C, jsr(0xB7F2), 'Satan death sound')
     put(rom, 0x11082C, b'\x4e\x71' * 3)
+    # its score phase a frame shorter: the burst takes one more count (glue.s)
+    expect(rom, 0x110826, bytes.fromhex('397c003f0024'), 'Satan score phase')
+    put(rom, 0x110826, bytes.fromhex('397c003e0024'))
     # the arcade's second random ($68F9, $6E/$6F = $FFC62C, arcrand.c) is seeded
     # at power-on and game start only: the ten stage inits reloaded $87CD
     for a in (0x9C0, 0x104728, 0x10EB60, 0x10FA2A, 0x1109D0, 0x111450, 0x11761C,
@@ -576,12 +579,14 @@ def install_bossart(rom, sym):
     # the type-6 shot draw: a Satan's shots as the star
     expect(rom, 0x11721C, bytes.fromhex('0c4200086400' + '0094'), 'type-6 shot frame check')
     put(rom, 0x11721C, jmp(sym['star_sel']) + b'\x4e\x71')
-    # the opening: the arcade's graveyard before the port's intro, whose steps
-    # are paced as the arcade's events
+    # the opening: the arcade's graveyard, then the port's intro picture ($E0C's
+    # data) on the arcade's frames (bossart.c intro_scene, in place of $E0C)
     expect(rom, 0xC46, bytes.fromhex('703a4eba7d9a4eba01be'), 'intro call')
     put(rom, 0xC48, jsr(sym['intro_hook']) + b'\x4e\x71')
-    expect(rom, 0xE92, bytes.fromhex('6100004a45f900210088'), 'intro step loop')
-    put(rom, 0xE92, jmp(sym['intro_loop']) + b'\x4e\x71\x4e\x71')
+    # after it, the HUD on black (opening.c intro_show at the display's start
+    # after stage 1's bg init; intro_hold in pad.c stage_hold)
+    expect(rom, 0x943C, bytes.fromhex('33fc816400c00004'), 'stage 1 bg init display on')
+    put(rom, 0x943C, jsr(sym['intro_show']) + b'\x4e\x71')
     # stage 5's skulls drawn as the arcade's (type 9 there), and both their and
     # the devils' deaths with the burst
     expect(rom, 0x107642, bytes.fromhex('0c420003'), 'type 9 frame count')

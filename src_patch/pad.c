@@ -153,13 +153,16 @@ void pad_update(void)
  * handler only counts) so the random source runs on as the arcade's does. */
 #define STAGE_HOLD 26
 void ter_fill(void);
+int  intro_hold(void);      /* opening.c: after the opening, the HUD on black */
+void hide_frame(void);
 void stage_hold(void)
 {
-    int i;
-    for (i = 0; i < STAGE_HOLD; i++) {
+    int i, n = STAGE_HOLD - intro_hold();
+    for (i = 0; i < n; i++) {
         while (VDP_CTRL & 8) ;
         while (!(VDP_CTRL & 8)) ;
         RAM32(0xFF7DFC)++;
+        hide_frame();
         game_sound_tick();
         if (i == 0)
             ter_fill();     /* the stage draw's terrain (terrain.c), well inside this frame */
