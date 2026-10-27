@@ -462,6 +462,7 @@ def install_features(rom, build_dir):
     install_rowfast(rom, sym)
     install_terrain(rom, sym)
     install_boxes(rom, sym)
+    install_burst(rom)
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)
@@ -549,6 +550,16 @@ def install_boxes(rom, sym):
     for a in (0x9DFC, 0x10F602, 0x11A432, 0x11A650):
         expect(rom, a, bytes.fromhex('4a7900ff9410'), 'platform carry jump test')
         put(rom, a, jsr(sym['carry_gate']))
+
+
+def install_burst(rom):
+    """The crows' burst (type 1, frames 37-48 of $14B5B0/$14C576 and $239560/$23A526) the arcade's way round
+    (Fixed 74): the arcade draws its enemy burst ($E85B) h-flipped whatever the side ($54); the port started
+    the flipped set (node 43, frames 43-48) when the crow was right of Arthur and the unflipped one (node 37,
+    frames 37-42: the mirror image) when left of him. Now node 43 always."""
+    for a in (0x493C, 0x1052F4):        # stages 1-2, stages 3-6
+        expect(rom, a - 8, bytes.fromhex('70003214b26b000463027002'), 'crow burst side test')
+        put(rom, a, b'\x4e\x71')
 
 
 def install_bossart(rom, sym):
