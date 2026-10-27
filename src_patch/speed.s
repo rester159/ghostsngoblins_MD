@@ -399,3 +399,19 @@ t8_out:
     move.l  (%a2)+,(%a1)+
     .endr
     jmp     0x714F8
+
+| ---------------------------------------------------------------------------
+| Every stage loop copies the 128 bytes at $FF9600 to $FF9800 once an
+| update with a dbf loop of move.l (`lea $FF9600,a0` / `lea $FF9800,a1` /
+| `moveq #31,d0` / loop); `jsr copy9600` + `bra.s` over it: the same moves
+| unrolled, a0/a1 past the copies and d0 = $FFFF as the loop left them, the
+| flags of the last move.
+    .global copy9600
+copy9600:
+    move.l  #0xFFFF,%d0
+    lea     0xFF9600,%a0
+    lea     0xFF9800,%a1
+    .rept   32
+    move.l  (%a0)+,(%a1)+
+    .endr
+    rts

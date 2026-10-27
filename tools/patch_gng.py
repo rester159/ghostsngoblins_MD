@@ -557,6 +557,10 @@ def install_speed(rom, sym):
             sys.exit(f'unexpected branches at {a:06X} (live / on-screen tests)')
         put(rom, a + 3, b'\x05')
         put(rom, a + n + 3, b'\x04')
+    # the stage loops' $FF9600 -> $FF9800 copy unrolled
+    for a in (0x698, 0x1048DC, 0x10ED24, 0x10FBFA, 0x110BD2, 0x11164E, 0x1177FA, 0x11886A, 0x118DD4, 0x1198EA):
+        expect(rom, a, bytes.fromhex('41f900ff960043f900ff9800701f22d851c8fffc'), 'stage loop $FF9600 copy')
+        put(rom, a, jsr(sym['copy9600']) + bytes.fromhex('600c'))
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)
