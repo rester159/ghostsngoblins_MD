@@ -546,6 +546,23 @@ def install_speed(rom, sym):
     put(rom, 0x714C2, jmp(sym['t8_in']))
     expect(rom, 0x714E0, bytes.fromhex('204c700b20da51c8fffc700322da51c8fffc6004'), 'type 8 copy back')
     put(rom, 0x714E0, jmp(sym['t8_out']))
+    # slot loops that test live (+4) then on the screen (+5), both to the next slot: on the screen
+    # first (most live objects aren't), the same branches; the next instruction sets the flags again
+    for a, wide in ((0x9C5A, 1), (0xA1BC, 1), (0x71D8E, 0), (0x106530, 1), (0x106C44, 1), (0x114588, 0),
+                    (0x11525A, 0), (0x11C304, 1)):
+        n = 8 if wide else 6
+        t1, t2 = bytes(rom[a:a + n]), bytes(rom[a + n:a + 2 * n])
+        if not (t1[0] == t2[0] == 0x4A and t1[1] == t2[1] and (t1[1] & 0xF8) == 0x28 and t1[2:4] == b'\x00\x04'
+                and t2[2:4] == b'\x00\x05' and t1[4] == t2[4] == 0x67):
+            sys.exit(f'unexpected bytes at {a:06X} (live / on-screen tests)')
+        if wide:
+            same = a + 6 + struct.unpack('>h', t1[6:8])[0] == a + 14 + struct.unpack('>h', t2[6:8])[0]
+        else:
+            same = a + 6 + struct.unpack('>b', t1[5:6])[0] == a + 12 + struct.unpack('>b', t2[5:6])[0]
+        if not same:
+            sys.exit(f'unexpected branches at {a:06X} (live / on-screen tests)')
+        put(rom, a + 3, b'\x05')
+        put(rom, a + n + 3, b'\x04')
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)
