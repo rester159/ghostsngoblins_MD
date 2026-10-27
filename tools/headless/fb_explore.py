@@ -1,13 +1,15 @@
 """Firebrand's climbing stages (5, 6) explored headless, Go-Explore style (no
 invincibility, no pokes): an archive keeps, for each 24 x 24 px cell he has
 stood, climbed or hovered in, the shortest path there and its save state.
-Each round picks a cell (the less tried and the higher, the likelier), loads
+Each round picks a cell (the less tried, the higher and the more stage time
+left there, the likelier), loads
 it and plays random moves (fb_campaign's macro) until he dies or wanders
 long enough; every new cell, or a known one reached sooner, goes into the
 archive. fb_campaign's single best-progress search falls back down the
 towers; this one keeps every floor it has reached to start from.
 
-usage: fb_explore.py <rom> <stage 5|6> <out prefix> [rounds] [stop y]
+usage: [SEED_MOVES=<file>] fb_explore.py <rom> <stage 5|6> <out prefix> [rounds] [stop y]
+SEED_MOVES puts every cell along a known path into the archive first.
 Writes <out>.moves (the path to the highest cell, one input mask per frame
 from the launch) whenever the top rises, and stops once he is at stop y
 (world y, up; default: the boss floor, 1700 for stage 5, 2700 for stage 6)
@@ -54,7 +56,7 @@ def ladder_dir():
     best = None
     for dy in (8, 24):
         y = fy + dy
-        for dx in range(-192, 193, 16):
+        for dx in range(-384, 385, 16):
             x = fx + dx
             i = (x & 0x1F0) * 2 | (((y >> 4) ^ 15) & 31)
             if g.r8(0xFF0000 + i) in LADDER:
@@ -96,7 +98,7 @@ def key():
     return g.r16(0xFF9001) // 24, g.r16(0xFF9004) // 24, bool(g.r8(0xFF9459))
 
 
-archive = {}        # cell -> [state (compressed), moves (16-bit masks), tries]
+archive = {}        # cell -> [state (compressed), moves (16-bit masks), tries, stage timer left (s)]
 top = (-1, None)    # (y, cell)
 
 
@@ -106,7 +108,7 @@ def add(moves):
     e = archive.get(k)
     if e is None or len(moves) < len(e[1]):
         raw, f = g.save()
-        archive[k] = [(zlib.compress(raw, 1), f), array('H', moves), e[2] if e else 0]
+        archive[k] = [(zlib.compress(raw, 1), f), array('H', moves), e[2] if e else 0, g.r16(0xFFCD62)]
         y = g.r16(0xFF9004)
         if g.r16(0xFF9410) == 0 or g.r8(0xFF9459):      # standing or on a ladder: a floor reached
             if y > top[0]:
@@ -117,12 +119,22 @@ def add(moves):
 
 
 add([])
+if os.environ.get('SEED_MOVES'):        # a known path (e.g. fb_proofs/stage5_partial.moves): every cell along it
+    path = []
+    for i, m in enumerate(int(v, 16) for v in open(os.environ['SEED_MOVES']).read().split()):
+        g.run(1, m)
+        path.append(m)
+        if dead() or cleared():
+            break
+        if i % K == K - 1:
+            add(path)
+    print('seeded: %d frames, %d cells, top y %d' % (len(path), len(archive), top[0]), flush=True)
 t0 = time.time()
 for rnd in range(rounds):
     cells = list(archive.items())
     ys = sorted({c[0][1] for c in cells})
     rank = {y: i / max(1, len(ys) - 1) for i, y in enumerate(ys)}
-    w = [(1 + 3 * rank[c[0][1]] ** 2) / (1 + e[2]) ** 0.5 for c in cells for e in [c[1]]]
+    w = [(1 + 3 * rank[c[0][1]] ** 2) / (1 + e[2]) ** 0.5 * (e[3] / 180) ** 2 for c in cells for e in [c[1]]]
     k, e = random.choices(cells, w)[0]
     e[2] += 1
     raw, f = e[0]
