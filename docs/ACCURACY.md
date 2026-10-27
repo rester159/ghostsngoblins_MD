@@ -922,17 +922,34 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     (`$FFC512` = 6), the records are the original's: every Big Man pair at the arcade's place (513 still, 439 moving), and
     the final room's sprite table (1,200 frames, flames on 339) identical to the old build's on every frame.
 
-79. **Stage 2's windows, any number open** (`bossart.c` `win_step`/`win_vblanks`/`win_ring`; supersedes Fixed 61's two slots).
+79. **Stage 2's windows, any number open** (`bossart.c` `win_step`/`win_vblanks`/`win_ring`/`win_chan`, `bossart_glue.s` `win_chan_hook` at `$C35D8`;
+    supersedes Fixed 61's two slots).
     The arcade's windows are bg tiles: `$B457` writes the step's 2 x 2 tiles at the cell kept in `$18,X` (the devil's x - 16,
     y when the window opens, `$B432`/`$8DD2`), so there is no limit of its own: every window stays as last written (a dead
     devil's too, Fixed 69) until its ring column is written over or the screen is redrawn. The port had two 16-tile slots,
-    one per window, so a dead devil's open window closed when two live windows needed both. Now each open pose (F2, F4,
-    F6) has its own 16 tiles, shared by every window showing it (`$6AC`-`$6BB`; `$6BC`-`$6C7` + `$5F4`-`$5F7`; `$5F8`-`$5FB` +
-    `$6D0`-`$6DB`), uploaded at the vblank of a step to it (512 bytes, as before); 8 window records (closed cells saved,
-    position) instead of 2. The new tiles are read by nothing in stage 2: no plane cell or sprite pointed at them in 3,600-frame
-    runs (1P, co-op, Firebrand, random input, seeds 1-2) nor in an 8,000-frame 1P run without invincibility (deaths, pauses;
-    2,167 snapshots); `$5F8`-`$5FB` (the Satans' star, stages 5-6) is written only by the stage load, `$6D0`-`$6D7` rewritten
-    blank at each life start (`$4F4`, 16 tiles from `$72578`), after which a step uploads its pose again. And as the arcade's
+    one per window, so a dead devil's open window closed when two live windows needed both. Now a pose's 16 tiles go into
+    a region and every window showing that pose points at it (8 window records instead of 2; the pose uploaded at the
+    vblank of each step to it, 512 bytes as before): R0 `$6AC`-`$6BB` and R1 `$6BC`-`$6C7` + `$5F4`-`$5F7` (Fixed 61's;
+    `$5F4`-`$5FB` is otherwise written only by the unreachable `$6434` and by the Satans' star in stages 5-6), and R2
+    `$5F8`-`$5FB` + `$6D0`-`$6DB` for a third pose at once. `$6D0`-`$6D7` and `$6D8`-`$6DB` are the object-art streamer's
+    channels 2 and 4 (`$1169B8`, reached through `$C35D8` -> `$11692E` from every stage loop, its requests set by `$1168E2`):
+    the second item slot (`$FFCEA0`, frames from `$29CA00`) and the stage-end key (`$FFCC20`, run only once the boss is
+    dead, from `$E085C`); channel 0 (`$F300`) is the first item slot. While those objects are absent the channels hold
+    their frame 0 (loaded `$FF97C2`/`$FF97C4` = asked `$FF97C8`/`$FF97CA` = 0). R2 is taken only then, and `win_chan`, put
+    before the streamer at `$C35D8`, gives it back as soon as one of them is live or asked for, or no window uses it: its
+    windows are first pointed at R0/R1 (holding or taking their pose) or closed (a live devil's shows again at its next
+    step, a dead one's is given up, Fixed 69's behaviour), with the interrupts off, then the channels' loaded frames are set
+    to `$FFFF` so the streamer loads them again in the same update. Without R2, a third pose takes a dead devil's
+    window's region (it closes, as before Fixed 79). Random runs never spawned the second item slot or the key in stage 2
+    (12 runs of 9,000 frames, 1P and co-op: the first item slot live in 11, the second and the key in none), so the case
+    was forced: in the window run below with the first devil removed 7 frames into its closing (`KDELAY=7`: 312,7 left at
+    F4 in both games, f163 / r165, until the redraw f511 / r517) the second live window at F2 makes three poses (r229) and
+    takes R2; an item put into the second slot at r231 (a copy of a live first-slot item from a 1P run): R2 is given back
+    in that update, the window goes closed on that frame and shows F4 at its next step (r234), the tiles `$6D0`-`$6DB` are
+    the streamer's frame 0 again on the same frame, no window ever showed them, no fault; with the item live a third pose
+    then closed the dead window (r248); without the item R2 is taken and given back twice (r229-r234, r248-r253), the
+    dead window at F4 throughout, `$6D0`-`$6DB` back at frame 0 after each. Firebrand's and player 2's tiles are `$690`-`$69F`
+    (`p2.c`, `firebrand.c`), the life start's load at `$4F4` writes `$6C8`-`$6CF` only (128 words), neither in R0-R2. And as the arcade's
     window tiles are in its terrain map, a step now writes the same four cells of the port's ring (tiles `$F0`-`$FF`,
     attribute `$87`, at the cell kept when the window opened). Forced case, side by side from the checkpoint (both 30
     frames after the restart, walking right, `arc_windows.py` / `port_windows.py` with `LOAD`): the first window devil
@@ -976,6 +993,8 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     0.989/0.990/0.984 -> 0.992/0.993/0.991, stage 6 0.985/0.961/0.989 -> 0.985/0.963/0.988; stage 2 seeds 4-7 1P
     0.967/0.906/0.959/0.938 -> 0.966/0.931/0.967/0.942, co-op seeds 1-7 0.713/0.689/0.700/0.691/0.718/0.684/0.706 ->
     0.708/0.686/0.689/0.700/0.713/0.717/0.684 (mean 0.700 both; random input: the runs part once anything differs).
+    With R2 given back to the streamer (79): no faults in stages 1-6 x 1P/co-op/Firebrand (seed 1); stage 2 1P seeds 1-3
+    0.919/0.952/0.922, co-op 0.721/0.670/0.708.
 
 ## Matching (audited)
 
