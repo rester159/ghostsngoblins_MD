@@ -542,6 +542,10 @@ def install_speed(rom, sym):
     put(rom, 0x3448, jmp(sym['t5_in']))
     expect(rom, 0x34B4, bytes.fromhex('204c700b20da51c8fffc700322da51c8fffc600c'), 'type 5 copy back')
     put(rom, 0x34B4, jmp(sym['t5_out']))
+    expect(rom, 0x714C2, bytes.fromhex('204c700b24d851c8fffc700324d951c8fffc'), 'type 8 copy in')
+    put(rom, 0x714C2, jmp(sym['t8_in']))
+    expect(rom, 0x714E0, bytes.fromhex('204c700b20da51c8fffc700322da51c8fffc6004'), 'type 8 copy back')
+    put(rom, 0x714E0, jmp(sym['t8_out']))
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)

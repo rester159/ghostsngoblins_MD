@@ -324,6 +324,7 @@ t1b_entry:
 | did (d0 is then the result, a0-a2 restored).
     .global t5_in, t5_out
 t5_in:
+    move.l  #0xFFFF,%d0             | (first: the flags are the last move's)
     movea.l %a4,%a0
     movea.l 16(%a3),%a2
     .rept   12
@@ -333,9 +334,9 @@ t5_in:
     .rept   4
     move.l  (%a0)+,(%a2)+
     .endr
-    move.l  #0xFFFF,%d0
     jmp     0x3460
 t5_out:
+    move.l  #0xFFFF,%d0
     movea.l %a4,%a0
     .rept   12
     move.l  (%a2)+,(%a0)+
@@ -343,5 +344,30 @@ t5_out:
     .rept   4
     move.l  (%a2)+,(%a1)+
     .endr
-    move.l  #0xFFFF,%d0
     jmp     0x34D4
+
+| The same in the type-8 handler $7149C (stage 6's, from $105B40 via $71F32):
+| $714C2 `jmp t8_in` over the copy in (this one steps a1 itself; the caller's
+| a1/a2/a4 are back from the stack at $714DC), back at $714D4; $714E0 `jmp
+| t8_out` over the copy back, on to $714F8 as its `bra.s` did.
+    .global t8_in, t8_out
+t8_in:
+    move.l  #0xFFFF,%d0
+    movea.l %a4,%a0
+    .rept   12
+    move.l  (%a0)+,(%a2)+
+    .endr
+    .rept   4
+    move.l  (%a1)+,(%a2)+
+    .endr
+    jmp     0x714D4
+t8_out:
+    move.l  #0xFFFF,%d0
+    movea.l %a4,%a0
+    .rept   12
+    move.l  (%a2)+,(%a0)+
+    .endr
+    .rept   4
+    move.l  (%a2)+,(%a1)+
+    .endr
+    jmp     0x714F8
