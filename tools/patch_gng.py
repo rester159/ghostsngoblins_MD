@@ -497,6 +497,17 @@ def install_features(rom, build_dir):
     install_terrain(rom, sym)
     install_boxes(rom, sym)
     install_burst(rom)
+    install_speed(rom, sym)
+
+
+def install_speed(rom, sym):
+    """Co-op speed (speed.s; Fixed 82): slot loops in fewer cycles, the same RAM and VDP writes."""
+    jmp = lambda a: b'\x4e\xf9' + be32(a)
+    # stage 1-2 sprite build ($B258): empty and off-screen slots straight to the next
+    expect(rom, 0xB282, bytes.fromhex('300432077401'), 'stage 1-2 build slot loop top')
+    put(rom, 0xB282, jmp(sym['spr12_top']))
+    expect(rom, 0xB36A, bytes.fromhex('d8409e40da41d8fc003051ceff0c'), 'stage 1-2 build slot loop tail')
+    put(rom, 0xB36A, jmp(sym['spr12_tail']))
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)

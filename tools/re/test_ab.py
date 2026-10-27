@@ -9,6 +9,8 @@ usage: test_ab.py <rom A> <rom B> <loop start hex> <loop end hex> <ram dump>... 
                                          copy that word of the snapshot); repeatable
          [-x START-END]                  RAM range (hex, end exclusive) left out of the comparison
          [--novdp]                       don't compare VDP writes
+         [--vbl]                         advance the VBlank counter ($FF7DFC) by one before each
+                                         update (the passes that alternate by frame take both halves)
 """
 import random
 import sys
@@ -24,6 +26,9 @@ EXCL = []
 NOVDP = '--novdp' in args
 if NOVDP:
     args.remove('--novdp')
+VBL = '--vbl' in args
+if VBL:
+    args.remove('--vbl')
 for flag in ('-pa', '-pb', '-x'):
     while flag in args:
         i = args.index(flag); v = args[i + 1]; del args[i:i + 2]
@@ -62,6 +67,9 @@ class Machine:
 
     def update(self):
         uc = self.uc
+        if VBL:
+            c = int.from_bytes(uc.mem_read(0xFF7DFC, 4), 'big')
+            uc.mem_write(0xFF7DFC, ((c + 1) & 0xFFFFFFFF).to_bytes(4, 'big'))
         uc.reg_write(UC_M68K_REG_SR, 0x2700); uc.reg_write(UC_M68K_REG_A7, 0xFFFE00)
         try:
             uc.emu_start(START, END, count=20_000_000)

@@ -60,6 +60,9 @@ def on_mem(uc, kind, addr, size, value, _):
         stack[-1][2]['cyc'] += c
         top[stack[0][0]]['bus'] += 1
         top[stack[0][0]]['cyc'] += c
+        if INCL:
+            for fr in {f[0] for f in stack}:
+                incl[fr] += c
     if kind == UC_MEM_WRITE:
         if addr in (0xA10003, 0xA10005):
             th[addr] = value & 0x40
@@ -84,7 +87,7 @@ stats = collections.Counter()
 excl = collections.defaultdict(collections.Counter)      # routine -> insn/bus
 callers = collections.defaultdict(collections.Counter)
 incl = collections.Counter()                             # routine -> inclusive cycles
-INCL = os.environ.get('INCL')                            # set: also print inclusive costs
+INCL = os.environ.get('INCL')                            # set: also print inclusive costs (instructions and bus)
 top = collections.defaultdict(collections.Counter)       # top-level call -> inclusive
 stack = []                                               # [entry, sp at entry, counter]
 pending = [None]
