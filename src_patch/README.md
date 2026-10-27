@@ -123,7 +123,7 @@ Without `--features` the patcher produces the compatibility-only ROM.
 
 - **The arcade's art the port lacked** (all modes; `bossart.c`, `bossart_glue.s`, art converted from the arcade ROMs by `mkart.py` into `build/art.inc`; evidence in `docs/ACCURACY.md`, Fixed 60-63):
   - **The Satans:** the hovering pose with the wings open (3 poses stepped as the arcade's script), the burst before the score and the shot's star. Each Satan on the screen gets a 9-piece buffer in the Satan's own tiles, filled with its pose's pieces at the sprite DMA when the pose changes.
-  - **Stage 2's windows** open and close on plane B as the devils come out, from two 16-tile slots, and are put back afterwards.
+  - **Stage 2's windows** open and close on plane B as the devils come out, from two 16-tile slots, and are put back afterwards; a window whose devil is killed or leaves before it has closed stays open, as in the arcade (Fixed 69).
   - **The opening:** the arcade's graveyard with Arthur, the princess and the armour after Start (its bg fades and Arthur's head turn), then the port's intro paced to the arcade's frames; Arthur can move 559 frames after Start, as in the arcade (was ~362).
   - **Stage 5's skulls and Petite Devils:** the skulls stand up as skeletons, the fireball carriers have their wing poses and the fireball is the arcade's, and both die in the arcade's burst.
 - **Petite Devils and stage 5's skulls** (all modes; `petite.c`, `skull.c` and their glue, patches in `install_petite`; evidence in `docs/ACCURACY.md`, Fixed 51-52):
@@ -132,6 +132,7 @@ Without `--features` the patcher produces the compatibility-only ROM.
 - **Vertical scrolling without a lost update** (all modes; `rowfast.s`, `install_rowfast`; Fixed 64): a row of the plane entries is built incrementally instead of with a multiply per cell and a clear (the same bytes), ~29 lines less per row crossing; stage 5's 5 px climbs keep an update every frame. Checked by `tools/re/test_rowfast.py` and `test_ab.py`.
 - **The terrain map as the arcade's** (all modes; `terrain.c`, `terrain_glue.s`, `install_terrain`; Fixed 65): the collision ring is written as the arcade writes its bg RAM: the entering column/row at each camera crossing (C + 16 / C - 1, R + 16 / R - 1, over the arcade's ranges and buffer cuts), the stage draw's columns C - 1 .. C + 30 at each stage start, neighbouring stages' maps at the edges. The streamers keep only their plane work. Arthur's floor probe now agrees with the arcade's at the stage 2/4/5/6 starts and after stage 5's climbs.
 - **Ledge-edge jumps and riding platforms** (all modes; `pad.c`, `arthur.s`, `glue.s` `box_walk`, `install_boxes`; Fixed 66): a jump pressed on the step past a ledge's edge still takes off (the wind-up keeps him on his floor and off the platform carry); the walk test against the objects' boxes covers every type and every stage, so riding stage 2's elevator skips the arcade's walk steps.
+- **Stepping down** (all modes; `arthur.s` `ground_snap`; Fixed 67): walking onto a lower floor, even one pixel lower, starts a fall as in the arcade, which costs a frame standing still (the port snapped him down in the walking frame); and an object far below no longer stops the walk (stage 5's room stopped Arthur at x 7167).
 
 ## Engine hooks
 
@@ -156,7 +157,8 @@ Without `--features` the patcher produces the compatibility-only ROM.
 | `$11711E` | shot-slot art upload `jsr $704BE` | `hook_shot_dma`: fireball instead of the lance in Firebrand mode |
 | `$116472`, `$116884` | item code copying armor/weapon back from its context | `hook_item_copy`: Firebrand turns pickups into points |
 | `$110578`, `$1105C6` | the Satan handler's states 0 and 1 | `jsr hook_satan` + `bra.w $110846` → `satan_update` (`satan.c`); raises the boss count (`$10E9B6`) where the arcade does (`$BF5F`) |
-| `$11080E` (+ `$11082C`) | its death: `tst.b 8(a4)` / `bne.s` (and the death sound) | `hook_satan_die`: 22 burst frames first; the sound moves to the first |
+| `$11080E` (+ `$11082C`) | its death: `tst.b 8(a4)` / `bne.s` (and the death sound) | `hook_satan_die`: 23 burst counts first (the arcade's 22 frames); the sound moves to the first |
+| `$110826` | its score phase `move.w #63,36(a4)` | 62 frames (the burst's extra count; removal on the arcade's frame) |
 | `$9C0`, `$104728`, `$10EB60`, `$10FA2A`, `$1109D0`, `$111450`, `$11761C`, `$118688`, `$118BEC`, `$1196C8` | stage inits: `clr.l $FFC62C`, `move.w #$87CD,$FFC62C`, clear `$FFC62E` | `clr.b $FFC62F` and nops: the random state carries on (seeded by `hook_ramclear` and `player_init`) |
 | `$106F80` | type-12 (dragon) handler | `dragon_entry` → `dragon_update` (`dragon.c`); body segments in state 1 in `dragon_entry` itself |
 | `$106F10` | dragon spawn position (camera + `$180`/`$40`) | `dragon_spawn_pos`: stage 6 at the absolute (7824, 2016) |
@@ -167,7 +169,7 @@ Without `--features` the patcher produces the compatibility-only ROM.
 | `$7E56` | crouch entry `move.b #1,11(a4)` | `crouch_in`: flags the crouch-entry frame |
 | `$8114` | walk gate | `walk_gate`: no walk on the stand-up frame, a walk on the crouch-entry frame |
 | `$7E42` | `clr.b 8(a4)` / `cmpi.b #4,9(a4)` (no ladder below) | `lad_exit`: flags the ladder bottom |
-| `$8698` | `bsr $8744` / `tst.l d0` (ground step floor snap) | `ground_snap`: floor at his own y only after a ladder bottom or a stage start |
+| `$8698` | `bsr $8744` / `tst.l d0` (ground step floor snap) | `ground_snap`: the floor at his own y, then the objects (`$84B8`), never `$8744`'s probe 8 px down: a lower floor is a fall, as the arcade's (Fixed 67) |
 | `$5FA4`, `$5AAE`, `$5ADC`, `$5B44`, `$5CD4` | armored hit, hit dispatch, knockback check, knockback animation, knockback landing | `kb_hit`, `kb_dispatch`, marker test, `kb_anim`, `kb_land`: armor lost on the hit frame |
 | `$8A802`, `$117CEC`, `$118272`, `$11929E` | stage-end blocks loading the working rank `$FFA208` | load the base rank `$FFC501` (the +4 goes to the base, as the arcade's) |
 | `$70A70` | Unicorn walk `bsr $70AE2` (floor snap) | nops |
@@ -186,7 +188,7 @@ Without `--features` the patcher produces the compatibility-only ROM.
 | `$9386` | collision ring column fill | `moveq #32,d0` / `rts`: the ring is `terrain.c`'s |
 | `$1043B4` | camera update end: `move.w #91,$FFC370` / `bsr.s $1043C4` | `jsr ter_cam`: the same, then `ter_update` (the entering column/row) |
 | `pad.c` `stage_hold` | the stage-start hold's first frame | `ter_fill`: the stage draw's columns C - 1 .. C + 30 |
-| `$104AA6`, `$10EF06`, `$10FDB6`, `$110DB4`, `$1117FE`, `$118A54`, `$118F92`, `$119ADC` | `jsr $8138` (ground step) | `jsr box_walk` (`glue.s`): the step, then the walk test against types 1-5 |
+| `$104AA6`, `$10EF06`, `$10FDB6`, `$110DB4`, `$1117FE`, `$118A54`, `$118F92`, `$119ADC` | `jsr $8138` (ground step) | `jsr box_walk` (`glue.s`): the step, then the walk test against types 1-5 (within 128 px in y, Fixed 67) |
 | `$9DFC`, `$10F602`, `$11A432`, `$11A650` | platform carry: `tst.w $FF9410` (jumping) | `jsr carry_gate` (`arthur.s`): also no carry in a jump's wind-up |
 | `$47FA` | crow (subtypes 3-5, `$44FE`) waiting state: `cmpi.b #3,6(a4)` -> the off-screen entry | `cmpi.b #4`: subtype 3 perches as the arcade's `$A755` |
 | `$452C` | `cmpi.b #1,$FFC512` / `bne.s` (stage 2 subtype-3 crows held back past 512 px) | `bra.s $4552` |
