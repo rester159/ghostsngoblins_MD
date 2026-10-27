@@ -627,6 +627,10 @@ def install_bossart(rom, sym):
     put(rom, 0x3C6, jsr(sym['intro_cram_hook']) + b'\x4e\x71\x4e\x71')
     expect(rom, 0x940A, bytes.fromhex('33fc810400c00004'), 'bg init display off')
     put(rom, 0x940A, jsr(sym['bg_off_hook']) + b'\x4e\x71')
+    expect(rom, 0xB470, bytes.fromhex('4a3900ffc57f660a4ebad398'), 'stage start music')
+    put(rom, 0xB470, jmp(sym['music_hook']))
+    expect(rom, 0xB12, bytes.fromhex('2f02524134010242'), 'VRAM copy')
+    put(rom, 0xB12, jmp(sym['b12_tick']))
     expect(rom, 0x588, bytes.fromhex('4eba5e2a4eba5e6c'), 'stage start bg and HUD upload')
     put(rom, 0x588, jsr(sym['hud_flush_hook']) + b'\x4e\x71')
     # stage 5's skulls drawn as the arcade's (type 9 there), and both their and

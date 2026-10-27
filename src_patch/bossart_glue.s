@@ -108,6 +108,67 @@ intro_cram_hook:
     jsr     intro_cram
     movem.l (%sp)+,%d0-%d1/%a0-%a1
     rts
+| $B12 (the VRAM copy, d1 + 1 words from a0): `jmp b12_tick` over its first
+| 3 instructions. While load_ticks is set (opening.c: the game start after
+| the opening, display on) it copies 64 words at a time and runs the sound
+| driver's tick ($8990) at each VBlank start it sees, as the frames go by.
+    .global b12_tick
+b12_tick:
+    tst.b   load_ticks
+    bne.s   1f
+    move.l  %d2,-(%sp)
+    addq.w  #1,%d1
+    move.w  %d1,%d2
+    jmp     0xB18
+1:  movem.l %d0/%d2,-(%sp)
+    move.w  %d1,%d2                 | words - 1
+2:  moveq   #63,%d0
+    cmp.w   %d0,%d2
+    bcc.s   3f
+    move.w  %d2,%d0
+3:  sub.w   %d0,%d2
+4:  move.w  (%a0)+,0xC00000
+    dbf     %d0,4b
+    bsr.s   load_tick
+    subq.w  #1,%d2
+    bcc.s   2b
+    movem.l (%sp)+,%d0/%d2
+    move.w  #-1,%d1
+    rts
+| $B470 (a stage start's music: `jsr $8812` with a6 = $FF9500, the driver's
+| init then sounds $30, $2B, unless $FFC57F): `jmp music_hook`. After the
+| opening opening.c has started it at the load's start (music_early).
+    .global music_hook, music_now
+music_hook:
+    tst.b   0xFFC57F
+    bne.s   1f
+    tst.b   music_early
+    bne.s   2f
+    jsr     0x8812
+2:  sf      music_early
+    move.b  #1,68(%a6)
+1:  rts
+music_now:
+    movem.l %d0-%d7/%a0-%a6,-(%sp)
+    lea     0xFF9500,%a6
+    jsr     0x8812
+    movem.l (%sp)+,%d0-%d7/%a0-%a6
+    rts
+
+| a tick if a VBlank started since the last look
+    .global load_tick
+load_tick:
+    move.w  %d0,-(%sp)
+    move.w  0xC00004,%d0
+    andi.b  #8,%d0
+    cmp.b   load_vb,%d0
+    beq.s   1f
+    move.b  %d0,load_vb
+    beq.s   1f
+    jsr     game_sound_tick
+1:  move.w  (%sp)+,%d0
+    rts
+
 | $588 `jsr hud_flush_hook` + nop over `jsr $63B4` and `jsr $63FA` (the
 | stage start's HUD upload): opening.c hide_buf around the upload.
     .global hud_flush_hook

@@ -52,8 +52,8 @@ static u8 after_end;
 static const u16 isc_ev[2][10] = {
     { AF(805), AF(871), AF(935), AF(955), AF(826), AF(993), AF(994), AF(996), AF(997), AF(999) },
     { 5, 65, 129, 150, 22, 188, 189, 190, 191, 193 } };
-#define HIDE_FRAMES 30
-#define HOLD_CUT 9                              /* the hold's frames taken off after the opening (its load is longer, display on) */
+#define HIDE_FRAMES 29
+#define HOLD_CUT 13                             /* the hold's frames taken off after the opening (its load is longer, display on) */
 static u16 hide_cram[48];
 static u32 hide_cells[2];                       /* plane A rows 2 and 3: the cells moved to line 2 */
 static u32 hide_until;
@@ -316,10 +316,17 @@ static void vblank_start(void)
  * frame (1321), and the clear spares the HUD's cells and tiles and what the
  * loads after it write whole ($0020-$49A0, $4A00-$5800, $6000-$A920,
  * $AF00-$BE80, plane B $C000-$CFFF) */
+u8 load_ticks, load_vb;                         /* bossart_glue.s b12_tick: the sound's tick in the load */
+u8 music_early;                                 /* bossart_glue.s music_hook */
+void music_now(void);
+void load_tick(void);
 static void zero_range(u16 a, u16 b)
 {
     VDP_CTRLL = VRAM_W(a);
-    for (; a < b; a += 2) VDP_DATA = 0;
+    for (; a < b; a += 2) {
+        VDP_DATA = 0;
+        if (!(a & 127)) load_tick();
+    }
 }
 
 void stage_clear(void)
@@ -335,6 +342,12 @@ void stage_clear(void)
     }
     vblank_start();
     hud_cells(0);
+    if (!RAM8(0xFFC57F)) {                      /* the stage's music from here, as the arcade's (sounds */
+        music_now();                            /* $30, $2B at 1318, 1320): the load's own start ($B470) */
+        music_early = 1;                        /* came ~15 frames on (music_hook skips it now), */
+    }
+    load_vb = 8;
+    load_ticks = 1;                             /* and the driver's tick runs every frame of the load */
     for (k = 0; k < sizeof zr / sizeof zr[0]; k++) zero_range(zr[k][0], zr[k][1]);
     for (r = 0; r < 32; r++)                    /* plane A but the HUD's rows' visible half */
         zero_range(0xE000 + r * 128 + ((r < 4 || (r >= 24 && r < 28)) ? 64 : 0), 0xE000 + r * 128 + 128);
@@ -455,7 +468,9 @@ int intro_hold(void)
     if (!intro_hide) { hiding = 0; return 0; }  /* (another stage start: nothing to put back) */
     if (intro_hide == 2) hide_until = RAM32(0xFF7DFC) + HIDE_FRAMES;
     intro_hide = 0;
-    RAM32(0xFF7DFC) += HOLD_CUT - 2;            /* the load's longer time, counted: the counter in play as before */
+    load_ticks = 0;
+    RAM32(0xFF7DFC) += HOLD_CUT - 3;            /* the load's longer time, counted: the counter in play as
+                                                   before (the hold's 2 frames, its last now the handler's) */
     return HOLD_CUT;
 }
 
