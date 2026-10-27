@@ -561,6 +561,12 @@ def install_speed(rom, sym):
     for a in (0x698, 0x1048DC, 0x10ED24, 0x10FBFA, 0x110BD2, 0x11164E, 0x1177FA, 0x11886A, 0x118DD4, 0x1198EA):
         expect(rom, a, bytes.fromhex('41f900ff960043f900ff9800701f22d851c8fffc'), 'stage loop $FF9600 copy')
         put(rom, a, jsr(sym['copy9600']) + bytes.fromhex('600c'))
+    # the HUD rows ($11AE4E): the same VDP writes, unrolled
+    expect(rom, 0x11AE4E, bytes.fromhex('48e7808033fc8f0200c0000441f900ffd81023fc6408000300c00004303c001933d800c0000051c8fff8'
+                                        '23fc660c000300c00004303c001533d800c0000051c8fff823fc6924000300c00004303c000433d800c00000'
+                                        '51c8fff823fc6a24000300c00004303c000433d800c0000051c8fff823fc6494000300c0000441f900ffc5d0'
+                                        '700e33d800c0000051c8fff84cdf01014e75'), 'HUD rows')
+    put(rom, 0x11AE4E, jmp(sym['hud_rows']))
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)

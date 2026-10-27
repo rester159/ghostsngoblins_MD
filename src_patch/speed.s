@@ -415,3 +415,39 @@ copy9600:
     move.l  (%a0)+,(%a1)+
     .endr
     rts
+
+| ---------------------------------------------------------------------------
+| The HUD rows ($11AE4E, every update in every stage): 73 words from
+| $FFD810 and $FFC5D0 to five VRAM rows, each a dbf loop of `move.w
+| (a0)+,$C00000`. `jmp hud_rows` over its entry: the same control and data
+| writes in the same order, the data port in a1, every register as it was
+| and the flags of the last word written.
+    .global hud_rows
+hud_rows:
+    movem.l %d0/%a0-%a1,-(%sp)
+    move.w  #0x8F02,0xC00004
+    lea     0xFFD810,%a0
+    lea     0xC00000,%a1
+    move.l  #0x64080003,0xC00004
+    .rept   26
+    move.w  (%a0)+,(%a1)
+    .endr
+    move.l  #0x660C0003,0xC00004
+    .rept   22
+    move.w  (%a0)+,(%a1)
+    .endr
+    move.l  #0x69240003,0xC00004
+    .rept   5
+    move.w  (%a0)+,(%a1)
+    .endr
+    move.l  #0x6A240003,0xC00004
+    .rept   5
+    move.w  (%a0)+,(%a1)
+    .endr
+    move.l  #0x64940003,0xC00004
+    lea     0xFFC5D0,%a0
+    .rept   15
+    move.w  (%a0)+,(%a1)
+    .endr
+    movem.l (%sp)+,%d0/%a0-%a1
+    rts
