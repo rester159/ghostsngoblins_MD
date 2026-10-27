@@ -691,6 +691,23 @@ def install_bossart(rom, sym):
     # after stage 1's bg init; intro_hold in pad.c stage_hold)
     expect(rom, 0x943C, bytes.fromhex('33fc816400c00004'), 'stage 1 bg init display on')
     put(rom, 0x943C, jsr(sym['intro_show']) + b'\x4e\x71')
+    # the game start after the opening with the display on and the HUD shown
+    # (opening.c stage_clear, intro_cram, bg_off)
+    expect(rom, 0x2E2, bytes.fromhex('33fc810400c00004' '23fc4000000000c00004' '7000323c3fff23c000c0000051c9fff8'),
+           'game start display off and VRAM clear')
+    put(rom, 0x2E2, jsr(sym['stage_clear_hook']) + bytes.fromhex('6000') + (0x304 - 0x2EA).to_bytes(2, 'big'))
+    expect(rom, 0x3B8, bytes.fromhex('23fcc000000000c00004' '4eba074e'), 'game start CRAM load')
+    put(rom, 0x3B8, jsr(sym['cram_hook']) + b'\x4e\x71' * 4)
+    expect(rom, 0x3C6, bytes.fromhex('23fc4000001000c00004'), 'VSRAM address after the CRAM load')
+    put(rom, 0x3C6, jsr(sym['intro_cram_hook']) + b'\x4e\x71\x4e\x71')
+    expect(rom, 0x940A, bytes.fromhex('33fc810400c00004'), 'bg init display off')
+    put(rom, 0x940A, jsr(sym['bg_off_hook']) + b'\x4e\x71')
+    expect(rom, 0xB470, bytes.fromhex('4a3900ffc57f660a4ebad398'), 'stage start music')
+    put(rom, 0xB470, jmp(sym['music_hook']))
+    expect(rom, 0xB12, bytes.fromhex('2f02524134010242'), 'VRAM copy')
+    put(rom, 0xB12, jmp(sym['b12_tick']))
+    expect(rom, 0x588, bytes.fromhex('4eba5e2a4eba5e6c'), 'stage start bg and HUD upload')
+    put(rom, 0x588, jsr(sym['hud_flush_hook']) + b'\x4e\x71')
     # stage 5's skulls drawn as the arcade's (type 9 there), and both their and
     # the devils' deaths with the burst
     expect(rom, 0x107642, bytes.fromhex('0c420003'), 'type 9 frame count')

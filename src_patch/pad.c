@@ -155,9 +155,11 @@ void pad_update(void)
 void ter_fill(void);
 int  intro_hold(void);      /* opening.c: after the opening, the HUD on black */
 void hide_frame(void);
+extern u16 fs_last, fs_flags, fs_stale;     /* pace.c */
 void stage_hold(void)
 {
-    int i, n = STAGE_HOLD - intro_hold();
+    int i, n = STAGE_HOLD - intro_hold() - 1;
+    hide_frame();           /* (the HUD's TIME digits, drawn just before) */
     for (i = 0; i < n; i++) {
         while (VDP_CTRL & 8) ;
         while (!(VDP_CTRL & 8)) ;
@@ -167,4 +169,16 @@ void stage_hold(void)
         if (i == 0)
             ter_fill();     /* the stage draw's terrain (terrain.c), well inside this frame */
     }
+    /* The first update starts on the next VBlank's first line (its VBlank
+     * counted by the handler, interrupts on from the return). It began on the
+     * hold's last frame, late in that VBlank after the hold's work, so pace.c's
+     * render skip held its sprite upload and skipped its sprite build (its last
+     * update was before the stage start: whole frames lost), and the next
+     * update held the stale table: the sprites showed 2 frames into play, the
+     * arcade's from the first. */
+    while (!(VDP_CTRL & 8)) ;
+    while (VDP_CTRL & 8) ;
+    fs_last = RAM16(0xFF7DFE) + 1;      /* (+ the VBlank pending since the last) */
+    fs_flags = 2;                       /* the first update holds the stage start's table */
+    fs_stale = 0;
 }

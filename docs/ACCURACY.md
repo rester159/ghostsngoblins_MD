@@ -996,6 +996,73 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     With R2 given back to the streamer (79): no faults in stages 1-6 x 1P/co-op/Firebrand (seed 1); stage 2 1P seeds 1-3
     0.919/0.952/0.922, co-op 0.721/0.670/0.708.
 
+83. **The opening's picture, every frame the arcade's** (`opening.c` `ib_sprites`, `mkart.py` -> `ib_frame`, `ib_frame2`,
+    `ib_lists`, `ib_tiles`; hooks as Fixed 70). The arcade's black part (999-1318 after Start at 800) is its sprites
+    only (the Satan, the princess, Arthur; colours 0 and 2) over the HUD's top rows; the port showed `$E0C`'s plane
+    picture, 28, 11 and 24 steps for the swoop, the fall, getting up and the walk where the arcade's picture changes
+    every frame. Now `mkart.py` runs the arcade on to 1318 and converts every frame's sprite list: 100 pieces (400 tiles,
+    loaded at `$001` while the graveyard shows, with an empty plane B at `$C000`), 128 distinct lists, a CRAM of the
+    HUD's entries and the two sprite colours (the bg's entries are free there); each frame writes its list.
+    Measured frame by frame against `tools/arcade` renders (non-black masks): 999-1318 identical on 320 of 320 frames
+    (was 129; mean IoU 0.928 -> 1.000), the arcade's 157 picture changes there all on the same frames (was 91, none
+    elsewhere). `$E0C`'s data is no longer used. After the second clear (`tools/lockstep/port_end.py`-style run against
+    an `arc_start.py 6 0` state with `<$7F` = 1, `<$08` = 2, `<$0B` = 0; R = the last text's end) the arcade's black part
+    is a frame longer and not Start's: the cloak's blinks follow its frame counter's low bits (frames 13-18 on, off,
+    off, on, off, off; after Start on 13-16), from the wings every picture comes a frame later but for Arthur's bounce
+    after the fall (in step, frames 165-179); `ib_frame2` is that order (Start's lists). Its graveyard: the bg at R + 2,
+    the sprites at R + 3 (the port's at R + 8; the first tick, which starts the music `$3A`, now comes after the
+    sprites' frame), the fades, the head and the cloak as Fixed 70; the player's score in the HUD is the live one (it
+    showed 0; the arcade's 50,000 there). Measured over R .. R + 558: the arcade's 170 picture changes, the port's 169,
+    all on the arcade's frames (was 171, 158 of them). Not as the arcade: in the second clear's graveyard the arcade
+    draws the bg with the final room's palette for 6 frames (R + 2 .. R + 7: red ground) before stage 1's (the port's
+    is stage 1's from the start); the Satan carrying the princess and Arthur's walk stand 1-4 px apart on 47 of its
+    frames there (the objects' sub-pixel parts kept from before: Start's positions are drawn).
+
+84. **The stage start after the opening: the HUD on black from the arcade's frame, Arthur and the music on theirs**
+    (`opening.c` `hud_show`, `stage_clear`, `intro_cram_load`, `intro_cram`, `bg_off`, `hide_buf`, `intro_hold`;
+    `bossart_glue.s` `stage_clear_hook` `$2E2`, `cram_hook` `$3B8`, `intro_cram_hook` `$3C6`, `bg_off_hook` `$940A`,
+    `hud_flush_hook` `$588`, `b12_tick` `$B12`, `music_hook` `$B470`; `pad.c` `stage_hold`; `glue.s` `hook_sat_dma`).
+    Arcade: the HUD (TIME, lives, the weapon's box) over the last picture at 1319, alone on black 1320-1358 (the
+    lance in the box's colours until 1321), Arthur 1359 (y 160, 162 from 1361), the stage 1363, sound `$30`/`$2B`
+    (the stage's music) at 1318/1320. The port (Fixed 70) turned the display off for its game start (`$2CC`: the
+    64 KiB VRAM clear, the loads, the bg init's own display off at `$940A`): 1319-1331 black, its HUD from 1332
+    (TIME's digits from 1333, the box with Arthur), Arthur 1361 (pace.c held the first two sprite tables: the first
+    update began late in the hold's last VBlank, its last update before the stage start), music from 1328. Now the
+    opening's last frame shows the arcade's HUD chars (rows 2-5, 26-29 -> plane A rows 0-3, 24-27) in the port's own
+    colours (each arcade fg colour's pens as the port's HUD tiles have them; line 0 stage 1's, ROM `$13FE2`; the TIME
+    digits with line 2's 9 and 15, copies of line 3's), its tiles at `$690-$6C7`/`$6D0-$6DB` (written by nothing in the
+    stage start, its hold or play), over the last picture's sprites converted to line 0; the next frame the HUD alone.
+    The game start keeps the display on: its clear spares the HUD and what the loads after it write whole, its CRAM
+    load (`$3B8`) puts lines 1-3 aside (all black but line 2's 9 and 15) and plane B shows plane A's table (v scrolls
+    sent to unused column entries) until the bg init's end (`$943C`), whose display off is skipped; the HUD upload
+    (`$588`) puts the TIME digits on line 2 as they go up, so the port's own HUD replaces this one with the same picture.
+    The stage's music starts at the load's start (the stage start's `$8812`, sounds `$30`, `$2B`, then skipped) and the
+    sound driver ticks at every VBlank the load's copies see (`$B12` in 64-word pieces); the load's frames are counted
+    by the VBlank handler (interrupts at level 6 meanwhile: `vb_isr` only counts and latches the pads) and the hold
+    ends 35 frames after the load's start, the frame counter in play as before; the first update then starts on a
+    VBlank's first line and holds only the stage start's table once, so the sprites show from the first frame of play
+    at every stage start (pace.c's state set at the hold's end). Measured (Start at 800 / 1200 in the port): 1319-1363
+    identical in mask on 45 of 45 frames (was 4), HUD 1319, lance 1321, Arthur 1359 (y 162 from 1361), the stage 1363,
+    Arthur's first step 1359 (x 97, 97, 98, ... as the arcade's), the counter in play equal to before; the music from
+    1321 (was 1328). After the second clear: the HUD R + 517, Arthur R + 557, the stage R + 560, as the arcade's (the
+    lance as it is: its palette was set before). Not as the arcade: the arcade's bonus life of the ending's 50,000 shows
+    at R + 556, the port's a few frames into play (Fixed 58).
+
+85. **The princess in her own colours** (`mkprincess.py`, `ending.c` `prin_cram`, `ending_glue.s` `hook_end_vbl`). Fixed 56/72
+    drew her with Arthur's palette line (lilac, grey) because every CRAM entry looked used; counted per pixel from the
+    final room's VRAM, CRAM and scroll during the scene, no plane pixel on the screen uses palette line 2 (the room's
+    tiles use lines 1 and 3, the HUD and the texts lines 0 and 3) and no sprite but hers does. Her walk and embrace
+    pieces are now converted with the arcade's sprite row 2 (pen p -> line 2 entry p + 1, 4 bits a channel halved, as
+    the port's other colours) and line 2 is loaded with the scene's tiles; the opening after it loads its own CRAM.
+    Checked: frame by frame against the same run with line 0, every pixel that differs is in her sprite's box (x 141-250,
+    y 148-177), the room, the texts and the HUD unchanged. Her and the embrace's x/y came from `$FFA200`/`$FFA202`,
+    which hold 141/0 in the final room as the developer menu launches it (both off the screen, the embrace invisible):
+    they come from the camera at `$FF9100`/`$FF9102` (7936/2560 there, as the arcade's `<$9C`). The heart keeps line 0's
+    nearest (peach; no pink in row 2).
+    Fault sweep with 83-85 (stages 1-6 x 1P, co-op, Firebrand, seed 1): no fault; updates per frame 1P .991 .916 .972
+    .969 .992 .985, co-op .938 .713 .832 .931 .797 .758, Firebrand .993 .898 .969 .926 .987 .975; the developer launch,
+    a normal Arcade Start, the Home start and Firebrand's Quest start all reach play.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -1093,9 +1160,8 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   Arremer after 1200-3600 frames and the subtype 0/2 states (no such spawn records seen in stage 2) are translated but weren't
   reached in a run (the change into an Arremer was since forced in both games: Matching (audited), Red Arremers).
 
-- **Ending, what's left** (Fixed 56, 72): the texts' colours are the nearest the palette lines allow (the HUD's), the
-  princess's are from Arthur's line (no CRAM entry free during the scene); Firebrand's ending wasn't reached headless
-  (its developer launch doesn't go to the final room).
+- **Ending, what's left** (Fixed 56, 72, 85): the texts' colours are the nearest the palette lines allow (the HUD's), the
+  heart's too; Firebrand's ending wasn't reached headless (its developer launch doesn't go to the final room).
 
 - **Smaller:** (the stage 2 ledge-edge and elevator walk steps: Fixed 66.) "A stage 5 flying
   knight drifts after ~600 frames" wasn't reproduced: no flying knight (type 3, `$AFFC`) spawns in stage 5 (every slot
@@ -1131,7 +1197,6 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   own stage draw at a camera column 0 (columns 0-12, rows R - 8 .. R - 1 and R + 17 .. R + 23, out of reach) and a few
   column writes' stale rows R + 15 .. R + 23 in stage 2 (above the screen), neither traced in the arcade's code.
 
-- **Intro** (Fixed 62, 70, 71): the arcade's swoop, Arthur's fall, getting up and walk change every frame, the port's
-  picture has 28, 11 and 24 steps for them (on arcade frames, the rest held); the frame before the arcade's HUD on black
-  (1319: the HUD over the last picture) and its first 12 frames are black in the port (its stage start loads with the
-  display off); Arthur's sprite shows 2 frames after the arcade's (his first step is on the same frame).
+- **Intro** (Fixed 62, 70, 71, 83, 84): after the second clear the arcade's graveyard shows its bg in the final room's
+  palette for 6 frames and its swoop/walk stand 1-4 px from Start's on 47 frames (sub-pixel parts kept from the room);
+  the port draws stage 1's colours and Start's positions. The second clear's bonus life shows a few frames into play.

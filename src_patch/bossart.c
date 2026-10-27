@@ -357,13 +357,11 @@ void win_chan(void)
     __asm__ volatile ("move.w %0,%%sr" :: "d" (sr) : "cc");
 }
 
-void hide_vblank(void);                 /* opening.c */
 
 /* hook_sat_dma: the uploads for the sprites about to be shown */
 void sat_vblank(void)
 {
     int b;
-    hide_vblank();
     win_vblanks();
     for (b = 0; b < 2; b++) {
         if (sb_want[b] && sb_want[b] != sb_have[b]) {

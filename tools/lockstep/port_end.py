@@ -16,11 +16,13 @@ def w8(a, v):
 
 START = int(os.environ['START']) if os.environ.get('START') else None; LOOP = int(os.environ.get('LOOPED', '1'))
 SC = os.environ.get('SCORE')
-prev = None; lastu = None
+prev = None; lastu = None; live_seen = False
 for f in range(1, int(frames) + 1):
     frame_no[0] = f
-    if 1000 <= f <= 1300: w8(0xFF500B, 7)
-    if f == 1301: w8(0xFF500B, 1)
+    if f >= 1000 and not live_seen:     # the stage poke until play (the launch now plays the opening first)
+        rm0 = ram()
+        if bytes(rm0[(0x7FF0 + k) ^ 1] for k in range(4)) == b'LIVE': live_seen = True; w8(0xFF500B, 1)
+        else: w8(0xFF500B, 7)
     w8(0xFFC309, 60)
     if START is None and f > 1310:
         r = ram()
