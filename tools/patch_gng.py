@@ -623,6 +623,8 @@ def install_bossart(rom, sym):
     expect(rom, 0x2E2, bytes.fromhex('33fc810400c00004' '23fc4000000000c00004' '7000323c3fff23c000c0000051c9fff8'),
            'game start display off and VRAM clear')
     put(rom, 0x2E2, jsr(sym['stage_clear_hook']) + bytes.fromhex('6000') + (0x304 - 0x2EA).to_bytes(2, 'big'))
+    expect(rom, 0x3B8, bytes.fromhex('23fcc000000000c00004' '4eba074e'), 'game start CRAM load')
+    put(rom, 0x3B8, jsr(sym['cram_hook']) + b'\x4e\x71' * 4)
     expect(rom, 0x3C6, bytes.fromhex('23fc4000001000c00004'), 'VSRAM address after the CRAM load')
     put(rom, 0x3C6, jsr(sym['intro_cram_hook']) + b'\x4e\x71\x4e\x71')
     expect(rom, 0x940A, bytes.fromhex('33fc810400c00004'), 'bg init display off')

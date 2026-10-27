@@ -103,6 +103,14 @@ stage_clear_hook:
     movem.l (%sp)+,%d0-%d7/%a0-%a6
     moveq   #0,%d0                  | (as the clear leaves it)
     rts
+    .global cram_hook
+cram_hook:
+    movem.l %d0-%d1/%a0-%a1,-(%sp)
+    move.l  %a0,-(%sp)
+    jsr     intro_cram_load
+    addq.l  #4,%sp
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+    rts
 intro_cram_hook:
     movem.l %d0-%d1/%a0-%a1,-(%sp)
     jsr     intro_cram

@@ -195,13 +195,11 @@ static void win_vblank(Win *w, int k)
     w->pend = 0;
 }
 
-void hide_vblank(void);                 /* opening.c */
 
 /* hook_sat_dma: the uploads for the sprites about to be shown */
 void sat_vblank(void)
 {
     int b;
-    hide_vblank();
     win_vblank(&win[0], 0);
     win_vblank(&win[1], 1);
     for (b = 0; b < 2; b++) {

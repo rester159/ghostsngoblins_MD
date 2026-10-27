@@ -314,6 +314,7 @@ dma_vram:
     .global hook_sat_dma
 hook_sat_dma:
     movem.l %d0-%d1/%a0-%a1,-(%sp)
+    jsr     hide_vblank             | opening.c: the stage shown after the opening (held frames too)
     jsr     pace_sat
     tst.w   %d0
     movem.l (%sp)+,%d0-%d1/%a0-%a1
