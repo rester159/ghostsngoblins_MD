@@ -135,6 +135,7 @@ void stage_jump(int stage);         /* glue.s: what the game does at a stage end
 
 void p2_frame(void);
 void fb_frame(void);
+int  fb_plus_on(void);
 void p2_reset(void);
 
 /* $61A2: player block initialised at game start */
@@ -146,6 +147,7 @@ void player_init(void)
     p2_reset();
     LIVES = start_lives();
     RANK = diff_rank[difficulty()];
+    if (fb_plus_on()) RANK = FB_PLUS_RANK;  /* Firebrand's Quest Plus: the top starting rank */
     RAM8(0xFFC561) = RANK;          /* floor for the per-death rank decrease */
     /* debug launch to a later stage: entered on the first frame of play */
     stage_pending = PERSIST->dev_on && PERSIST->dev_stage > 1 ? PERSIST->dev_stage : 0;

@@ -70,6 +70,7 @@
   const STREAM = ['A0', 'A1', 'A2', 'A3', 'A4', 'A7', 'A8', 'A9'];
   const NAMES = Array.from({ length: COUNT }, (_, s) => {
     if (s < 11) return 'boot A' + s;
+    if (s >= 70 && s < 74) return ['Climb A', 'Climb B', 'Climb top A', 'Climb top B'][s - 70];
     if (s < 84) { const k = s - 11; return k < 8 ? STREAM[k] : k === 8 ? 'B0/A10' : 'B' + (k - 8); }
     if (s >= FB_CLING) return ['Cling →', 'Cling ←', 'Cling fire →', 'Cling fire ←'][s - FB_CLING];
     const c = ['Walk →', 'Walk ←', 'Hover →', 'Hover ←'][Math.floor((s - 84) / 6)];

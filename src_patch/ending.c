@@ -38,7 +38,13 @@
  * the seated one of its opening) nor Arthur's embrace: those frames are the
  * arcade's own sprites converted to Genesis tiles (mkprincess.py, in the
  * port's palette line 0), put in the VRAM Astaroth's art used ($A000), drawn
- * as sprites here. Arthur's walk is the port's own art and animation. */
+ * as sprites here. Arthur's walk is the port's own art and animation.
+ *
+ * Firebrand's Quest has its own end (either clear): the first clear's black
+ * screen with Firebrand's text (fb_texts, in the arcade's colours) for
+ * FB_END frames, then Firebrand's Quest Plus from stage 1's map with the
+ * score and lives kept (the top starting rank; half the hover, firebrand.c),
+ * and Plus unlocked in the Home menu (saved; not from a practice launch). */
 #include "md.h"
 #include "build/endfont.h"
 
@@ -76,6 +82,7 @@ void end_sound(int id);
 void end_to_map(void);                  /* stage 1 from its map (no return) */
 void end_restart(void);                 /* stage 1 from its opening scene (glue.s loop_again) */
 int  fb_on(void);                       /* firebrand.c */
+void fb_cleared(void);                  /* firebrand.c: Plus from here on, unlocked */
 
 void dma_vram(u32 src, u16 bytes, u16 vram);   /* glue.s */
 
@@ -89,6 +96,7 @@ void dma_vram(u32 src, u16 bytes, u16 vram);   /* glue.s */
  * arcade's chars in those colours (mkprincess.py, build/endfont.h) at $AF00.
  * Both games show a text whole on its first frame (the arcade's printer
  * writes all its chars in one frame; the first clear's in 2). */
+#define FB_END    480                   /* Firebrand's ending: 8 s */
 #define FONT_VRAM 0xAF00                /* tiles $578-$5D1 */
 static u8 row_slot[32];                 /* each TBUF row's colour (end_glyph's slot) */
 static u8 font_pending;
@@ -102,6 +110,34 @@ static void text(int id)
     if (id == 45) row_slot[9] = 0;                  /* CONGRATULATION: colour 0 */
     if (id == 48) row_slot[11] = 2;                 /* RETURN TO STARTING POINT: 5 */
     end_text(id);
+    font_pending = 1;
+}
+
+/* Firebrand's ending: TBUF row, colour slot (0 4 5 8 9 11 = arcade colours
+ * 0, 4, 5, 8, 9, 11; mkprincess.py has their letters), text */
+static const struct { u8 row, slot; const char *s; } fb_texts[] = {
+    { 10, 0, "CONGRATULATION" },
+    { 12, 5, "THE RED ARREMER HAS" },
+    { 13, 5, "DEFEATED ASTAROTH." },
+    { 15, 4, "A HARDER QUEST AWAITS !" },
+    { 17, 1, "FIREBRAND'S QUEST PLUS" },
+};
+
+static void fb_text(void)
+{
+    unsigned i;
+    int r, c;
+    for (r = 9; r <= 20; r++) {
+        row_slot[r] = 5;
+        for (c = 0; c < 32; c++) TBUF[r * 32 + c] = ' ';
+    }
+    for (i = 0; i < sizeof fb_texts / sizeof fb_texts[0]; i++) {
+        const char *s = fb_texts[i].s;
+        int n = 0;
+        while (s[n]) n++;
+        row_slot[fb_texts[i].row] = fb_texts[i].slot;
+        for (c = 0; c < n; c++) TBUF[fb_texts[i].row * 32 + (32 - n) / 2 + c] = s[c];
+    }
     font_pending = 1;
 }
 
@@ -130,7 +166,8 @@ void end_tupload(void)
 }
 
 /* the scene's state */
-static u8 phase;                        /* 0 waiting, 1 first clear's text, 2 princess scene, 3 its texts */
+static u8 phase;                        /* 0 waiting, 1 first clear's text, 2 princess scene, 3 its texts,
+                                           4 Firebrand's ending */
 static u16 t;                           /* frames since the ending began (1 = the arcade's frame 1) */
 static u16 count;                       /* the arcade's <$09 */
 static u8 tx;                           /* which text of the second clear */
@@ -245,7 +282,14 @@ int end_update(void)
         if (STAGE != 6 || !end_trigger()) return 0;
         t = 0;
         black = 0; hug = 0; hearts = 0;
-        if (!LOOPED) {                  /* $73FE */
+        if (fb_on()) {
+            phase = 4;
+            black = 1;
+            end_black();
+            fb_text();
+            TEXT_ON = 1;
+            count = FB_END;
+        } else if (!LOOPED) {           /* $73FE */
             phase = 1;
             black = 1;
             end_black();
@@ -274,6 +318,12 @@ int end_update(void)
         break;
     case 3:
         texts_frame();
+        break;
+    case 4:
+        if (--count == 0) {
+            fb_cleared();
+            end_to_map();
+        }
         break;
     }
     return 1;
