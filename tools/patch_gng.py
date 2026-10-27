@@ -296,6 +296,9 @@ def install_features(rom, build_dir):
     put(rom, 0x11080E, jsr(sym['hook_satan_die']))
     expect(rom, 0x11082C, jsr(0xB7F2), 'Satan death sound')
     put(rom, 0x11082C, b'\x4e\x71' * 3)
+    # its score phase a frame shorter: the burst takes one more count (glue.s)
+    expect(rom, 0x110826, bytes.fromhex('397c003f0024'), 'Satan score phase')
+    put(rom, 0x110826, bytes.fromhex('397c003e0024'))
     # the arcade's second random ($68F9, $6E/$6F = $FFC62C, arcrand.c) is seeded
     # at power-on and game start only: the ten stage inits reloaded $87CD
     for a in (0x9C0, 0x104728, 0x10EB60, 0x10FA2A, 0x1109D0, 0x111450, 0x11761C,

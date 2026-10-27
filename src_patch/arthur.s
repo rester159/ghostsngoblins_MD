@@ -85,6 +85,13 @@ lad_exit:
 | the arcade's instead of snapping down. Stage start, right held, arcade:
 | walk at y 64.28, then land at 62.03 without walking; the port walked and
 | snapped in the same update.
+| Every other ground step too (docs/ACCURACY.md, Fixed 67): the floor at his
+| own y, then the objects ($84B8, $8744's last step), but not $8744's second
+| probe 8 px down, which snapped him down onto a lower floor in the walk. The
+| arcade's walk ($91D1) has no such probe: no floor at $8CA7 and no object at
+| y - 1 ($9674/$9FAE) starts its fall state ($91F2), which doesn't walk, so a
+| floor one pixel lower costs a frame standing (stage 5 room, x 7048: y 1615
+| -> 1614).
 | Also (docs/ACCURACY.md, Fixed 66): during a jump's wind-up (pad.c
 | arcade_input sets WALK_FLAGS bit 2 on the press frame and the frame between,
 | the walk and stand-still frames before the take-off) he stays on his floor.
@@ -116,9 +123,12 @@ ground_snap:
     rts
 2:  tst.b   EXACT_FLOOR
     bne.s   1f
-    jsr     0x8744
+    jsr     0x8784                  | the floor at his own y (as $8744's first probe)
     tst.l   %d0
-    rts
+    bne.s   3f
+    jsr     0x84B8                  | the objects ($8744's last step)
+    tst.l   %d0
+3:  rts
 1:  clr.b   EXACT_FLOOR
     jsr     0x8784
     tst.l   %d0
