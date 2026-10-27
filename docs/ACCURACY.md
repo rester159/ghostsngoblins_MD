@@ -1043,7 +1043,7 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   a check that every live, on-screen Big Man has sprites with pixels in the sprite table on every frame, over the ladder
   building and past it (teleported to x 5488/5632/5760 and walking on, ~6,000 frames) every one was drawn whenever the
   game ran; the only frames without were the 8 paused, blank frames of the camera snap above (after a teleport). The Big Men's own
-  stand-ins in that area (a clamp to x 5200-5808 and a floor assumed where the probe found none) were removed with Fixed 54.
+  stand-ins in that area (a clamp to x 5200-5808 and a floor assumed where the probe found none) were removed with Fixed 54. Fixed 78 later found every Big Man drawn split down the middle (the halves swapped since Fixed 21), which may be what was seen.
 - **Co-op speed:** with the enemies now behaving as the arcade's (devils staying on the screen as long, skulls, Big Men)
   and the per-update fixes above, co-op runs slower than the last install (seed 1: stage 2 0.70, stage 5 0.89, stage 6
   0.82 updates per frame; 1P and Firebrand stay 0.92-1.0). On identical RAM the per-update fixes cost ~3 scanlines of
