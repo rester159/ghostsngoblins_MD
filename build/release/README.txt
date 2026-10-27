@@ -1,6 +1,6 @@
-GHOSTS 'N GOBLINS GENESIS PLUS
+GHOSTS'N GOBLINS MD  -  V0.6 ALPHA
 rester159, 2026
-==============================
+==================================
 
 A reworked version of the Ghosts 'n Goblins Mega Drive / Genesis port: fixed to
 run on real hardware and accurate emulators, faster, with 2-player co-op as

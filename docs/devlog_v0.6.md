@@ -1,6 +1,6 @@
-# v0.6 alpha: closer to the arcade, frame for frame
+# Ghosts'n Goblins MD V0.6 alpha: closer to the arcade, frame for frame
 
-v0.6 is out. Most of this release is about making the Mega Drive version behave like the arcade cabinet: each of those changes was checked by running the arcade and the port side by side, headless, and comparing them frame by frame.
+Ghosts'n Goblins MD V0.6 alpha is out. Most of this release is about making the Mega Drive version behave like the arcade cabinet: each of those changes was checked by running the arcade and the port side by side, headless, and comparing them frame by frame.
 
 ## Bugs you reported
 
