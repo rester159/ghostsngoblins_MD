@@ -1,6 +1,6 @@
 """arc_windows.py <state> <frames>: stage 2, ROUTE walk; window devils (type 4 subtype 1): states and their window's
 bg tile codes every frame they change. KILL=<n>: the n-th window devil to reach its closing (ST1 4 ST2 4) is
-removed (live 0) on that frame. INV."""
+removed (live 0) on that frame (KILL=-1: every one; KDELAY=d: d frames into its closing). INV."""
 import os, sys
 R = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
 sys.path.insert(0, R + '/tools/arcade'); sys.path.insert(0, R + '/tools/lockstep')
@@ -9,7 +9,7 @@ from route import Route
 g = GnG(R + '/rom'); g.load(sys.argv[1]); m = g.mem
 route = Route(os.environ.get('ROUTE', 'R9000'))
 AMAP = {'R': 1, 'L': 2, 'D': 4, 'U': 8, 'F': 0x10, 'J': 0x20, 'RJ': 0x21, 'LJ': 0x22, '': 0}
-KILL = int(os.environ.get('KILL', '0')); nclose = 0
+KILL = int(os.environ.get('KILL', '0')); nclose = 0; KD = int(os.environ.get('KDELAY', '0')); kat = {}
 wins = {}      # (col,row) -> last codes
 seen = {}
 for fr in range(1, int(sys.argv[2]) + 1):
@@ -26,7 +26,8 @@ for fr in range(1, int(sys.argv[2]) + 1):
                 seen[key] = 1; wins[((x >> 4) - 1, y >> 4)] = None; print('f%d devil slot %d opens at %d,%d' % (fr, i, x, y))
             if st == (1, 4, 4) and seen.get(key) == 1:
                 seen[key] = 2; nclose += 1
-                if nclose == KILL: m[X - 0x10] = 0; print('f%d removed slot %d (closing)' % (fr, i))
+                if nclose == KILL or KILL < 0: kat[i] = fr + KD
+            if kat.get(i) == fr: m[X - 0x10] = 0; del kat[i]; print('f%d removed slot %d (closing + %d)' % (fr, i, KD))
     for (c, r), last in list(wins.items()):
         codes = []
         for rr in (r + 1, r):
