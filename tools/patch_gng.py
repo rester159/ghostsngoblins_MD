@@ -567,6 +567,9 @@ def install_speed(rom, sym):
                                         '51c8fff823fc6a24000300c00004303c000433d800c0000051c8fff823fc6494000300c0000441f900ffc5d0'
                                         '700e33d800c0000051c8fff84cdf01014e75'), 'HUD rows')
     put(rom, 0x11AE4E, jmp(sym['hud_rows']))
+    # the multi-piece sprite builder ($705C8): the object's parts of the tests worked out once
+    expect(rom, 0x7064C, bytes.fromhex('53473412d4519453064200 0f0c42010e6278'.replace(' ', '')), 'piece builder loop')
+    put(rom, 0x7064C, jmp(sym['pieces8']))
 
 
 RENDER_GATES = (0x9A0E, 0x105502, 0x106434, 0x10F3D2, 0x110368, 0x11130C, 0x111B1A)

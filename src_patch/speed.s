@@ -560,3 +560,77 @@ ta_wait:
 9:  rts
 8:  andi.b  #0xFB,%ccr              | Z clear
     rts
+
+| ---------------------------------------------------------------------------
+| The multi-piece sprite builder $705C8 (stage 6's type 8, from the stage
+| 3-6 build): for each piece of a live, on-screen object, a position test
+| against the camera and, for a piece it draws, an attribute fix-up that
+| compares the object with two pointers in a6's block (8, 12: the fault at
+| $706EA for anything else) and tests the stage. $7064C: `jmp pieces8` over
+| `subq.w #1,d7` / `move.w (a2),d2` / `add.w (a1),d2`. The object's parts of
+| both tests are worked out once (x: +(a1) -(a3) +15 in a0, y: 239 +2(a3)
+| -2(a1) in a4, the attribute's addend in d6's high word); the same word
+| sums, entries, counters and d2/d3/a2/a5/d7 as the loop left them, then on
+| to the next object at $706DC. An object that matches neither pointer takes
+| the loop as before (it faults at its first drawn piece). a0 and d6 are
+| restored by $705C8's exit, a4 here.
+    .global pieces8
+pieces8:
+    subq.w  #1,%d7
+    swap    %d6
+    cmpa.l  8(%a6),%a1
+    beq.s   1f
+    cmpa.l  12(%a6),%a1
+    bne.w   8f
+    move.w  #36,%d6
+    cmpi.b  #5,0xFFC512
+    bne.s   2f
+    addq.w  #8,%d6
+    bra.s   2f
+1:  clr.w   %d6
+    cmpi.b  #5,0xFFC512
+    bne.s   2f
+    subi.w  #640,%d6
+2:  swap    %d6
+    move.l  %a4,-(%sp)
+    move.w  (%a1),%d2
+    sub.w   (%a3),%d2
+    addi.w  #15,%d2
+    movea.w %d2,%a0
+    move.w  #239,%d2
+    add.w   2(%a3),%d2
+    sub.w   2(%a1),%d2
+    movea.w %d2,%a4
+3:  move.w  (%a2),%d2
+    add.w   %a0,%d2
+    cmpi.w  #270,%d2
+    bhi.s   6f
+    move.w  2(%a2),%d3
+    add.w   %a4,%d3
+    cmpi.w  #238,%d3
+    bhi.s   6f
+    tst.w   %d5
+    beq.s   5f
+    tst.w   %d4
+    beq.s   4f
+    move.b  %d4,-5(%a5)
+4:  addi.w  #113,%d2
+    addi.w  #113,%d3
+    move.w  %d3,(%a5)+
+    move.w  #0x0500,(%a5)+
+    move.w  4(%a2),(%a5)
+    swap    %d6
+    add.w   %d6,(%a5)+
+    swap    %d6
+    move.w  %d2,(%a5)+
+    addq.w  #1,%d4
+    addq.w  #1,%d0
+    subq.w  #1,%d5
+    bra.s   6f
+5:  addq.w  #1,%d1
+6:  addq.l  #6,%a2
+    dbf     %d7,3b
+    movea.l (%sp)+,%a4
+    jmp     0x706DC
+8:  swap    %d6
+    jmp     0x7064E
