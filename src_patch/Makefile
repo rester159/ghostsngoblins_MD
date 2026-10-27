@@ -21,7 +21,9 @@ build/common.o: build/font.inc
 
 build/princess.inc: mkprincess.py ../rom/gg12.bin ../rom/gg1.bin
 	python3 -I mkprincess.py ../rom $@
+build/endfont.h: build/princess.inc
 build/ending_glue.o: build/princess.inc
+build/ending.o: build/endfont.h
 build/intro.o: build/intro.inc
 
 build/art.inc: mkart.py ../rom/gg12.bin

@@ -328,7 +328,7 @@ void hide_frame(void)
 
 int intro_hold(void)
 {
-    if (!intro_hide) return 0;
+    if (!intro_hide) { hiding = 0; return 0; }  /* (another stage start: nothing to put back) */
     if (intro_hide == 2) hide_until = RAM32(0xFF7DFC) + HIDE_FRAMES;
     intro_hide = 0;
     return 2;
@@ -341,6 +341,7 @@ void hide_vblank(void)
     if (!hiding) return;
     if ((long)(RAM32(0xFF7DFC) - hide_until) < 0) return;
     hiding = 0;
+    if (RAM8(0xFFC512) != 0 || RAM32(0xFF7DFC) - hide_until > 8) return;   /* stage 1 left already */
     sr = irq_off();
     VDP_CTRLL = CRAM_W(32);
     for (k = 0; k < 48; k++) VDP_DATA = hide_cram[k];

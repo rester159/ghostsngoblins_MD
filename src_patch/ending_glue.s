@@ -203,10 +203,13 @@ hook_end_build:
 1:  jmp     0xC35E8
 
 | $1115D6 (after the VBlank, Z80 bus held): `jsr hook_end_vbl` + 2 nops
-| over `jsr $113B00` (the text layer's upload) and `jsr $63FA`. The scene's
-| tiles go to VRAM $A000 (Astaroth's art, free after his removal) once.
+| over `jsr $113B00` (the text layer's upload) and `jsr $63FA`. The text layer
+| is ending.c's end_tupload's (the arcade's colours); the scene's tiles go to
+| VRAM $A000 (Astaroth's art, free after his removal) once.
 hook_end_vbl:
-    jsr     0x113B00
+    movem.l %d0-%d1/%a0-%a1,-(%sp)
+    jsr     end_tupload
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
     tst.b   end_upload
     beq.s   1f
     movem.l %d0-%d1/%a0-%a1,-(%sp)
