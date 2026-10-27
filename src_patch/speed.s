@@ -96,13 +96,13 @@ op12_live:
 2:  op12s 0, 0x6ADC
     op12s 1, 0x6AE2
     op12s 2, 0x6AE2
-    op12s 3, 0x6CB8
+    op12s 3, f12_t1
     op12s 4, 0x6D7C
     op12s 5, 0x6E02
     op12s 6, 0x6E7C
     op12s 7, 0x6EE4
     op12s 8, 0x6EEE
-    op12s 9, 0x6D22
+    op12s 9, f12_ta
     op12s 10, 0x6AE2
     op12s 11, 0x6AE2
     op12s 12, 0x6F4E
@@ -265,13 +265,13 @@ op36_live:
 2:  op36s 0, 0x105764
     op36s 1, 0x10576C
     op36s 2, 0x10576C
-    op36s 3, 0x10589E
+    op36s 3, f36_t1
     op36s 4, 0x1059C2
     op36s 5, 0x105A5A
     op36s 6, 0x105AD6
     op36s 7, 0x105B40
     op36s 8, 0x105B4A
-    op36s 9, 0x105976
+    op36s 9, f36_ta
     op36s 10, 0x105942
     op36s 11, 0x105902
     op36s 12, 0x105B9E
@@ -450,4 +450,113 @@ hud_rows:
     move.w  (%a0)+,(%a1)
     .endr
     movem.l (%sp)+,%d0/%a0-%a1
+    rts
+
+| ---------------------------------------------------------------------------
+| The waiting crows and type-10 enemies of t1_entry / t1b_entry / ta_entry,
+| straight from the passes' handler tables: their preambles ($6CB8, $6D22,
+| $10589E, $105976) copy the pass context into the type's block at $FFC620
+| (+0-10; +11 from the type's byte at $FFC8A1 / $FFC8AA, copied back
+| unchanged after the call), type 1 also the slot to $FFC634 and its marker
+| $FFC630 = 22 then 23, type 10 the long at +40 to $FFC630; then they call
+| the handler and come back with a2 = the pass context, a3 restored, d0 = 0.
+| The same writes and registers here, then the pass goes on as from the
+| preamble's end: the next slot ($6BFC) for stages 1-2 (the slot is off the
+| screen), the hit-test step ($105790) for stages 3-6. Anything else goes to
+| the preamble with d4 and the flags as the table set them.
+    .macro  ctx620                  | the preambles' copy (a2 = $FFC620, a3 = the pass context)
+    lea     0xFFC620,%a2
+    move.l  (%a3),(%a2)
+    move.w  4(%a3),4(%a2)
+    move.w  48(%a3),6(%a2)
+    move.b  6(%a3),8(%a2)
+    move.b  7(%a3),9(%a2)
+    move.b  8(%a3),10(%a2)
+    .endm
+f12_t1:
+    bsr.w   t1_wait
+    bne.s   9f
+    ctx620
+    move.l  %a4,0xFFC634
+    move.w  #23,0xFFC630
+    move.b  0xFFC8A1,11(%a2)
+    movea.l %a3,%a2
+    moveq   #0,%d0
+    bra.w   op12_next
+9:  moveq   #3,%d4
+    jmp     0x6CB8
+f12_ta:
+    bsr.w   ta_wait
+    bne.s   9f
+    ctx620
+    move.l  40(%a3),16(%a2)
+    move.b  0xFFC8AA,11(%a2)
+    movea.l %a3,%a2
+    moveq   #0,%d0
+    bra.w   op12_next
+9:  moveq   #9,%d4
+    jmp     0x6D22
+f36_t1:
+    bsr.w   t1b_wait
+    bne.s   9f
+    ctx620
+    move.l  %a4,0xFFC634
+    move.w  #23,0xFFC630
+    move.b  0xFFC8A1,11(%a2)
+    movea.l %a3,%a2
+    moveq   #0,%d0
+    bra.w   op36_hit
+9:  moveq   #4*3,%d4
+    lsr.w   #2,%d4
+    jmp     0x10589E
+f36_ta:
+    bsr.w   ta_wait
+    bne.s   9f
+    ctx620
+    move.l  40(%a3),16(%a2)
+    move.b  0xFFC8AA,11(%a2)
+    movea.l %a3,%a2
+    moveq   #0,%d0
+    bra.w   op36_hit
+9:  moveq   #4*9,%d4
+    lsr.w   #2,%d4
+    jmp     0x105976
+| Z set: the slot is waiting off the screen as the entries above test (the
+| type is the table's; +4 is set). No register changes.
+t1_wait:
+    cmpi.b  #1,7(%a4)
+    bne.s   9f
+    tst.b   8(%a4)
+    bne.s   9f
+    tst.b   9(%a4)
+    bne.s   9f
+    cmpi.b  #3,6(%a4)
+    beq.s   1f
+    cmpi.b  #5,6(%a4)
+    bne.s   9f
+1:  tst.b   5(%a4)
+9:  rts
+t1b_wait:
+    cmpi.b  #1,7(%a4)
+    bne.s   9f
+    tst.b   8(%a4)
+    bne.s   9f
+    tst.b   9(%a4)
+    beq.s   8f
+    cmpi.b  #2,6(%a4)
+    bne.s   9f
+    tst.b   5(%a4)
+9:  rts
+8:  andi.b  #0xFB,%ccr              | Z clear
+    rts
+ta_wait:
+    tst.b   7(%a4)
+    bne.s   9f
+    cmpi.b  #0xA5,41(%a4)
+    beq.s   8f
+    tst.b   8(%a4)
+    beq.s   8f
+    tst.b   5(%a4)
+9:  rts
+8:  andi.b  #0xFB,%ccr              | Z clear
     rts
