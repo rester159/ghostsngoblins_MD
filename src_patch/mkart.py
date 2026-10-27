@@ -246,12 +246,15 @@ def intro_scene():
     g = GnG(romdir); m = g.mem
     pal, snap = {}, {}
     blk_spr = {}                                    # the black part: the sprite list of every frame
-    for f in range(1, 999 + IB_FRAMES):
+    hud = {}                                        # the HUD on black after it: fg and palette
+    for f in range(1, 1360):
         g.set_inputs(0x40 if 700 <= f <= 710 else (1 if 800 <= f <= 805 else 0), 0, 0)
         g.run_frame()
         if f in (806, 871, 935, 1000):
             pal[f] = g.palette()
-        if f in (870, 955, 993, 996) or f >= 999:
+        if f in (1319, 1321, 1340):
+            hud[f] = dict(fg=bytes(m[0x2000:0x2800]), pal=g.palette())
+        if f in (870, 955, 993, 996) or 999 <= f < 999 + IB_FRAMES:
             b = g.spritebuf; sp = []
             for o in range(0x200 - 4, -1, -4):          # back to front, as the renderer
                 attr = b[o + 1]; code = b[o] + ((attr << 2) & 0x300)
@@ -475,6 +478,74 @@ def intro_scene():
         bframe.append(lists[key])
     bcram = [0] * 64
     for (li, i), c in bent.items(): bcram[li * 16 + i] = cram(c)
+    # --- the HUD on black after it (arcade 1319-1358: TIME, the lives and the weapon under the top rows) ---
+    # opening.c shows it from the arcade's frame 1319 (over the last picture) on plane A, where stage 1's start
+    # puts its own HUD (the arcade's rows 2-5, 26-29 -> plane A rows 0-3, 24-27), in the port's colours: each
+    # arcade fg colour's pens as the port's own HUD tiles have them (read from its VRAM in play), line 0 (stage 1's,
+    # ROM $13FE2, which the stage start loads), the TIME digits (colour 11, line 3 in the port) with line 2's 9 and
+    # 15 (copies of line 3's while the stage is hidden: opening.c hide_*). Its tiles go where stage 1's start
+    # writes nothing ($690-$6C7, $6D0-$6DB: zero in its load, its hold and play). At 1319-1320 the weapon's lance
+    # is in the box's colours (the arcade's colour 15 is colour 14's until 1321): 4 more tiles.
+    # The last picture's sprites at 1319 (Arthur, colour 0) go in line 0 too: line 0 is the arcade's colour 0.
+    HUD_MAP = {0: {0: 12, 1: 7, 2: 6}, 4: {1: 15, 2: 9}, 5: {1: 12, 2: 9}, 8: {1: 3, 2: 9}, 11: {1: 15, 2: 9},
+               13: {0: 1, 1: 10, 2: 6}, 14: {0: 1, 1: 8, 2: 5}, 15: {0: 14, 1: 11, 2: 15}}
+    HUD_REGIONS = [(0x690, 0x6C8), (0x6D0, 0x6DC)]
+    def chr_blank(code): return all(((CHR[code * 16 + k] >> 4) & (CHR[code * 16 + k] & 15)) == 15 for k in range(16))
+    htiles, hcells, hlance = [], [], []
+    def htile(code, col, attr=0):
+        px = [[0 if chr_pen(code, 7 - x if attr & 0x10 else x, 7 - y if attr & 0x20 else y) == 3 else
+               HUD_MAP[col][chr_pen(code, 7 - x if attr & 0x10 else x, 7 - y if attr & 0x20 else y)] for x in range(8)] for y in range(8)]
+        w = tw(px)
+        if w not in htiles: htiles.append(w)
+        return htiles.index(w)
+    fgh = hud[1340]['fg']
+    assert hud[1319]['fg'] == fgh and hud[1321]['fg'] == fgh
+    p19, p40 = hud[1319]['pal'], hud[1340]['pal']
+    assert all(p19[0x80 + 15 * 4 + k] == p40[0x80 + 14 * 4 + k] for k in range(3))     # the lance at 1319-1320
+    assert all(p19[0x80 + c * 4 + k] == p40[0x80 + c * 4 + k] for c in range(15) for k in range(4))
+    for ty in (2, 3, 4, 5, 26, 27, 28, 29):
+        for tx in range(32):
+            i = ty * 32 + tx
+            code = fgh[i] | ((fgh[0x400 + i] & 0xC0) << 2); attr = fgh[0x400 + i]; col = attr & 15
+            if chr_blank(code): continue
+            if ty == 3 and 12 <= tx <= 19: continue          # the top score: opening.c's digits
+            row = ty - 2
+            hcells.append((row, tx, (2 if col == 11 else 0) << 13, htile(code, col, attr)))
+            if col == 15: hlance.append((len(hcells) - 1, htile(code, 14, attr)))
+    top_attr4 = fgh[0x400 + 3 * 32 + 19]
+    assert top_attr4 & 15 == 4
+    hdig = [htile(d, 4) for d in range(10)]
+    assert len(htiles) <= sum(b - a for a, b in HUD_REGIONS), 'HUD tiles don\'t fit'
+    hv = []
+    for a, b in HUD_REGIONS: hv += list(range(a, b))
+    # the last picture's sprites at 1319 in line 0 (stage 1's colours: ROM $13FE2's line 0)
+    L0 = [0x0000, 0x0000, 0x0006, 0x000C, 0x0024, 0x0028, 0x0046, 0x006C, 0x0088, 0x0622, 0x068A, 0x0866, 0x08AC, 0x0A60, 0x0A88, 0x0CAA]
+    l0rgb = [tuple(LV[(w >> (sh + 1)) & 7] for sh in (0, 4, 8)) for w in L0]
+    def near0(c):
+        g3 = q(c)
+        return min(range(1, 16), key=lambda i: sum((LV[a] - b) ** 2 for a, b in zip(g3, l0rgb[i])))
+    lastp, lastl = [], []
+    for code, col, hf, vf, x, y in blk_spr[999 + IB_FRAMES - 1][::-1]:
+        assert col == 0
+        px = [[0 if spr_pen(code, xx, yy) == 15 else near0(pal[1000][0x40 + spr_pen(code, xx, yy)]) for xx in range(16)] for yy in range(16)]
+        at = IB_TILE0 + len(btiles) + len(lastp)
+        lastp += [tw([r[tx * 8:tx * 8 + 8] for r in px[ty * 8:ty * 8 + 8]]) for tx, ty in ((0, 0), (0, 1), (1, 0), (1, 1))]
+        lastl.append((y + 128, x + 128, (0x800 if hf else 0) | (0x1000 if vf else 0) | at))
+    btiles += lastp
+    assert IB_TILE0 + len(btiles) <= 0x551
+    out.append('/* the HUD on black: %d tiles */' % len(htiles))
+    emit_words('hud_tiles', [w for t in htiles for w in t])
+    out.append('#define HUD_NTILES %d' % len(htiles))
+    out.append('static const u16 hud_vtile[%d] = { %s };' % (len(htiles), ', '.join('0x%03X' % hv[k] for k in range(len(htiles)))))
+    out.append('#define HUD_NCELLS %d' % len(hcells))
+    out.append('static const u16 hud_cell[%d][2] = { %s };  /* plane A offset, cell */' % (len(hcells), ', '.join(
+        '{0x%03X, 0x%04X}' % ((r * 64 + c) * 2, 0x8000 | a | hv[t]) for r, c, a, t in hcells)))
+    out.append('#define HUD_NLANCE %d' % len(hlance))
+    out.append('static const u16 hud_lance[%d][2] = { %s };  /* cell index, the 1319-1320 tile */' % (len(hlance), ', '.join(
+        '{%d, 0x%04X}' % (k, 0x8000 | hv[t]) for k, t in hlance)))
+    out.append('static const u16 hud_digit[10] = { %s };' % ', '.join('0x%04X' % (0x8000 | hv[t]) for t in hdig))
+    out.append('#define HUD_NLAST %d' % len(lastl))
+    out.append('static const u16 hud_last[%d][3] = { %s };' % (len(lastl), ', '.join('{%d, %d, 0x%04X}' % e for e in lastl)))
     out.append('/* the black part: %d sprite tiles from tile 0x%03X, %d sprite lists */' % (len(btiles), IB_TILE0, len(lists)))
     out.append('#define IB_TILE0 0x%03X' % IB_TILE0)
     out.append('#define IB_NTILES %d' % len(btiles))

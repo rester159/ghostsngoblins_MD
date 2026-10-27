@@ -52,6 +52,14 @@ static u8 after_end;
 static const u16 isc_ev[2][10] = {
     { AF(805), AF(871), AF(935), AF(955), AF(826), AF(993), AF(994), AF(996), AF(997), AF(999) },
     { 5, 65, 129, 150, 22, 188, 189, 190, 191, 193 } };
+#define HIDE_FRAMES 30
+#define HOLD_CUT 9                              /* the hold's frames taken off after the opening (its load is longer, display on) */
+static u16 hide_cram[48];
+static u32 hide_cells[2];                       /* plane A rows 2 and 3: the cells moved to line 2 */
+static u32 hide_until;
+static u8 hiding;
+static void hud_load_step(void);
+static void hud_show(void);
 static u16 isc_top[8];                          /* the top score's digits (10 = blank) */
 static void vram_fill_plane(const u16 *src, u16 base)
 {
@@ -210,39 +218,133 @@ int intro_scene(void)
             vdp_reg(18, 0x80);                  /* the window (the HUD's rows) over the whole screen */
         } else if (n <= 8)
             vram_zero(0xE000 + (n - 1) * 512, 256);     /* plane A clear again, under the window */
+        else if (n == 9)
+            vdp_reg(18, 0x02);                  /* plane A empty: the window back to the HUD's rows */
         if (n == 0 || ib_frame[n] != ib_frame[n - 1]) ib_sprites(n);
         irq_restore(sr);
         intro_tick();
+        if (n >= 10) hud_load_step();
         if (n >= 20 && start_pressed()) break;
     }
     if (n == IB_FRAMES) {
-        intro_wait();                           /* its last frame shows whole */
-        if (after_end) intro_wait();            /* (the arcade's ends a frame later there) */
+        if (after_end) { intro_wait(); intro_tick(); }  /* (the arcade's ends a frame later there) */
+        intro_wait();                           /* the HUD over the last picture */
+        sr = irq_off();
+        hud_show();
+        irq_restore(sr);
+        intro_tick();
+        intro_wait();                           /* the HUD alone */
+        vram_zero(0xF000, 4);
         intro_hide = 1;
+        return 0;
     }
     ib_regs_normal();
     return 0;
 }
 
 /* After the opening the arcade shows the HUD on black (TIME, the lives and
- * the weapon; the stage's bg palettes black) until Arthur appears and the
- * stage fades in. The port's stage start shows the stage at once: from the
- * display's start at the end of stage 1's bg init ($943C, intro_show) lines
- * 1-3 are black (line 0 is the HUD's, the lives', the weapon's and Arthur's)
- * but for line 2's 9 and 15, which take line 3's: the TIME digits (plane A,
- * row 3, line 3, colours 9 and 15) are drawn with line 2 meanwhile (hide_frame,
- * each frame of the hold, which draws them; stage 1's plane B has no pixel of
- * line 2's 9 or 15 there). Lines 1-3 and the digits come back on the
- * arcade's frame (hide_vblank from sat_vblank, by the frame counter $FF7DFC).
- * intro_hold (pad.c stage_hold) returns the hold's frames to take off: the
- * picture ends 2 frames later than before. */
-#define HIDE_FRAMES 30
-static u16 hide_cram[48];
-static u32 hide_cells[2];                       /* plane A rows 2 and 3: the cells moved to line 2 */
-static u32 hide_until;
-static u8 hiding;
+ * the weapon under the top rows; the stage's bg palettes black) from the
+ * picture's last frame (1319, over its sprites) until Arthur appears and the
+ * stage fades in; the port's stage start ($2CC) turned the display off while
+ * it cleared VRAM and loaded stage 1 (13 black frames) and showed its own HUD
+ * after it. Now the HUD is on plane A from 1319 (hud_show: the arcade's chars
+ * in the port's colours, mkart.py; its tiles where the stage start writes
+ * nothing) with lines 1-3 black (line 0 stage 1's, ROM $13FE2, and line 2's 9
+ * and 15 line 3's for the TIME digits), and the stage start keeps the display
+ * on: its VRAM clear spares the HUD and the areas its loads write whole
+ * (stage_clear, $2E2), the CRAM it loads is hidden as it lands (intro_cram,
+ * $3C6), plane B shows plane A's table until its bg init is done (intro_show,
+ * $943C; its display off at $940A skipped: bg_off), so the port's own HUD
+ * replaces this one with the same picture when it is drawn. */
+static u16 hud_at;
+static void hud_load_step(void)
+{
+    u16 n, k, sr;
+    if (hud_at >= HUD_NTILES) return;
+    sr = irq_off();
+    for (n = 0; n < 32 && hud_at < HUD_NTILES; n++, hud_at++) {
+        VDP_CTRLL = VRAM_W((u32)hud_vtile[hud_at] * 32);
+        for (k = 0; k < 16; k++) VDP_DATA = hud_tiles[hud_at * 16 + k];
+    }
+    irq_restore(sr);
+}
 
-void intro_show(void)
+#define STAGE1_CRAM 0x13FE2                     /* the CRAM stage 1's start loads */
+static void hud_cells(int lance)
+{
+    u16 k;
+    for (k = 0; k < HUD_NCELLS; k++) {
+        VDP_CTRLL = VRAM_W(0xE000 + hud_cell[k][0]);
+        VDP_DATA = hud_cell[k][1];
+    }
+    for (k = 0; k < HUD_NLANCE && lance; k++) {
+        VDP_CTRLL = VRAM_W(0xE000 + hud_cell[hud_lance[k][0]][0]);
+        VDP_DATA = hud_lance[k][1];
+    }
+}
+
+static void hud_show(void)
+{
+    u16 k;
+    while (hud_at < HUD_NTILES) hud_load_step();
+    vdp_reg(18, 0);                             /* no window: plane A (empty but for the HUD) */
+    vdp_reg(4, 0x07);                           /* plane B shows plane A's table while stage 1 loads */
+    VDP_CTRLL = CRAM_W(0);
+    for (k = 0; k < 64; k++)
+        VDP_DATA = k < 16 ? RAM16(STAGE1_CRAM + k * 2) : k == 41 ? RAM16(STAGE1_CRAM + 57 * 2)
+                 : k == 47 ? RAM16(STAGE1_CRAM + 63 * 2) : 0;
+    hud_cells(1);
+    VDP_CTRLL = VRAM_W(0xE000 + 1 * 128 + 12 * 2);
+    for (k = 0; k < 8; k++) VDP_DATA = isc_top[k] == 10 ? 0 : hud_digit[isc_top[k]];
+    VDP_CTRLL = VRAM_W(0xF000);                 /* the last picture's sprites in line 0 */
+    for (k = 0; k < HUD_NLAST; k++) {
+        VDP_DATA = hud_last[k][0];
+        VDP_DATA = 0x0500 | (k + 1 < HUD_NLAST ? k + 1 : 0);
+        VDP_DATA = hud_last[k][2];
+        VDP_DATA = hud_last[k][1];
+    }
+}
+
+static void vblank_start(void)
+{
+    while (VDP_CTRL & 8) ;
+    while (!(VDP_CTRL & 8)) ;
+}
+
+/* $2E2 (display off and the 64 KiB VRAM clear of the game start): after the
+ * opening the display stays on, the lance takes its colours on the arcade's
+ * frame (1321), and the clear spares the HUD's cells and tiles and what the
+ * loads after it write whole ($0020-$49A0, $4A00-$5800, $6000-$A920,
+ * $AF00-$BE80, plane B $C000-$CFFF) */
+static void zero_range(u16 a, u16 b)
+{
+    VDP_CTRLL = VRAM_W(a);
+    for (; a < b; a += 2) VDP_DATA = 0;
+}
+
+void stage_clear(void)
+{
+    static const u16 zr[][2] = { {0x0000, 0x0020}, {0x49A0, 0x4A00}, {0x5800, 0x6000}, {0xA920, 0xAF00},
+                                 {0xBE80, 0xC000}, {0xD000, 0xD200}, {0xD900, 0xDA00}, {0xDB80, 0xE000} };
+    u16 k, r;
+    if (intro_hide != 1) {
+        VDP_CTRL = 0x8104;
+        VDP_CTRLL = VRAM_W(0);
+        for (k = 0; k < 0x4000; k++) { VDP_DATAL = 0; }
+        return;
+    }
+    vblank_start();
+    hud_cells(0);
+    for (k = 0; k < sizeof zr / sizeof zr[0]; k++) zero_range(zr[k][0], zr[k][1]);
+    for (r = 0; r < 32; r++)                    /* plane A but the HUD's rows' visible half */
+        zero_range(0xE000 + r * 128 + ((r < 4 || (r >= 24 && r < 28)) ? 64 : 0), 0xE000 + r * 128 + 128);
+    zero_range(0xF000, 0xFFFE);
+    VDP_CTRLL = VRAM_W(0xFFFE);
+    VDP_DATA = 0;
+}
+
+/* $3C6, after stage 1's CRAM load ($3B8): lines 1-3 hidden at once */
+void intro_cram(void)
 {
     int k;
     if (intro_hide == 1 && RAM8(0xFFC512) == 0) {
@@ -258,6 +360,38 @@ void intro_show(void)
         hiding = 1;
         hide_until = 0xFFFFFFFF;
         intro_hide = 2;
+        VDP_CTRLL = VSRAM_W(0x48);              /* the v scrolls $3D0 writes (0, 16) go to unused */
+        return;                                 /* column entries: plane B shows plane A's table */
+    }
+    VDP_CTRLL = VSRAM_W(0);                     /* (as $3C6) */
+}
+
+/* $940A (the bg init's display off): not while the HUD shows after the opening */
+void bg_off(void)
+{
+    if (intro_hide != 2) VDP_CTRL = 0x8104;
+}
+
+/* After the opening the arcade shows the HUD on black (TIME, the lives and
+ * the weapon; the stage's bg palettes black) until Arthur appears and the
+ * stage fades in. The port's stage start shows the stage at once: from the
+ * display's start at the end of stage 1's bg init ($943C, intro_show) lines
+ * 1-3 are black (line 0 is the HUD's, the lives', the weapon's and Arthur's)
+ * but for line 2's 9 and 15, which take line 3's: the TIME digits (plane A,
+ * row 3, line 3, colours 9 and 15) are drawn with line 2 meanwhile (hide_frame,
+ * each frame of the hold, which draws them; stage 1's plane B has no pixel of
+ * line 2's 9 or 15 there). Lines 1-3 and the digits come back on the
+ * arcade's frame (hide_vblank from sat_vblank, by the frame counter $FF7DFC).
+ * intro_hold (pad.c stage_hold) returns the hold's frames to take off: the
+ * picture ends 2 frames later than before. */
+
+void intro_show(void)
+{
+    if (intro_hide == 2) {
+        vdp_reg(4, 0x06);                       /* plane B its own again (lines 1-3 black), */
+        VDP_CTRLL = VSRAM_W(0);                 /* with $3D0's v scrolls */
+        VDP_DATA = 0;
+        VDP_DATA = 16;
     }
     VDP_CTRL = 0x8164;                          /* display on, as $943C */
 }
@@ -285,6 +419,28 @@ static void hide_cells_move(int back)
     }
 }
 
+/* $588 (hud_flush_hook, bossart_glue.s): the stage start's HUD upload ($63FA)
+ * puts the TIME digits on the screen with line 2 at once while hidden (its
+ * RAM rows at $FF2920, 32 cells each, line 3's cells moved for the upload) */
+static u32 buf_moved[2];
+void hide_buf(int after)
+{
+    int r, c;
+    if (!hiding) return;
+    for (r = 0; r < 2; r++)
+        for (c = 0; c < 32; c++) {
+            volatile u16 *w = (volatile u16 *)(0xFF2920 + (2 + r) * 64 + c * 2);
+            if (!after && (*w & 0x6000) == 0x6000) {
+                buf_moved[r] |= 1UL << c;
+                *w &= ~0x2000;
+            } else if (after && (buf_moved[r] >> c & 1)) {
+                *w |= 0x2000;
+                hide_cells[r] |= 1UL << c;
+            }
+        }
+    if (after) buf_moved[0] = buf_moved[1] = 0;
+}
+
 void hide_frame(void)
 {
     u16 sr;
@@ -299,7 +455,8 @@ int intro_hold(void)
     if (!intro_hide) { hiding = 0; return 0; }  /* (another stage start: nothing to put back) */
     if (intro_hide == 2) hide_until = RAM32(0xFF7DFC) + HIDE_FRAMES;
     intro_hide = 0;
-    return 2;
+    RAM32(0xFF7DFC) += HOLD_CUT - 2;            /* the load's longer time, counted: the counter in play as before */
+    return HOLD_CUT;
 }
 
 void hide_vblank(void)

@@ -92,6 +92,45 @@ intro_rest:
     move.w  #0x2700,%sr             | as $E0C leaves it
     rts
 
+| The game start's VRAM after the opening (opening.c): $2E2 `jsr
+| stage_clear_hook` + `bra.w $304` over the display off and the VRAM clear;
+| $3C6 `jsr intro_cram_hook` + 2 nops over the VSRAM address after the CRAM
+| load; $940A `jsr bg_off_hook` + nop over the bg init's display off.
+    .global stage_clear_hook, intro_cram_hook, bg_off_hook
+stage_clear_hook:
+    movem.l %d0-%d7/%a0-%a6,-(%sp)
+    jsr     stage_clear
+    movem.l (%sp)+,%d0-%d7/%a0-%a6
+    moveq   #0,%d0                  | (as the clear leaves it)
+    rts
+intro_cram_hook:
+    movem.l %d0-%d1/%a0-%a1,-(%sp)
+    jsr     intro_cram
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+    rts
+| $588 `jsr hud_flush_hook` + nop over `jsr $63B4` and `jsr $63FA` (the
+| stage start's HUD upload): opening.c hide_buf around the upload.
+    .global hud_flush_hook
+hud_flush_hook:
+    jsr     0x63B4
+    movem.l %d0-%d1/%a0-%a1,-(%sp)
+    clr.l   -(%sp)
+    jsr     hide_buf
+    addq.l  #4,%sp
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+    jsr     0x63FA
+    movem.l %d0-%d1/%a0-%a1,-(%sp)
+    pea     1
+    jsr     hide_buf
+    addq.l  #4,%sp
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+    rts
+bg_off_hook:
+    movem.l %d0-%d1/%a0-%a1,-(%sp)
+    jsr     bg_off
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+    rts
+
 | the VBlank's start, as $EDE waits for it
 intro_wait:
     move.l  %d0,-(%sp)
