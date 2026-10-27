@@ -117,9 +117,11 @@ data = b''.join(tiles(image(p)) for _, p in FRAMES) + tiles(heart())
 # art, unused after his removal; the port's one-colour font went to $6000, where
 # Arthur's frame is uploaded too).
 TEXTS = {8: ['THIS ROOM IS AN ILLUSION AND', 'IS A TRAP DEVISED BY SATAN.'], 9: ['GO AHEAD DAUNTLESSLY !'],
-         4: ['MAKE RAPID PROGRES !'], 0: ['CONGRATULATION'], 5: ['THIS STORY IS HAPPY END.', 'RETURN TO STARTING POINT'],
+         4: ['MAKE RAPID PROGRES !', "FIREBRAND'S QUEST PLUS"], 0: ['CONGRATULATION'], 5: ['THIS STORY IS HAPPY END.', 'RETURN TO STARTING POINT'],
          11: ['BEING THE WISE AND COURAGEOUS', 'KNIGHT THAT YOU ARE, YOU', 'FEEL STRONGTH WELLING', 'IN YOUR BODY.',
-              'CHALLENGE AGAIN !']}
+              'CHALLENGE AGAIN !',
+              'THE RED ARREMER HAS', 'DEFEATED ASTAROTH.']}       # these and the next: Firebrand's ending
+TEXTS[9].append('A HARDER QUEST AWAITS !')
 SLOTS = [0, 4, 5, 8, 9, 11]
 font, glyph = [], []
 for colour in SLOTS:

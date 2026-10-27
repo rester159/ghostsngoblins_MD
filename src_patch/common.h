@@ -14,6 +14,7 @@ enum { DIP_COIN, DIP_LIVES, DIP_BONUS, DIP_DIFF, DIP_DEMO, DIP_CONT, DIP_N };
 /* Home options */
 enum { HOP_LIVES, HOP_CONT, HOP_BONUS, HOP_DIFF, HOP_N };
 #define HOME_CONT_INF 10
+#define FB_PLUS_RANK  0x20          /* VERY DIFFICULT's starting rank (settings.c diff_rank) */
 
 typedef struct {        /* 8 bytes */
     char name[3];
@@ -42,7 +43,8 @@ typedef struct {
     u32 bonus_next;     /* 32 BCD score of the next extra life, 0 = none */
     u8  bonus_step_i;   /* 36 */
     u8  dev_players;    /* 37 developer launch: 0 = 1P, 1 = co-op, 2 = Firebrand */
-    u8  pad1[2];
+    u8  fb_unlocked;    /* 38 Firebrand's Quest has been cleared (saved): PLUS in the menu */
+    u8  fb_plus;        /* 39 this game is Firebrand's Quest Plus */
     HiScore hs[2][10];  /* 40  [0] arcade, [1] home */
 } Persist;              /* 200 bytes */
 #define PERSIST       ((Persist *)0xFF5000)

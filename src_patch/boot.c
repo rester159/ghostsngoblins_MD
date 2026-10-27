@@ -163,7 +163,8 @@ static const char *dev_val(int i)
     if (i == 1) { dev_buf[0] = '0' + p->dev_lives; dev_buf[1] = 0; return dev_buf; }
     if (i == 2) return p->dev_inf ? "ON" : "OFF";
     if (i == 3) return home_value(HOP_DIFF, p->dev_diff);
-    if (i == 4) return p->dev_players == 2 ? "FIREBRAND" : p->dev_players ? "2" : "1";
+    if (i == 4) return p->dev_players == 3 ? "FIREBRAND PLUS" : p->dev_players == 2 ? "FIREBRAND"
+                     : p->dev_players ? "2" : "1";
     if (i == 5) { num2(dev_buf, p->sound_id); return dev_buf; }
     return 0;
 }
@@ -174,7 +175,7 @@ static void dev_chg(int i, int d)
     if (i == 1) p->dev_lives = wrap(p->dev_lives - 1, d, 9) + 1;
     if (i == 2) p->dev_inf ^= 1;
     if (i == 3) p->dev_diff = wrap(p->dev_diff, d, 4);
-    if (i == 4) p->dev_players = wrap(p->dev_players % 3, d, 3);
+    if (i == 4) p->dev_players = wrap(p->dev_players % 4, d, 4);
     if (i == 5) p->sound_id = (p->sound_id + d) & 63;
 }
 
@@ -200,28 +201,44 @@ static int dev_menu(void)
 
 /* ---- home ---------------------------------------------------------- */
 
+/* FIREBRAND'S QUEST PLUS is listed once Firebrand's Quest has been cleared */
 static int home_menu(void)
 {
+    enum { I_1P, I_COOP, I_FB, I_FBPLUS, I_HISCORE, I_OPTIONS, I_BACK, I_DEV };
     static const char *const items[] = {
+        "1 PLAYER", "2 PLAYERS", "FIREBRAND'S QUEST", "FIREBRAND'S QUEST PLUS", "HIGH SCORES", "OPTIONS", "BACK",
+        "DEVELOPER",
+    };
+    static const char *const items_short[] = {
         "1 PLAYER", "2 PLAYERS", "FIREBRAND'S QUEST", "HIGH SCORES", "OPTIONS", "BACK", "DEVELOPER",
     };
-    static const u8 dev_sub[3] = { HOME_1P, HOME_COOP, HOME_FIREBRAND };
+    static const u8 dev_sub[4] = { HOME_1P, HOME_COOP, HOME_FIREBRAND, HOME_FIREBRAND };
     Persist *p = PERSIST;
     int sel = 0;
     for (;;) {
-        Menu m = { items, p->dev_unlocked ? 7 : 6, 11, 0, 0, 0, !p->dev_unlocked };
+        int plus = p->fb_unlocked, id;
+        Menu m = { plus ? items : items_short, (p->dev_unlocked ? 7 : 6) + plus, plus ? 9 : 11, 0, 0, 0,
+                   !p->dev_unlocked };
         frame_screen("HOME");
         display_on();
-        sel = menu_run(&m, 12, sel);
+        sel = menu_run(&m, plus ? 11 : 12, sel);
         p->dev_on = 0;
-        if (sel == MENU_CODE) { p->dev_unlocked = 1; sel = 6; continue; }
-        if (sel == 0) { p->home_sub = HOME_1P; return 1; }
-        if (sel == 1) { p->home_sub = HOME_COOP; return 1; }
-        if (sel == 2) { p->home_sub = HOME_FIREBRAND; return 1; }
-        if (sel == 3) { hiscore_show(1, 60 * 30); continue; }
-        if (sel == 4) { options_menu(); continue; }
-        if (sel == 6) {
-            if (dev_menu()) { p->dev_on = 1; p->home_sub = dev_sub[p->dev_players % 3]; return 1; }
+        p->fb_plus = 0;
+        if (sel == MENU_CODE) { p->dev_unlocked = 1; sel = 6 + plus; continue; }
+        id = sel < 0 || plus || sel < I_FBPLUS ? sel : sel + 1;
+        if (id == I_1P) { p->home_sub = HOME_1P; return 1; }
+        if (id == I_COOP) { p->home_sub = HOME_COOP; return 1; }
+        if (id == I_FB) { p->home_sub = HOME_FIREBRAND; return 1; }
+        if (id == I_FBPLUS) { p->home_sub = HOME_FIREBRAND; p->fb_plus = 1; return 1; }
+        if (id == I_HISCORE) { hiscore_show(1, 60 * 30); continue; }
+        if (id == I_OPTIONS) { options_menu(); continue; }
+        if (id == I_DEV) {
+            if (dev_menu()) {
+                p->dev_on = 1;
+                p->home_sub = dev_sub[p->dev_players % 4];
+                p->fb_plus = p->dev_players % 4 == 3;
+                return 1;
+            }
             continue;
         }
         return 0;

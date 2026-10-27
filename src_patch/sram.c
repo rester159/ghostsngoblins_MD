@@ -1,5 +1,5 @@
 /* Battery save: Arcade DIP switches, Home options, title language and both
- * high-score tables. The ROM is larger than 2 MiB, so SRAM shares the $200000
+ * high-score tables, and whether Firebrand's Quest has been cleared. The ROM is larger than 2 MiB, so SRAM shares the $200000
  * window with ROM; sram_xfer (glue.s) runs from work RAM with interrupts off
  * while it is mapped. */
 #include "md.h"
@@ -13,7 +13,7 @@ void sram_xfer(u8 *buf, int len, int write);
 typedef struct {
     u32 magic;
     u8  ver;
-    u8  title_jp;
+    u8  flags;          /* bit 0 title language, bit 1 Firebrand's Quest cleared */
     u8  dip[8];
     u8  home[8];
     HiScore hs[2][10];
@@ -38,7 +38,8 @@ void save_load(void)
     sram_xfer((u8 *)&save, sizeof(save), 0);
     if (save.magic != SAVE_MAGIC || save.ver != SAVE_VER || save.sum != save_sum(&save))
         return;                     /* blank, old or foreign SRAM: keep defaults */
-    p->title_jp = save.title_jp & 1;
+    p->title_jp = save.flags & 1;
+    p->fb_unlocked = save.flags >> 1 & 1;
     for (i = 0; i < DIP_N; i++)
         if (save.dip[i] < dip_count(i)) p->dip[i] = save.dip[i];
     for (i = 0; i < HOP_N; i++)
@@ -52,7 +53,7 @@ void save_write(void)
     int i;
     save.magic = SAVE_MAGIC;
     save.ver = SAVE_VER;
-    save.title_jp = p->title_jp;
+    save.flags = (p->title_jp & 1) | (p->fb_unlocked & 1) << 1;
     for (i = 0; i < 8; i++) { save.dip[i] = p->dip[i]; save.home[i] = p->home[i]; }
     for (i = 0; i < 20; i++) save.hs[i / 10][i % 10] = p->hs[i / 10][i % 10];
     save.sum = save_sum(&save);

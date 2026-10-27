@@ -440,6 +440,39 @@ hook_item_copy:
     move.b  17(%a3),0xFFA218
     rts
 
+| $119E16: `jsr hook_cross_gate` over `move.b $FFA218,d1`, the weapon the
+| stage 6 check ($119D2E: not the cross = back to stage 5) tests. Firebrand
+| passes it. Keeps every register but d1 (the caller saved d1-a6 already).
+    .global hook_cross_gate
+hook_cross_gate:
+    movem.l %d0/%a0-%a1,-(%sp)
+    jsr     fb_gate_weapon
+    move.b  %d0,%d1
+    movem.l (%sp)+,%d0/%a0-%a1
+    rts
+
+| $BEAE: `jsr hook_weapon_mask` over `move.b 8(a3),d0` / `and.b d6,d0` in
+| the weapon-against-enemy test ($BE3A): a3 = the record of the weapon and
+| the enemy's box (table $2AC94, weapon * 18 + box, 16 bytes), +8 the
+| weapons that hurt it, d6 this weapon's bit. Astaroth's box (17) is hurt by
+| the cross only; in Firebrand mode the fireball (the lance's record) hurts
+| him too. Returns d0 with the flags of tst.b d0, as the and left them.
+    .global hook_weapon_mask
+hook_weapon_mask:
+    move.b  8(%a3),%d0
+    and.b   %d6,%d0
+    bne.s   1f
+    cmpa.l  #0x2AC94+(1*18+17)*16,%a3   | the lance against Astaroth
+    bne.s   1f
+    movem.l %d1/%a0-%a1,-(%sp)
+    jsr     fb_on
+    movem.l (%sp)+,%d1/%a0-%a1
+    tst.l   %d0
+    beq.s   1f
+    move.b  %d6,%d0
+1:  tst.b   %d0
+    rts
+
 | void score_event(u16 idx): queue the game's score message $0C00|idx (points
 | from the BCD table at $28F32) on the message queue at $FFB400.
     .global score_event

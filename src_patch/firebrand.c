@@ -11,11 +11,23 @@
  *    for as long as he likes; he fires away from it. Jump leaps straight up
  *    and he grabs the wall again at the top of the leap if still pushing into
  *    it; pushing away lets go. A grab refills the hover.
+ *  - solid scenery: the insides of rocks and stage 3's tower are only
+ *    background to the engine (attribute $C0, no wall or floor): Arthur can't
+ *    get there, but Firebrand flies. A move that puts his body in one is
+ *    undone (scenery_block): sideways he stops at its surface, rising he stops
+ *    as under a ceiling, and dropping onto one refills the hover.
  *  - one attack: the lance's mechanics, drawn as the fireball (uploaded where
  *    the game uploads the lance art for each shot slot, $11711E); the game's
  *    fire icon is in the HUD weapon box.
  *  - one hit: never armored, so the first hit kills.
- *  - boxes: weapon and armor pickups give 1000 points instead. */
+ *  - boxes: weapon and armor pickups give 1000 points instead.
+ *  - the end: stage 6 needs no cross (the game's check at $119D2E sees one),
+ *    the fireball hurts Astaroth (cross-only for everyone else, glue.s
+ *    hook_weapon_mask),
+ *    and beating the final room shows Firebrand's ending (ending.c), then
+ *    Firebrand's Quest Plus from stage 1 with the score and lives kept: the
+ *    top starting rank and half the hover. Plus is in the Home menu once
+ *    the quest has been cleared (saved in SRAM). */
 #include "md.h"
 #include "common.h"
 
@@ -69,7 +81,31 @@ int fb_on(void)
     return is_home() && PERSIST->home_sub == HOME_FIREBRAND;
 }
 
-static u8 hover_max(void) { return (RAM8(0xA10001) & 0x40) ? 100 : 120; }   /* 2 s */
+int fb_plus_on(void)
+{
+    return fb_on() && PERSIST->fb_plus;
+}
+
+/* the end of Firebrand's ending (ending.c): Plus from here on, with the top
+ * starting rank, and unlocked in the Home menu (saved; not from practice) */
+void fb_cleared(void)
+{
+    Persist *p = PERSIST;
+    if (!p->dev_on && !p->fb_unlocked) {
+        p->fb_unlocked = 1;
+        save_write();
+    }
+    p->fb_plus = 1;
+    RAM8(0xFFC501) = FB_PLUS_RANK;      /* rank */
+    RAM8(0xFFC561) = FB_PLUS_RANK;      /* its floor for the per-death decrease */
+}
+
+/* 2 s, 1 s in Firebrand's Quest Plus */
+static u8 hover_max(void)
+{
+    u8 n = (RAM8(0xA10001) & 0x40) ? 100 : 120;
+    return fb_plus_on() ? n / 2 : n;
+}
 
 /* The stage-end sequence uses its own copies of Arthur's frames ($8AAD4 table);
  * each is identical to one of his frames above, except $C0200 (fist raised),
@@ -118,6 +154,68 @@ static void hold_wall(void)
     G_P1 |= 3;
 }
 
+/* Solid scenery per stage index ($FFC512): background tiles (attribute bits
+ * $C0) that draw rock or a building. Stages 5 and 6 share their rock: $10-$12,
+ * $18-$1A (the faces, $82-$85 and $9D/$9E, are the engine's walls). Stage 3:
+ * the cave's stone ($E5, $E6, $E8-$EA, $EC, $F8, its underside $F1, $F2, $F4,
+ * $FA; the dark cave $E2, $E3, $ED, $EE stays open) and the tower's stones
+ * beside and above its door ($C8-$CF, its right edge $EF and $F6), not those
+ * flanking the door at the floor ($C0-$C7), which he walks past to reach it. tools/headless/fb_mapdump.py shows the maps. */
+static const u8 rock[] = { 0x10, 0x11, 0x12, 0x18, 0x19, 0x1A, 0 };
+static const u8 tower[] = { 0xE5, 0xE6, 0xE8, 0xE9, 0xEA, 0xEC, 0xF8, 0xF1, 0xF2, 0xF4, 0xFA,
+                            0xC8, 0xC9, 0xCA, 0xCB, 0xCC, 0xCD, 0xCE, 0xCF, 0xEF, 0xF6, 0 };
+static const u8 *const scenery[7] = { 0, 0, tower, 0, rock, rock, 0 };
+
+static int solid_at(u16 x, u16 y)       /* the terrain ring cell, as $84D4 finds it */
+{
+    const u8 *t = RAM8(0xFFC512) < 7 ? scenery[RAM8(0xFFC512)] : 0;
+    u16 i = (x & 0x1F0) * 2 | (((y >> 4) ^ 15) & 31);
+    u8 tile = RAM8(0xFF0000 + i);
+    if (!t || !(RAM8(0xFF0000 + 1024 + i) & 0xC0)) return 0;
+    for (; *t; t++)
+        if (*t == tile) return 1;
+    return 0;
+}
+
+static int body_solid(u32 x16, u32 y16)  /* 16.8 position: his body, 12 x 24 px above his feet */
+{
+    u16 x = (u16)(x16 >> 8), y = (u16)(y16 >> 8);
+    return solid_at(x - 6, y + 6) || solid_at(x + 6, y + 6) ||
+           solid_at(x - 6, y + 22) || solid_at(x + 6, y + 22);
+}
+
+static u32 prev_x, prev_y;              /* his last position outside solid scenery (16.8) */
+static u8 prev_ok;
+#define POS_Y16 RAM32(0xFF9400)         /* y 16.8; POS_Y is its pixel copy */
+
+static void scenery_block(void)
+{
+    u32 x = POS_X & 0xFFFFFF, y = POS_Y16;
+    if (RAM8(0xFF9459) || RAM8(0xFFC342) || !prev_ok || !body_solid(x, y)) {
+        prev_x = x; prev_y = y; prev_ok = 1;
+        return;
+    }
+    if (!body_solid(prev_x, y)) {       /* sideways into it: stop at its surface */
+        x = prev_x;
+        JUMP_DIR = 0;
+        JUMP_DX = 0;
+    } else {
+        if (body_solid(x, prev_y))
+            x = prev_x;                 /* into it both ways: back where he was */
+        if (y < prev_y)                 /* dropping onto it: can fly off again */
+            hover_t = hover_max();
+        y = prev_y;
+        /* no rise left (a ceiling): falling from 0, as at the top of a jump
+         * (the rise subtracts gravity from the speed, which would wrap) */
+        if (JUMP_PHASE == 1) JUMP_PHASE = 2;
+        JUMP_SPEED = 0;
+    }
+    POS_X = (POS_X & 0xFF000000) | x;
+    POS_Y16 = y;
+    POS_Y = (u16)(y >> 8);
+    prev_x = x; prev_y = y;
+}
+
 /* every gameplay frame, from the pad routine (before Arthur's update) */
 void fb_frame(void)
 {
@@ -131,8 +229,10 @@ void fb_frame(void)
         hovering = 0;
         cling = wall_jump = 0;
         hover_t = hover_max();
+        prev_ok = 0;
         return;
     }
+    scenery_block();
     /* jump is bit 5 of the input byte, active low; 2 = right held, 1 = left */
     in = G_P1;
     jump = !(in & 0x20);
@@ -196,6 +296,13 @@ void fb_frame(void)
     } else {
         hovering = 0;
     }
+}
+
+/* $119E16 (hook_cross_gate): the weapon the stage 6 check tests, 3 = the
+ * cross (without it the game sends the player back to stage 5) */
+int fb_gate_weapon(void)
+{
+    return fb_on() ? 3 : WEAPON;
 }
 
 /* $116472 / $116884: the item code is about to copy its context's armor and

@@ -458,6 +458,12 @@ def install_features(rom, build_dir):
     for a in (0x116472, 0x116884):
         expect(rom, a, bytes.fromhex('13eb000900ffc32813eb001100ffa218'), 'item copy-back')
         put(rom, a, jsr(sym['hook_item_copy']) + b'\x4e\x71' * 5)
+    # Astaroth is hurt by the cross only: Firebrand's fireball hurts him too (glue.s)
+    expect(rom, 0xBEAE, bytes.fromhex('102b0008c006'), 'weapon mask test')
+    put(rom, 0xBEAE, jsr(sym['hook_weapon_mask']))
+    # stage 6's cross check: Firebrand passes it (firebrand.c fb_gate_weapon)
+    expect(rom, 0x119E16, bytes.fromhex('123900ffa218'), 'cross check weapon')
+    put(rom, 0x119E16, jsr(sym['hook_cross_gate']))
     # co-op death handling (Arthur respawns instead of restarting the stage)
     expect(rom, 0x61DC, b'\x4a\x79' + be32(0xFFC570), 'death handling tst')
     put(rom, 0x61DC, jsr(sym['hook_p1_death']))

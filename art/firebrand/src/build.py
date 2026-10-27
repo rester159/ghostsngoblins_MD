@@ -2,7 +2,9 @@
 captured by tools/headless/snes_capture.py), scaled to 70% so he matches
 Arthur's size, in the Genesis sprite palette (dc.py).
 
-Every frame Arthur can show gets a Firebrand pose of the same meaning and facing;
+Every frame Arthur can show gets a Firebrand pose of the same meaning and facing
+(his ladder frames 70-73, which step between two pictures, his wall grip facing
+one way then the other, so the climb reads as hand over hand);
 walking and hovering play Firebrand's own 6-frame cycles (firebrand.c picks them).
 A bank frame is 0x300 bytes:
   +0x000  512 bytes  32x32 in Arthur's layout (16 tiles, column-major) -> tile $300
@@ -40,6 +42,7 @@ POSE = {
     'stand': ('stand', 0, False), 'fire': ('fire', 0, False),
     'crouch': ('jump', 0, False), 'jump': ('jump', 2, True), 'jump2': ('jump', 4, True),
     'hit': ('jump', 1, True), 'land': ('land', 1, False),
+    'climb': ('cling', 0, False),  # on a ladder: Demon's Crest has no climb, his wall grip
 }
 WALK = [('walk', i, False) for i in range(6)]
 FLY = [('fly', i, True) for i in range(6)]
@@ -62,7 +65,7 @@ CLASS = {
     55: ('jump2', L), 56: ('fire', L), 57: (RUN, L), 58: ('crouch', L), 59: ('crouch', L),
     60: (RUN, R), 61: (RUN, R), 62: (RUN, R), 63: (RUN, R), 64: ('jump', R),
     65: ('jump2', R), 66: ('fire', R), 67: ('crouch', R), 68: ('crouch', R), 69: ('crouch', R),
-    70: ('stand', R), 71: ('land', R), 72: ('crouch', R), 73: ('crouch', R),
+    70: ('climb', R), 71: ('climb', L), 72: ('climb', R), 73: ('climb', L),   # the ladder
     74: (RUN, L), 75: (RUN, L), 76: (RUN, L), 77: (RUN, L), 78: ('jump', L),
     79: ('jump2', L), 80: ('fire', L), 81: ('crouch', L), 82: ('crouch', L), 83: ('crouch', L),
 }

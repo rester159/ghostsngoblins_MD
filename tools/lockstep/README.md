@@ -6,7 +6,7 @@ Core: `C="$HOME/Library/Application Support/RetroArch/cores/genesis_plus_gx_libr
 
 | Script | What it does |
 |---|---|
-| `devscript.py <stage 1-6> <players>` | the pad script that boots the plus build and launches a stage from the developer menu (players: 0 = 1P, 1 = co-op, 2 = Firebrand); play starts ~1,400 frames in |
+| `devscript.py <stage 1-6> <players>` | the pad script that boots the plus build and launches a stage from the developer menu (players: 0 = 1P, 1 = co-op, 2 = Firebrand, 3 = Firebrand's Quest Plus); play starts ~1,400 frames in |
 | `port_start.py <core> <rom> <frames> <out>` | `SCRIPT=$(devscript.py ...) TX= TC=`: saves `<out>_st.state` 30 frames after Arthur is at x TX with the camera at TC |
 | final room (port) | the developer menu stops at STAGE 6; poke its stage `$FF500B` = 7 (stage index 6) on every frame 1000-1300 of a `devscript.py 6 <players>` launch (`POKE` in `port_walk.py`, e.g. `POKE=$(python3 -c "print(','.join('%d:FF500B:07'%f for f in range(1000,1301)))")`) and the final room starts ~1,310 frames in; set it back to 1 before a clear, or the next game start relaunches the room. Arcade: `arc_start.py 6 0` |
 | `port_checkpoint.py` | stage 2 only: walks in, dies, saves `<out>_cp.state` 30 frames after the checkpoint respawn |
