@@ -21,13 +21,14 @@ static void vram_copy(const u16 *src, u16 words, u16 tile)
  * characters on black from 999; the port's intro ($E0C) was only the black
  * part, with 6 black frames while it cleared and loaded VRAM.
  * intro_scene draws the arcade's picture (mkart.py) and loads the black part's
- * VRAM ($E0C's data: tiles $000-$550, plane B at $C000, its CRAM) while the
+ * VRAM (its sprite tiles at $001-$550, an empty plane B at $C000) while the
  * graveyard shows (the graveyard's tiles, planes and window keep out of it;
  * mkart.py), then switches on the frame after the graveyard's last: plane B to
- * $C000, the window over the whole screen (empty: plane A hidden), the CRAM.
- * The black part is $E0C's steps of plane writes ($210088), each shown on the
- * arcade's frame of the same event (intro_sched; the cloak's on and off steps
- * repeated as the arcade's blinking). The top score is the live one, as the
+ * $C000, the window over the whole screen (the HUD's rows, the rest empty:
+ * plane A hidden), the CRAM. The black part is the arcade's sprites (Satan,
+ * princess, Arthur), its own list of every frame converted by mkart.py, so
+ * every picture change is the arcade's (the swoop, the fall, getting up and
+ * the walk change every frame there). The top score is the live one, as the
  * arcade's ($D0: 8 digits at row 1, columns 12-19, leading zeros blank).
  * Start skips both, from 826 and from the black part's 21st frame, as before.
  * After the second clear (end_restart) the arcade's graveyard comes 3 frames
@@ -37,13 +38,6 @@ static void vram_copy(const u16 *src, u16 words, u16 tile)
 #define AF(f) ((f) - 804)                       /* graveyard frame n of the arcade's frame f */
 void intro_wait(void);                          /* bossart_glue.s: the VBlank ($EDE's wait) */
 void intro_tick(void);                          /* ... then the sound ($8990) and the pads ($BF72) */
-
-#define E0C_TILES 0x204668                      /* $E0C's data: tiles $000-$550 (0x5510 words), */
-#define E0C_PLANE 0x20F088                      /* plane B (2048 words), */
-#define E0C_CRAM  0x211AA0                      /* CRAM (64 words), */
-#define E0C_STEPS 0x210088                      /* 155 steps */
-#define E0C_NT    0x5510
-#define TOP_ROW_E (0xC000 + 1 * 128 + 12 * 2)   /* the top score's 8 cells in $E0C's plane */
 
 u8 intro_hide;                                  /* the black part ran to its end: stage_hold hides the stage */
 u8 intro_after_end;                             /* ending_glue.s end_restart: after the second clear */
@@ -59,22 +53,6 @@ static const u16 isc_ev[2][10] = {
     { AF(805), AF(871), AF(935), AF(955), AF(826), AF(993), AF(994), AF(996), AF(997), AF(999) },
     { 5, 65, 129, 150, 22, 188, 189, 190, 191, 193 } };
 static u16 isc_top[8];                          /* the top score's digits (10 = blank) */
-static const u16 *ib_blink[2];                  /* steps 8 and 9 (the cloak on, off) */
-static const u16 *ib_p;                         /* step ib_s's data */
-static u16 ib_s;
-
-/* the data of step s (s >= ib_s, or 8 or 9) */
-static const u16 *step_data(u16 s)
-{
-    if (s < ib_s) return ib_blink[s - 8];
-    while (ib_s < s) {
-        u16 runs = *ib_p++;
-        while (runs--) { ib_p += 2 + ib_p[1]; }
-        if (++ib_s == 8 || ib_s == 9) ib_blink[ib_s - 8] = ib_p;
-    }
-    return ib_p;
-}
-
 static void vram_fill_plane(const u16 *src, u16 base)
 {
     int r, c;
@@ -122,66 +100,48 @@ static void top_digits(void)
     }
 }
 
-/* the black part's digit d at ISC_EDIG + d: the arcade's char with the pens
- * of $E0C's own 0 and 1 (tiles $F and $10) */
-static u8 dig_map[4];
-static void e0c_digit(int d)
-{
-    int t, y, x;
-    if (d == 0)
-        for (t = 0; t < 2; t++)
-            for (y = 0; y < 8; y++)
-                for (x = 0; x < 8; x++) {
-                    u8 b = chr_digits[t][y * 2 + (x >> 2)], s = 3 - (x & 3);
-                    u8 pix = RAM8(E0C_TILES + (0xF + t) * 32 + y * 4 + (x >> 1));
-                    dig_map[((b >> (s + 4)) & 1) | (((b >> s) & 1) << 1)] = x & 1 ? pix & 15 : pix >> 4;
-                }
-    VDP_CTRLL = VRAM_W((ISC_EDIG + d) * 32);
-    for (y = 0; y < 8; y++) {
-        u16 w = 0;
-        for (x = 0; x < 8; x++) {
-            u8 b = chr_digits[d][y * 2 + (x >> 2)], s = 3 - (x & 3);
-            w = (w << 4) | dig_map[((b >> (s + 4)) & 1) | (((b >> s) & 1) << 1)];
-            if ((x & 3) == 3) { VDP_DATA = w; w = 0; }
-        }
-    }
-}
-
 /* the black part's VRAM, a piece each graveyard frame (0 when all is there):
- * the window's rows under the HUD's, the tiles, the plane with the top score
- * in it, then its digits, one a frame */
+ * the window's rows under the HUD's, an empty plane B at $C000, the sprite
+ * tiles (mkart.py: the arcade's sprites of every frame of it) */
+#define LD_PLANE 2048
 static u16 ld_at;
 static u8 win_clear;
 static int load_step(void)
 {
     u16 n, k;
     u16 sr;
-    if (ld_at >= E0C_NT + 2048 + 10) return 0;
+    if (ld_at >= LD_PLANE + IB_NTILES * 16) return 0;
     sr = irq_off();
     if (win_clear < 2) {                        /* the window's other rows, in 2 */
         vram_zero(0xD000 + 64 * 2 + win_clear * 32 * 30, 32 * 15);
         win_clear++;
-    } else if (ld_at < E0C_NT) {
-        n = E0C_NT - ld_at < 512 ? E0C_NT - ld_at : 512;
-        VDP_CTRLL = VRAM_W((u32)ld_at * 2);
-        for (k = 0; k < n; k++) VDP_DATA = RAM16(E0C_TILES + (u32)(ld_at + k) * 2);
-        ld_at += n;
-    } else if (ld_at < E0C_NT + 2048) {
-        u16 p = ld_at - E0C_NT;
-        VDP_CTRLL = VRAM_W(0xC000 + p * 2);
-        for (k = 0; k < 512; k++) VDP_DATA = RAM16(E0C_PLANE + (u32)(p + k) * 2);
+    } else if (ld_at < LD_PLANE) {
+        vram_zero(0xC000 + ld_at * 2, 512);
         ld_at += 512;
-        if (ld_at == E0C_NT + 2048) {
-            u16 zero = RAM16(E0C_PLANE + 128 + 19 * 2) & 0xF800;   /* the 0's attributes */
-            VDP_CTRLL = VRAM_W(TOP_ROW_E);
-            for (k = 0; k < 8; k++) VDP_DATA = isc_top[k] == 10 ? 0 : zero | (ISC_EDIG + isc_top[k]);
-        }
     } else {
-        e0c_digit(ld_at - E0C_NT - 2048);
-        ld_at++;
+        u16 at = ld_at - LD_PLANE;
+        n = IB_NTILES * 16 - at < 512 ? IB_NTILES * 16 - at : 512;
+        VDP_CTRLL = VRAM_W((u32)IB_TILE0 * 32 + at * 2);
+        for (k = 0; k < n; k++) VDP_DATA = ib_tiles[at + k];
+        ld_at += n;
     }
     irq_restore(sr);
     return 1;
+}
+
+/* the black part's frame n: the arcade's sprite list of its frame 999 + n */
+static void ib_sprites(int n)
+{
+    const u16 *p = ib_lists + ib_frame[n];
+    u16 k, cnt = *p++;
+    VDP_CTRLL = VRAM_W(0xF000);
+    if (!cnt) { VDP_DATA = 0; VDP_DATA = 0; return; }
+    for (k = 0; k < cnt; k++, p += 3) {
+        VDP_DATA = p[0];
+        VDP_DATA = 0x0500 | (k + 1 < cnt ? k + 1 : 0);
+        VDP_DATA = p[2];
+        VDP_DATA = p[1];
+    }
 }
 
 static void ib_regs_normal(void)
@@ -224,8 +184,6 @@ int intro_scene(void)
     for (n = after_end ? 1 : 0; n < ISC_DARK; n++) { intro_wait(); intro_tick(); }
     ld_at = 0;
     win_clear = 0;
-    ib_p = (const u16 *)E0C_STEPS;
-    ib_s = 0;
     ev = isc_ev[after_end];
     for (n = 0; n < ev[9]; n++) {
         intro_wait();
@@ -243,26 +201,16 @@ int intro_scene(void)
     }
     while (load_step()) ;                       /* (all there by now) */
     /* the black part */
-    for (n = 0, k = 0; n < IB_FRAMES; n++) {
+    for (n = 0; n < IB_FRAMES; n++) {
         intro_wait();
         sr = irq_off();
         if (n == 0) {
-            isc_cram((const u16 *)E0C_CRAM);
-            vram_zero(0xD000, 64);              /* the window's HUD rows */
-            vram_zero(0xF000, 4);               /* no sprites */
-            vdp_reg(4, 0x06);                   /* plane B $C000 */
-            vdp_reg(18, 0x80);                  /* the window over the whole screen */
+            isc_cram(ib_cram);
+            vdp_reg(4, 0x06);                   /* plane B $C000 (empty) */
+            vdp_reg(18, 0x80);                  /* the window (the HUD's rows) over the whole screen */
         } else if (n <= 8)
             vram_zero(0xE000 + (n - 1) * 512, 256);     /* plane A clear again, under the window */
-        for (; k < IB_NSCHED && intro_sched[k][0] == n; k++) {
-            const u16 *p = step_data(intro_sched[k][1]);
-            u16 runs = *p++;
-            while (runs--) {
-                u16 off = *p++, cnt = *p++;
-                VDP_CTRLL = VRAM_W(0xC000 + off * 2);
-                while (cnt--) VDP_DATA = *p++;
-            }
-        }
+        if (n == 0 || ib_frame[n] != ib_frame[n - 1]) ib_sprites(n);
         irq_restore(sr);
         intro_tick();
         if (n >= 20 && start_pressed()) break;

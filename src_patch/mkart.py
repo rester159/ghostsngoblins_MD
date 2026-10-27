@@ -234,6 +234,8 @@ emit_words('win_art', words)
 # from the arcade's chars, CHR_DIGITS).
 ISC_REGIONS = [(0x551, 0x600), (0x6C0, 0x700), (0x770, 0x780), (0x794, 0x7D6)]
 ISC_EDIG = 0x7D6
+IB_FRAMES = 1319 - 999                              # the black part (arcade frames 999-1318)
+IB_TILE0 = 0x001                                    # its sprite tiles (tiles $001-$550 are free then)
 
 
 def intro_scene():
@@ -243,18 +245,24 @@ def intro_scene():
     from gng import GnG
     g = GnG(romdir); m = g.mem
     pal, snap = {}, {}
-    for f in range(1, 997):
+    blk_spr = {}                                    # the black part: the sprite list of every frame
+    for f in range(1, 999 + IB_FRAMES):
         g.set_inputs(0x40 if 700 <= f <= 710 else (1 if 800 <= f <= 805 else 0), 0, 0)
         g.run_frame()
-        if f in (806, 871, 935):
+        if f in (806, 871, 935, 1000):
             pal[f] = g.palette()
-        if f in (870, 955, 993, 996):
+        if f in (870, 955, 993, 996) or f >= 999:
             b = g.spritebuf; sp = []
             for o in range(0x200 - 4, -1, -4):          # back to front, as the renderer
                 attr = b[o + 1]; code = b[o] + ((attr << 2) & 0x300)
                 x = b[o + 3] - (0x100 if attr & 1 else 0); y = b[o + 2] - 16
-                if 0 <= y < 224 and -16 < x < 256:
+                if (0 if f < 999 else -16) < y < 224 and -16 < x < 256:
                     sp.append((code, (attr >> 4) & 3, attr & 4, attr & 8, x, y))
+            if f >= 999:
+                blk_spr[f] = sp
+                if f == 999:
+                    assert bytes(m[0x2000 + 64:0x2000 + 128]) == snap[870]['fg'][64:128]   # the HUD's rows as the graveyard's
+                continue
             snap[f] = dict(bg=bytes(m[0x2800:0x3000]), fg=bytes(m[0x2000:0x2800]), spr=sp, scroll=list(g.scroll))
     assert snap[870]['scroll'] == [0, 0, 0, 0]
     assert snap[993]['spr'] == snap[996]['spr']
@@ -411,6 +419,69 @@ def intro_scene():
         out.append('#define ISC_NSPR%d %d' % (f, len(sprdat[f])))
         out.append('static const u16 isc_spr%d[%d][3] = { %s };' % (f, len(sprdat[f]), ', '.join(
             '{%d, %d, 0x%04X}' % (y, x, a | vmap[t]) for y, x, a, t in sprdat[f])))
+    # --- the black part (arcade frames 999 .. 999 + IB_FRAMES - 1): the arcade's sprites, every frame ---
+    # The bg is black and the planes empty there (plane B at $C000, cleared while the graveyard shows; plane
+    # A under the window), the window keeps the HUD's rows. Its CRAM: the HUD's entries as the graveyard's,
+    # the sprite colours packed into the rest (the bg's entries are free).
+    fixed = {}                                      # (line, index) -> colour of the HUD's entries
+    for gk, li in gline.items():
+        if gk[0] == 'fg':
+            for pen in groups[gk]:
+                fixed[(li, idx('fg', gk[1], pen))] = key_col('fg', gk[1], pen)[0]
+    bcol = lambda col, pen: q(pal[1000][0x40 + col * 16 + pen])
+    bgroups = {}
+    for f in blk_spr:
+        for code, col, hf, vf, x, y in blk_spr[f]:
+            for yy in range(16):
+                for xx in range(16):
+                    pen = spr_pen(code, xx, yy)
+                    if pen != 15: bgroups.setdefault(col, set()).add(pen)
+    bent = dict(fixed)                              # (line, index) -> colour
+    bline, bidx = {}, {}
+    for col in sorted(bgroups, key=lambda c: -len(bgroups[c])):
+        cols = set(bcol(col, pen) for pen in bgroups[col])
+        best = None
+        for li in range(4):
+            have = {c: i for (l, i), c in bent.items() if l == li}
+            free = [i for i in range(1, 16) if (li, i) not in bent]
+            new = [c for c in sorted(cols) if c not in have]
+            if len(new) <= len(free) and (best is None or len(new) < best[0]):
+                best = (len(new), li)
+        assert best, 'black part palette doesn\'t fit'
+        li = best[1]
+        free = [i for i in range(1, 16) if (li, i) not in bent]
+        for c in sorted(cols):
+            if c not in [cc for (l, i), cc in bent.items() if l == li]:
+                bent[(li, free.pop(0))] = c
+        bline[col] = li
+        for pen in bgroups[col]:
+            bidx[(col, pen)] = min(i for (l, i), c in bent.items() if l == li and c == bcol(col, pen))
+    btiles, bpiece = [], {}
+    for f in sorted(blk_spr):
+        for code, col, hf, vf, x, y in blk_spr[f]:
+            if (code, col) in bpiece: continue
+            px = [[0 if spr_pen(code, xx, yy) == 15 else bidx[(col, spr_pen(code, xx, yy))] for xx in range(16)] for yy in range(16)]
+            bpiece[(code, col)] = IB_TILE0 + len(btiles)
+            btiles += [tw([r[tx * 8:tx * 8 + 8] for r in px[ty * 8:ty * 8 + 8]]) for tx, ty in ((0, 0), (0, 1), (1, 0), (1, 1))]
+    assert IB_TILE0 + len(btiles) <= 0x551, 'black part tiles don\'t fit'
+    flat, lists, bframe = [], {}, []
+    for f in range(999, 999 + IB_FRAMES):
+        key = tuple((y + 128, x + 128, (bline[col] << 13) | (0x800 if hf else 0) | (0x1000 if vf else 0) | bpiece[(code, col)])
+                    for code, col, hf, vf, x, y in blk_spr[f][::-1])        # front first
+        if key not in lists:
+            lists[key] = len(flat)
+            flat.append(len(key))
+            for e in key: flat.extend(e)
+        bframe.append(lists[key])
+    bcram = [0] * 64
+    for (li, i), c in bent.items(): bcram[li * 16 + i] = cram(c)
+    out.append('/* the black part: %d sprite tiles from tile 0x%03X, %d sprite lists */' % (len(btiles), IB_TILE0, len(lists)))
+    out.append('#define IB_TILE0 0x%03X' % IB_TILE0)
+    out.append('#define IB_NTILES %d' % len(btiles))
+    emit_words('ib_tiles', [w for t in btiles for w in t])
+    emit_words('ib_lists', flat)
+    emit_words('ib_frame', bframe)
+    emit_words('ib_cram', bcram)
     open(os.path.join(os.path.dirname(dst), 'intro_art.inc'), 'w').write('\n'.join(out) + '\n')
     out = main_out
 
@@ -426,37 +497,12 @@ def chr_pen(code, x, y):
 
 intro_scene()
 
-# The black part: the port's intro picture ($E0C's data: its tiles, plane B and
-# 155 steps of plane writes at $210088) shown with the arcade's timing, frame n
-# of it being the arcade's frame 999 + n (Start at 800; the graveyard is 804-998,
-# ISC_FRAMES: 804 its bg and the HUD, the sprites from 805). Each entry: the
-# frame and the step whose writes show from it.
-# The arcade's frames, from its sprites (tools/arcade): the Satan's cloak blinks
-# (shown 1000, 1004, 1008, 1012-1015, then 2 frames of 4 to 1043; the port's
-# steps 8 and 9 put it on and off: its 7 blinks are shown as the arcade's 11),
-# opens its wings at 1045 and changes pose at 1057, 1068, 1079, 1090, 1101;
-# swoops from 1109 (steps 54-81; the arcade's picture changes every frame
-# there, the port has 28 pictures), takes the princess at 1126, is gone at
-# 1149; Arthur lands at 1158, gets up from 1192 (steps 96-106), has his armour
-# on at 1212, walks 1246-1287 (steps 121-144). The picture's last frame is 1318
-# (IB_FRAMES); steps 0-7, 23-27 ... are empty.
+# The black part (opening.c): frame n of it is the arcade's frame 999 + n (Start at 800; the graveyard is
+# 804-998, ISC_FRAMES: 804 its bg and the HUD, the sprites from 805), drawn from the arcade's own sprite list of
+# that frame (intro_scene above: ib_frame, ib_lists); its last frame is 1318 (IB_FRAMES).
 ISC_FRAMES = 999 - 804
-BLINK_ON = [1000, 1004, 1008, 1012] + list(range(1018, 1043, 4))
-BLINK_OFF = [1001, 1005, 1009, 1016] + list(range(1020, 1045, 4))
-ANCH = {22: 1045, 28: 1057, 34: 1068, 39: 1079, 45: 1090, 50: 1101, 54: 1109, 55: 1110, 62: 1126, 74: 1149,
-        81: 1158, 96: 1192, 106: 1212, 121: 1246, 144: 1287}
-IB_FRAMES = 1319 - 999
-sched = [(f, 8) for f in BLINK_ON] + [(f, 9) for f in BLINK_OFF]
-ks = sorted(ANCH)
-for s in range(22, 145):
-    lo = max(k for k in ks if k <= s); hi = min(k for k in ks if k >= s)
-    sched.append((round(ANCH[lo] if lo == hi else ANCH[lo] + (ANCH[hi] - ANCH[lo]) * (s - lo) / (hi - lo)), s))
-sched.sort()
-assert all(999 <= f < 999 + IB_FRAMES for f, s in sched)
 open(os.path.join(os.path.dirname(dst), 'intro_waits.inc'), 'w').write(
-    '/* generated by mkart.py: the black part of the opening (frame from its start, $E0C step) */\n'
-    '#define ISC_FRAMES %d\n#define IB_FRAMES %d\n#define IB_NSCHED %d\n'
-    'static const u16 intro_sched[IB_NSCHED][2] = { %s };\n'
-    % (ISC_FRAMES, IB_FRAMES, len(sched), ', '.join('{%d, %d}' % (f - 999, s) for f, s in sched)))
+    '/* generated by mkart.py: the opening lengths */\n'
+    '#define ISC_FRAMES %d\n#define IB_FRAMES %d\n' % (ISC_FRAMES, IB_FRAMES))
 
 open(dst, 'w').write('\n'.join(out) + '\n')
