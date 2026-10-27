@@ -135,6 +135,13 @@ int coop_on(void)
     return is_home() && PERSIST->home_sub == HOME_COOP;
 }
 
+/* coop_on() for the per-frame paths: the same tests (is_home() in settings.c), inline */
+static inline int coop_now(void)
+{
+    const Persist *p = PERSIST;
+    return p->magic == PERSIST_MAGIC && p->mode == MODE_HOME && p->home_sub == HOME_COOP;
+}
+
 /* pad 2, mapped like pad 1 in Home mode (B attack, C/A jump) */
 static const u8 dir_lut[16] = {
     0x00, 0x08, 0x04, 0x0C, 0x02, 0x0A, 0x06, 0x0E,
@@ -239,15 +246,25 @@ static void p2_died(void)
  * game's own HUD tiles. */
 static void draw_hud(void)
 {
-    static const u16 label[7] = { 0x73F, 0x73A, 0x72E, 0x74E, 0x732, 0x743, 0x70A };
     u8 lives = p2_state == PS_OUT ? 0 : p2_lives;
-    int i;
+    u16 tens = 0;
     /* every frame: the game's HUD refresh may clear the row */
     VDP_CTRLL = VRAM_W(0xE000 + 22 * 2);
-    for (i = 0; i < 7; i++) VDP_DATA = 0x8000 | label[i];
+    VDP_DATA = 0x8000 | 0x73F;          /* P L A Y E R 2 */
+    VDP_DATA = 0x8000 | 0x73A;
+    VDP_DATA = 0x8000 | 0x72E;
+    VDP_DATA = 0x8000 | 0x74E;
+    VDP_DATA = 0x8000 | 0x732;
+    VDP_DATA = 0x8000 | 0x743;
+    VDP_DATA = 0x8000 | 0x70A;
     VDP_CTRLL = VRAM_W(0xE000 + (64 + 27) * 2);
-    VDP_DATA = lives >= 10 ? 0x8000 | (0x702 + 4 * (lives / 10)) : 0;
-    VDP_DATA = 0x8000 | (0x702 + 4 * (lives % 10));
+    if (lives >= 10) {                  /* tens and units without a divide */
+        u8 t = 0;
+        while (lives >= 10) { lives -= 10; t++; }
+        tens = 0x8000 | (0x702 + 4 * t);
+    }
+    VDP_DATA = tens;
+    VDP_DATA = 0x8000 | (0x702 + 4 * lives);
 }
 
 /* Players pass through each other, but a player falling onto the partner's
@@ -286,7 +303,7 @@ void p2_frame(void)
     u8 save_in;
     Body arthur;
     u16 cam = RAM16(0xFF9100);
-    if (!coop_on()) { active = 0; return; }
+    if (!coop_now()) { active = 0; return; }
     if (!active) {
         if (!RAM8(0xFFC305)) return;    /* wait until Arthur is controllable */
         spawn();

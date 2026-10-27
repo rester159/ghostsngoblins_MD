@@ -11,6 +11,9 @@ usage: test_ab.py <rom A> <rom B> <loop start hex> <loop end hex> <ram dump>... 
          [--novdp]                       don't compare VDP writes
          [--vbl]                         advance the VBlank counter ($FF7DFC) by one before each
                                          update (the passes that alternate by frame take both halves)
+         [--dmadata]                     compare a DMA from 68000 memory by the words it transfers
+                                         instead of its source address (for builds whose patch code
+                                         moved the constant data it uploads)
 """
 import random
 import sys
@@ -29,6 +32,9 @@ if NOVDP:
 VBL = '--vbl' in args
 if VBL:
     args.remove('--vbl')
+DMADATA = '--dmadata' in args
+if DMADATA:
+    args.remove('--dmadata')
 for flag in ('-pa', '-pb', '-x'):
     while flag in args:
         i = args.index(flag); v = args[i + 1]; del args[i:i + 2]
@@ -52,6 +58,11 @@ class Machine:
 
     def mem(self, uc, kind, addr, size, value, _):
         if kind == UC_MEM_WRITE:
+            if DMADATA and addr in (0xC00004, 0xC00006):
+                v = value & (0xFFFFFFFF if size == 4 else 0xFFFF)
+                for w in ((v >> 16, v & 0xFFFF) if size == 4 else (v,)):
+                    self.ctrl_word(uc, addr, w)
+                return
             if 0xC00000 <= addr < 0xC00010:
                 self.vdp.append((addr, size, value))
             if addr in (0xA10003, 0xA10005):
@@ -64,6 +75,33 @@ class Machine:
         elif addr in (0xA10003, 0xA10005):
             hi, lo = self.pads.get(addr, (0x7F, 0x33))
             uc.mem_write(addr, bytes([hi if self.th.get(addr, 0x40) else lo]))
+
+    def ctrl_word(self, uc, addr, w):
+        """--dmadata: one control-port word; DMA source registers ($95-$97) are kept back and a
+        68000-to-VDP DMA is recorded with the words it reads."""
+        if not hasattr(self, 'regs'):
+            self.regs, self.pend = {}, None
+        if self.pend is None and (w & 0xC000) == 0x8000:
+            r, val = (w >> 8) & 0x1F, w & 0xFF
+            self.regs[r] = val
+            if r not in (0x15, 0x16, 0x17):
+                self.vdp.append((addr, 2, w))
+            return
+        if self.pend is None:
+            self.pend = w
+            return
+        first, self.pend = self.pend, None
+        g = self.regs.get
+        if w & 0x80 and not g(0x17, 0) & 0x80:
+            n = (g(0x14, 0) << 8 | g(0x13, 0)) or 0x10000
+            src = (g(0x17, 0) & 0x7F) << 17 | g(0x16, 0) << 9 | g(0x15, 0) << 1
+            try:
+                data = bytes(uc.mem_read(src, 2 * n))
+            except UcError:
+                data = ('src', src)
+            self.vdp.append(('dma', first, w, n, data))
+        else:
+            self.vdp.append(('cmd', first, w))
 
     def update(self):
         uc = self.uc
@@ -118,8 +156,8 @@ for path in args[4:]:
             if a.vdp != b.vdp:
                 k = next((i for i, (x, y) in enumerate(zip(a.vdp, b.vdp)) if x != y), min(len(a.vdp), len(b.vdp)))
                 result += ' (write %d of %d/%d: A %s, B %s)' % (k, len(a.vdp), len(b.vdp),
-                                                              ['%X:%d:%X' % w for w in a.vdp[k:k + 3]],
-                                                              ['%X:%d:%X' % w for w in b.vdp[k:k + 3]])
+                                                              [str(w)[:60] for w in a.vdp[k:k + 3]],
+                                                              [str(w)[:60] for w in b.vdp[k:k + 3]])
             bad += 1
             break
         a.vdp.clear(); b.vdp.clear()
