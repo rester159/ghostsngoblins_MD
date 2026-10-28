@@ -16,6 +16,8 @@
  *    get there, but Firebrand flies. A move that puts his body in one is
  *    undone (scenery_block): sideways he stops at its surface, rising he stops
  *    as under a ceiling, and dropping onto one refills the hover.
+ *  - the stage-end key is taken standing (fb_key_y): taken in flight it
+ *    left him hanging in the air, the stage end never finishing.
  *  - the top of the screen is a ceiling too (screen_top): stage 6's boss room
  *    has no ceiling cells, and above a stage's map he walked on the terrain
  *    ring's wrapped copies of floors 512 px further down, off screen.
@@ -321,6 +323,16 @@ void fb_frame(void)
 int fb_gate_weapon(void)
 {
     return fb_on() ? 3 : WEAPON;
+}
+
+/* the stage-end key's contact context (hook_key_y): Arthur's y, or in the air
+ * Firebrand's y moved far off, so he takes the key standing. The sequence the
+ * key starts ($FFC305 = 3) moves no airborne player: taken in flight, he
+ * hung in the air for good. */
+void fb_key_y(u16 *ctx)
+{
+    ctx[1] = POS_Y;
+    if (fb_on() && JUMP_PHASE) ctx[1] += 0x2000;
 }
 
 /* $116472 / $116884: the item code is about to copy its context's armor and

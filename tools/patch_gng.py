@@ -461,6 +461,22 @@ def install_features(rom, build_dir):
     # Astaroth is hurt by the cross only: Firebrand's fireball hurts him too (glue.s)
     expect(rom, 0xBEAE, bytes.fromhex('102b0008c006'), 'weapon mask test')
     put(rom, 0xBEAE, jsr(sym['hook_weapon_mask']))
+    # the big-art enemy lists ($114318, $11C304, $11C458: Red Arremers (type 5) into
+    # the two art streams $FFC6C4/$FFC6F4, type 4 into 4 slots, type 2 into 3) fault
+    # (15, $83, $88: the game stops) on one more than they hold on screen. Firebrand
+    # flew stage 6's tower with three Arremers on screen; the extra one is now skipped
+    # for that frame (its art not streamed) instead.
+    for at, orig, nxt in ((0x114352, '640000aa', 0x1143D0), (0x11438A, '62000052', 0x1143D0),
+                          (0x1143AE, '6400003e', 0x1143D0), (0x11C33E, '640000aa', 0x11C3BC),
+                          (0x11C376, '62000052', 0x11C3BC), (0x11C39A, '6400003e', 0x11C3BC),
+                          (0x11C49C, '640000fa', 0x11C568), (0x11C4D4, '620000a2', 0x11C568),
+                          (0x11C4F8, '6400008e', 0x11C568)):
+        expect(rom, at, bytes.fromhex(orig), 'big-art list overflow fault')
+        put(rom, at, bytes.fromhex(orig[:4]) + (nxt - at - 2).to_bytes(2, 'big'))
+    # the stage-end key's contact test: Firebrand takes it standing (firebrand.c fb_key_y)
+    for a in (0x8A920, 0x117E10, 0x118396, 0x1193D8):
+        expect(rom, a, bytes.fromhex('397900ff90040002'), 'stage-end key: player y')
+        put(rom, a, jsr(sym['hook_key_y']) + b'\x4e\x71')
     # stage 6's cross check: Firebrand passes it (firebrand.c fb_gate_weapon)
     expect(rom, 0x119E16, bytes.fromhex('123900ffa218'), 'cross check weapon')
     put(rom, 0x119E16, jsr(sym['hook_cross_gate']))

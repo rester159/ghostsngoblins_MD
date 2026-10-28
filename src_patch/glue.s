@@ -427,6 +427,17 @@ hook_arthur_dma:
 1:  movem.l (%sp)+,%d0-%d1/%a0-%a1
     rts
 
+| $8A920 / $117E10 / $118396 / $1193D8 (8 bytes each): the stage-end key's
+| routine copies Arthur's y into its contact context (a4 + 2).
+    .global hook_key_y
+hook_key_y:
+    movem.l %d0-%d1/%a0-%a1,-(%sp)
+    move.l  %a4,-(%sp)
+    jsr     fb_key_y
+    addq.l  #4,%sp
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+    rts
+
 | $116472 and $116884 (12 bytes each): the item code copies its context's armor
 | (+9) and weapon (+17) back to the game; a3 = context.
     .global hook_item_copy

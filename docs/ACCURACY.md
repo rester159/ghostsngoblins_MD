@@ -1107,6 +1107,13 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     Fault sweep with 83-85 (stages 1-6 x 1P, co-op, Firebrand, seed 1): no fault; updates per frame 1P .991 .916 .972
     .969 .992 .985, co-op .938 .713 .832 .931 .797 .758, Firebrand .993 .898 .969 .926 .987 .975; the developer launch,
     a normal Arcade Start, the Home start and Firebrand's Quest start all reach play.
+86. **A third Red Arremer on screen no longer stops the game** (`patch_gng.py`, the big-art lists). The port's enemy
+    art lists (`$114318`, `$11C304`, `$11C458`: type 5, the Red Arremers, into the two streams `$FFC6C4`/`$FFC6F4`;
+    type 4 into 4 entries, type 2 into 3) jump to the fault trap (codes 15, `$83`, `$88`) on one entry more than they
+    hold, freezing the game. Found when Firebrand's bot climbed stage 6's tower with three Arremers on the screen
+    (frame 3496 of its path: fault 15, the timer stopped, Firebrand hanging in his knockback). The extra enemy is
+    skipped for that frame (its art not streamed) instead; Arthur can meet the same three. Checked: the same path
+    goes on without a fault, the knockback lands and the death and restart follow.
 
 ## Matching (audited)
 
