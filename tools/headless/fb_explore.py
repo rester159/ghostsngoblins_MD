@@ -8,7 +8,10 @@ long enough; every new cell, or a known one reached sooner, goes into the
 archive. fb_campaign's single best-progress search falls back down the
 towers; this one keeps every floor it has reached to start from.
 
-usage: [SEED_MOVES=<file>] fb_explore.py <rom> <stage 5|6> <out prefix> [rounds] [stop y]
+BOSS=1 keys the cells by the boss's damage, its death and the key too, ranks
+them by height plus that progress, and runs until the stage is cleared.
+
+usage: [SEED_MOVES=<file>] [BOSS=1] fb_explore.py <rom> <stage 5|6> <out prefix> [rounds] [stop y]
 SEED_MOVES puts every cell along a known path into the archive first.
 Writes <out>.moves (the path to the highest cell, one input mask per frame
 from the launch) whenever the top rises, and stops once he is at stop y
@@ -94,8 +97,30 @@ def macro(last):
     return ms
 
 
+BOSS = bool(os.environ.get('BOSS'))     # also the fight: the boss's damage, its death, the key
+
+
+def boss_dmg():
+    """hit points the boss enemies (type 6: stage 6's Satans, 10 each) have lost, 20 once dead"""
+    if g.r8(0xFFC8D6) == 2:
+        return 20
+    hp = [g.r8(0xFFB800 + 48 * k + 11) for k in range(40)
+          if g.r8(0xFFB800 + 48 * k + 4) and g.r8(0xFFB800 + 48 * k + 10) == 6]
+    return 20 - sum(hp) if hp else 0
+
+
+def progress():
+    p = g.r16(0xFF9004)
+    if BOSS:
+        p += 60 * boss_dmg() + 1500 * (g.r8(0xFFC8D6) == 2) + 3000 * (g.r16(0xFFCD7A) != 0)
+    return p
+
+
 def key():
-    return g.r16(0xFF9001) // 24, g.r16(0xFF9004) // 24, bool(g.r8(0xFF9459))
+    k = (g.r16(0xFF9001) // 24, g.r16(0xFF9004) // 24, bool(g.r8(0xFF9459)))
+    if BOSS:
+        k += (boss_dmg() // 2, g.r8(0xFFC8D6) == 2, g.r16(0xFFCD7A) != 0)
+    return k
 
 
 archive = {}        # cell -> [state (compressed), moves (16-bit masks), tries, stage timer left (s)]
@@ -108,9 +133,9 @@ def add(moves):
     e = archive.get(k)
     if e is None or len(moves) < len(e[1]):
         raw, f = g.save()
-        archive[k] = [(zlib.compress(raw, 1), f), array('H', moves), e[2] if e else 0, g.r16(0xFFCD62)]
-        y = g.r16(0xFF9004)
-        if g.r16(0xFF9410) == 0 or g.r8(0xFF9459):      # standing or on a ladder: a floor reached
+        archive[k] = [(zlib.compress(raw, 1), f), array('H', moves), e[2] if e else 0, g.r16(0xFFCD62), progress()]
+        y = progress()
+        if g.r16(0xFF9410) == 0 or g.r8(0xFF9459) or BOSS:     # standing or on a ladder: a floor reached
             if y > top[0]:
                 top = (y, k)
                 open(out + '.moves', 'w').write('\n'.join('%x' % m for m in moves) + '\n')
@@ -132,9 +157,9 @@ if os.environ.get('SEED_MOVES'):        # a known path (e.g. fb_proofs/stage5_pa
 t0 = time.time()
 for rnd in range(rounds):
     cells = list(archive.items())
-    ys = sorted({c[0][1] for c in cells})
+    ys = sorted({c[1][4] for c in cells})
     rank = {y: i / max(1, len(ys) - 1) for i, y in enumerate(ys)}
-    w = [(1 + 3 * rank[c[0][1]] ** 2) / (1 + e[2]) ** 0.5 * (e[3] / 180) ** 2 for c in cells for e in [c[1]]]
+    w = [(1 + 3 * rank[e[4]] ** 2) / (1 + e[2]) ** 0.5 * (e[3] / 180) ** 2 for c in cells for e in [c[1]]]
     k, e = random.choices(cells, w)[0]
     e[2] += 1
     raw, f = e[0]
@@ -156,7 +181,7 @@ for rnd in range(rounds):
         if add(moves):
             print('top y %d at x %d, %d frames, %d cells, round %d, %.0fs' % (
                 top[0], g.r16(0xFF9001), len(moves), len(archive), rnd, time.time() - t0), flush=True)
-            if top[0] >= stop_y:
+            if top[0] >= stop_y and not BOSS:
                 print('STOP y reached', flush=True)
                 sys.exit(0)
     if rnd % 2000 == 0:
