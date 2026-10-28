@@ -8,7 +8,7 @@ import random; random.seed(int("${SEED:-7}")); s=[]; f=1400
 while f<3600:
   m=random.choice(['80','180','100','1','40','141','0','81','80']); n=random.randint(8,40); s.append('%d-%d:%s'%(f,f+n,m)); f+=n+1
 print(','.join(s))")
-PK=$(python3 -c "print(','.join('%d:FFC309:60'%f for f in range(1300,3600,30)))")
+PK=$(python3 -c "print(','.join('%d:FFC309:60'%f for f in range(1300,3600,30)))")${EXTRA_POKE:+,$EXTRA_POKE}
 X=""; [ "$3" = 1 ] && X="$Rn"
 SCRIPT="$(python3 "$D/devscript.py" $2 $3 $Rn)" SCRIPT2="$X" POKE="$PK" STEP=50 WATCH="1FFC9DC FFC570 FFC571 1FF7084 1FF7DFC" REGION=${REGION:-ntsc-u} python3 "$P/tools/headless/lr.py" "$C" "$1" 3600 $W/prof/b3_$$ | tee $W/tw/flt_${TAG:-x}_$2_$3_${SEED:-7}.txt | python3 -c "
 import sys,re

@@ -42,6 +42,7 @@ typedef signed short   s16;
 #define BTN_START 0x80
 
 static inline void vdp_reg(int r, int v) { VDP_CTRL = 0x8000 | (r << 8) | (v & 0xFF); }
+#ifndef HOST                           /* (host builds of the C, tools/re/test_*.py, have no 68000 asm) */
 static inline void nop(void) { __asm__ volatile ("nop"); }
 /* block interrupts (level 7 mask), returning the old status register */
 static inline u16 irq_off(void)
@@ -51,6 +52,7 @@ static inline u16 irq_off(void)
     return sr;
 }
 static inline void irq_restore(u16 sr) { __asm__ volatile ("move.w %0,%%sr" : : "d"(sr) : "memory"); }
+#endif
 
 void vsync(void);
 u16  pad_read(int port);
