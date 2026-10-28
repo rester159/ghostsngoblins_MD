@@ -1,17 +1,17 @@
-GHOSTS'N GOBLINS MD  -  V0.6.1 ALPHA
+GHOSTS'N GOBLINS MD  -  V0.7 ALPHA
 rester159, 2026
-====================================
+==================================
 
 A reworked version of the Ghosts 'n Goblins Mega Drive / Genesis port: fixed to
 run on real hardware and accurate emulators, faster, with 2-player co-op as
 Maximo and a campaign as Firebrand, the Red Arremer.
 
-File: Ghosts'nGoblinsMD_Alpha_0.6.1.bin  (4 MiB, regions J/U/E, NTSC and PAL)
+File: Ghosts'nGoblinsMD_Alpha_0.7.bin  (4 MiB, regions J/U/E, NTSC and PAL)
 SHA-1: bd83831ae1cb414a12833132fa3a8cb8026d1834
 
 
-FIXED IN V0.6.1
----------------
+FIXED IN V0.7
+-------------
 - Stage 5's Big Men are drawn from their own art (they showed as sprite
   garbage) and can be killed again: 10 hits, as in the arcade.
 - Stage 2's buildings no longer flash light and dark.
