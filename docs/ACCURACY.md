@@ -1255,7 +1255,7 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   Satans, skulls, window devils) are masked to their sizes; per-type steps along Firebrand's stage 5 route are the same
   in V0.5 and V0.6 (no type above the arcade's speeds). Stage 5's devils and skulls are the arcade's (Fixed 51, 52, lockstep),
   much quicker than the original port's own. The report was on V0.5: there, too, stage 5 runs at 1.0 updates per frame and every
-  enemy type's steps match V0.6's (1P walks at the start; `fb_explore.py P=0`, Arthur climbing to y 1138 of the
+  enemy type's steps are within a few percent of V0.6's, none faster than the arcade's (1P walks at the start; `fb_explore.py P=0`, Arthur climbing to y 1138 of the
   tower in 6,000 rounds). Needs the mode (1P, co-op, Firebrand, Plus), the difficulty setting (Hardest starts at
   rank `$20`, so stage 5 at `$30`+) and the place.
 - **Co-op speed, a known limit** (Fixed 82; kept as it is for V0.6): co-op now runs 0.82 (stage 2), 0.91-0.93 (stages 3, 5, 6) and 0.97 (stages 1, 4) in-play
