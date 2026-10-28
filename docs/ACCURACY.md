@@ -1213,7 +1213,9 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   reached in a run (the change into an Arremer was since forced in both games: Matching (audited), Red Arremers).
 
 - **Ending, what's left** (Fixed 56, 72, 85): the texts' colours are the nearest the palette lines allow (the HUD's), the
-  heart's too; Firebrand's ending wasn't reached headless (its developer launch doesn't go to the final room).
+  heart's too. Firebrand's ending is reached headless now (`tools/headless/fb_plus_test.py`: the final room's
+  proof played from its launch, the ending's text, then Firebrand's Quest Plus from stage 1 at rank `$20` with the 1 s
+  hover, the unlock saved in SRAM and still set after a power-on with it).
 
 - **Smaller:** (the stage 2 ledge-edge and elevator walk steps: Fixed 66.) "A stage 5 flying
   knight drifts after ~600 frames" wasn't reproduced: no flying knight (type 3, `$AFFC`) spawns in stage 5 (every slot
