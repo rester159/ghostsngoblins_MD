@@ -1242,12 +1242,16 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   building and past it (teleported to x 5488/5632/5760 and walking on, ~6,000 frames) every one was drawn whenever the
   game ran; the only frames without were the 8 paused, blank frames of the camera snap above (after a teleport). The Big Men's own
   stand-ins in that area (a clamp to x 5200-5808 and a floor assumed where the probe found none) were removed with Fixed 54. Fixed 78 later found every Big Man drawn split down the middle (the halves swapped since Fixed 21), which may be what was seen.
-- **Co-op speed** (Fixed 82): co-op now runs 0.82 (stage 2), 0.91-0.93 (stages 3, 5, 6) and 0.97 (stages 1, 4) in-play
+- **Co-op speed, a known limit** (Fixed 82; kept as it is for V0.6): co-op now runs 0.82 (stage 2), 0.91-0.93 (stages 3, 5, 6) and 0.97 (stages 1, 4) in-play
   updates per frame (3-seed means), 1P and Firebrand 0.93-1.0. What's left per update on the stage 2 co-op snapshot (~203
   lines, Unicorn estimate): Maximo's context swap (~12, 248 bytes exchanged twice; every byte must stay as before), his
   control block (~14, the engine's player routines a second time), the Petite Devils' C (~5 each on the screen,
   `petite.c`), the type blocks' context copies of the enemies off the screen (~200 cycles each, their RAM writes kept)
   and the platform, item and shot passes; each a few lines at most.
+  Reaching 1.0 in stage 2 would need about a fifth of the update cut, which means restructuring the enemy
+  passes (lists of the live slots instead of all 40) and a lighter second-player update; that isn't planned for this
+  release. In co-op stage 2 the game slows by about a fifth when the screen is busy; nothing is lost (no fault in the
+  V0.6 sweep, stages 1-6 x 1P/co-op/Firebrand x 3 seeds).
 - **Terrain map, what's left** (Fixed 65, 80): the ring is the arcade's world everywhere; what differs is the arcade's
   own stage draw at a camera column 0 (columns 0-12, rows R - 8 .. R - 1 and R + 17 .. R + 23, out of reach) and a few
   column writes' stale rows R + 15 .. R + 23 in stage 2 (above the screen), neither traced in the arcade's code.
