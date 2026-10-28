@@ -13,6 +13,8 @@ them by height plus that progress, and runs until the stage is cleared.
 
 usage: [SEED_MOVES=<file>] [BOSS=1] fb_explore.py <rom> <stage 5|6> <out prefix> [rounds] [stop y]
 SEED_MOVES puts every cell along a known path into the archive first. P=0 plays Arthur (1P) instead.
+STATS=<file> keeps each enemy type's steps per update (by 200 px band of his y) from all the play, written
+every 2,000 rounds (comparing builds' enemy speeds where the paths differ).
 Writes <out>.moves (the path to the highest cell, one input mask per frame
 from the launch) whenever the top rises, and stops once he is at stop y
 (world y, up; default: the boss floor, 1700 for stage 5, 2700 for stage 6)
@@ -143,6 +145,37 @@ def add(moves):
     return False
 
 
+STATS = os.environ.get('STATS')        # a file: per 200 px band of his y and enemy type, each update's step
+st, st_prev = {}, [None, {}]
+
+
+def sample():
+    """one update's enemy steps (max of |dx|, |dy| in px) into STATS, keyed by (y band, type)"""
+    u = g.r32(0xFF7084)
+    if u == st_prev[0]:
+        return
+    cur = {}
+    band = g.r16(0xFF9004) // 200 * 200
+    for i in range(40):
+        a = 0xFFB800 + 48 * i
+        if g.r8(a + 4):
+            t, x, y = g.r8(a + 10), g.r16(a + 17), g.r16(a + 21)
+            cur[i] = (t, x, y)
+            p = st_prev[1].get(i)
+            if p and p[0] == t and st_prev[0] is not None and u == st_prev[0] + 1:
+                d = max(abs(x - p[1]), abs(y - p[2]))
+                if 0 < d < 40:
+                    st.setdefault((band, t), []).append(d)
+    st_prev[:] = [u, cur]
+
+
+def dump_stats():
+    with open(STATS, 'w') as fo:
+        for (b, t), v in sorted(st.items()):
+            v = sorted(v)
+            fo.write('y%-5d t%-2d n%-6d mean %.2f p95 %d max %d\n' % (b, t, len(v), sum(v) / len(v), v[int(len(v) * .95)], v[-1]))
+
+
 add([])
 if os.environ.get('SEED_MOVES'):        # a known path (e.g. fb_proofs/stage5_partial.moves): every cell along it
     path = []
@@ -164,11 +197,14 @@ for rnd in range(rounds):
     e[2] += 1
     raw, f = e[0]
     g.load((zlib.decompress(raw), f))
+    st_prev[0] = None
     moves = list(e[1])
     last = [0, 'off']
     for s in range(random.randint(4, 40)):
         for m in macro(last):
             g.run(1, m)
+            if STATS:
+                sample()
             moves.append(m)
             if dead() or cleared():
                 break
@@ -185,6 +221,8 @@ for rnd in range(rounds):
                 print('STOP y reached', flush=True)
                 sys.exit(0)
     if rnd % 2000 == 0:
+        if STATS:
+            dump_stats()
         print('round %d cells %d top %d %.0fs' % (rnd, len(archive), top[0], time.time() - t0), flush=True)
 print('ROUNDS out: top y %d' % top[0])
 sys.exit(2)
