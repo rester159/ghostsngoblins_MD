@@ -12,5 +12,5 @@ for f in range(1, 4000):
     if 820 <= f < 1320 and f % 10 == 0: m[0x72] = st; m[0x81] = cp
     g.set_inputs(0x40 if 700 <= f <= 710 else (1 if 800 <= f <= 805 else 0), 0, 0); g.run_frame()
     x = m[0x506] << 8 | m[0x507]; cam = m[0x9C] << 8 | m[0x9D]
-    if t is None and f > 1320 and (x == TX if TX is not None else x > 200) and (cam or m[0x9E] or m[0x9F]): t = f + 30; print('restart at frame', f, 'x', x, 'cam', cam)
+    if t is None and f > 1320 and (x == TX if TX is not None else x > 200) and (cam or m[0x9E] or m[0x9F] or st == 0): t = f + 30; print('restart at frame', f, 'x', x, 'cam', cam)
     if t and f == t: g.save(outp); print('saved', f); break

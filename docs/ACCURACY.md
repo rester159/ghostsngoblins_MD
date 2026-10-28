@@ -1200,6 +1200,37 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   those columns, `$828E`/`$8262`), which the row writes replace before those rows come on the screen (row R + 16 written
   at camera row R). Not reproduced (not reachable: the cells are 17-23 rows above the camera at the start).
 
+## Not reachable in play
+
+Differences that only a debug teleport or a test life start reaches, or that sit in cells play never shows or uses.
+They stay as they are; each note says why.
+
+- **Terrain map, what's left** (Fixed 65, 80): the ring is the arcade's world everywhere; what differs is the arcade's
+  own stage draw at a camera column 0 (columns 0-12, rows R - 8 .. R - 1 and R + 17 .. R + 23, out of reach) and a few
+  column writes' stale rows R + 15 .. R + 23 in stage 2 (above the screen).
+  Traced (2026-10-28, `drawlog`-style write log over the boot to stages 1 and 3): every one of these cells was last written
+  by the arcade's column copy (`$8677`, the store at `$86B8`, U from the 40-cell buffer `$0388` + (`$064E` & 15)) on the
+  stage's first frames with the camera still at 0,0, before the start camera is placed (stage 3 then moves to row 32 and
+  rewrites only rows R .. R + 16 of columns 0-12). For the rows under row 0 the column buffer is filled through the
+  screen pointer stepping below the world's first screen row (`$4000` - `$20`), which reads memory outside the world
+  map, so those cells hold whatever is there, not terrain. None is on the screen or under Arthur (the rows are 8-23
+  below or above the screen, and the columns are written again before the camera reaches them); stage 2's stale rows
+  R + 15 .. R + 23 are above the top of the screen (Firebrand's ceiling, Fixed 86's build, is the screen's top).
+
+- **Stage 5 room, the arcade's ring at an x 7233 life start** (Fixed 67): a life start there (a test restart entry, not
+  reached in play) leaves the arcade's bg ring one column off, so its ladders sit 16 px right; the port writes the map as
+  it is. Not traced in the arcade's stage draw (`$726E`/`$80A0`).
+- **Camera snaps (only after a debug teleport):** when Arthur is put far ahead of the camera (stage 2: x 5961 with the
+  camera held at 5578) both games snap the camera to the next section (5833); the port blanks the display and refills
+  the whole plane (`$93D6`, 32 columns, ~830 scanlines of work) over 8 paused frames where the arcade shows it on the next
+  frame. Not reached in play: walked from the checkpoint (x 4736) through the town to x 6024, the camera scrolls past
+  5578 one pixel a frame (Arthur 130 px ahead of it), with an update every frame and no refill. Not cheap to change: the
+  snap is stage 2's streamer (`$11A89C`) finding the camera off its window or in another section and taking the stage's
+  full reload (`$11A7C0`): display off, the section's tiles and palette uploaded again (`$B12` from the section table at
+  `$FFB020`, `$B3D2`, `$B416`), the plane's 32 columns refilled, display on. The arcade's bg tiles are all in ROM, so it
+  only rewrites its bg RAM; showing the port's on the next frame would mean uploading the section's art while the old
+  picture is shown (no free VRAM to hold both) and a refill under a frame, for a case only a teleport reaches.
+
 ## Open
 
 - **Petite Devils and skulls, what's left** (Fixed 51, 52; their art: Fixed 63; the crows' burst: Fixed 73; stage 4:
@@ -1229,19 +1260,6 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   likeliest source was stage 5's Big Men (Fixed 54). Stage 2's water death y (24 in the arcade, 25 in the port) came from
   the restart's y fraction (Fixed 46): with the fractions equal the fall and the death are identical (y 79, 74, ... 24).
 
-- **Stage 5 room, the arcade's ring at an x 7233 life start** (Fixed 67): a life start there (a test restart entry, not
-  reached in play) leaves the arcade's bg ring one column off, so its ladders sit 16 px right; the port writes the map as
-  it is. Not traced in the arcade's stage draw (`$726E`/`$80A0`).
-- **Camera snaps (only after a debug teleport):** when Arthur is put far ahead of the camera (stage 2: x 5961 with the
-  camera held at 5578) both games snap the camera to the next section (5833); the port blanks the display and refills
-  the whole plane (`$93D6`, 32 columns, ~830 scanlines of work) over 8 paused frames where the arcade shows it on the next
-  frame. Not reached in play: walked from the checkpoint (x 4736) through the town to x 6024, the camera scrolls past
-  5578 one pixel a frame (Arthur 130 px ahead of it), with an update every frame and no refill. Not cheap to change: the
-  snap is stage 2's streamer (`$11A89C`) finding the camera off its window or in another section and taking the stage's
-  full reload (`$11A7C0`): display off, the section's tiles and palette uploaded again (`$B12` from the section table at
-  `$FFB020`, `$B3D2`, `$B416`), the plane's 32 columns refilled, display on. The arcade's bg tiles are all in ROM, so it
-  only rewrites its bg RAM; showing the port's on the next frame would mean uploading the section's art while the old
-  picture is shown (no free VRAM to hold both) and a refill under a frame, for a case only a teleport reaches.
 - **"Invisible troll" (itch.io report, stage 2 by the brick building after the ladder building):** not reproduced. With
   a check that every live, on-screen Big Man has sprites with pixels in the sprite table on every frame, over the ladder
   building and past it (teleported to x 5488/5632/5760 and walking on, ~6,000 frames) every one was drawn whenever the
@@ -1271,10 +1289,6 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   passes (lists of the live slots instead of all 40) and a lighter second-player update; that isn't planned for this
   release. In co-op stage 2 the game slows by about a fifth when the screen is busy; nothing is lost (no fault in the
   V0.6 sweep, stages 1-6 x 1P/co-op/Firebrand x 3 seeds).
-- **Terrain map, what's left** (Fixed 65, 80): the ring is the arcade's world everywhere; what differs is the arcade's
-  own stage draw at a camera column 0 (columns 0-12, rows R - 8 .. R - 1 and R + 17 .. R + 23, out of reach) and a few
-  column writes' stale rows R + 15 .. R + 23 in stage 2 (above the screen), neither traced in the arcade's code.
-
 - **Intro** (Fixed 62, 70, 71, 83, 84): after the second clear the arcade's graveyard shows its bg in the final room's
   palette for 6 frames and its swoop/walk stand 1-4 px from Start's on 47 frames (sub-pixel parts kept from the room);
   the port draws stage 1's colours and Start's positions. The second clear's bonus life shows a few frames into play.
