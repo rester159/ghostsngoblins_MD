@@ -1208,9 +1208,14 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   at 0.73 updates per frame (was 0.81): the devils now stay on the screen as long as the arcade's, and drawing them is
   the cost (the same build with the devils not drawn: 0.88); co-op stage 5 0.98 -> 0.93 (skulls and devils on the screen).
 
-- **Stage 2's devils, what's left** (Fixed 39; the windows: Fixed 61, 69, 79): sound `$12` at the opening is played by id, not compared by ear; the change into a Red
-  Arremer after 1200-3600 frames and the subtype 0/2 states (no such spawn records seen in stage 2) are translated but weren't
-  reached in a run (the change into an Arremer was since forced in both games: Matching (audited), Red Arremers).
+- **Stage 2's devils, what's left** (Fixed 39; the windows: Fixed 61, 69, 79): sound `$12` at the opening is played by
+  id, not compared by ear. The subtype 0/2 states (no such spawn records in stage 2) were since forced in both games and
+  match: `slots.py FORCE=0/2` (each window devil made subtype 0 or 2 on its first frame, as if spawned so) from the
+  checkpoint states (`arc_start.py 1 1`; `port_start.py` on a `restart_entry.py` copy, entry `00128050` index 1, `TX=4736
+  TC=4608`), Arthur held at x 4850, 5100 and 5300, 2,500 frames each: every slot's states, x and y identical update for
+  update (`cmp_slots.py` offset 1, `STATES=1`; the unforced run too). Subtype 0 went through its wait off the screen,
+  walk, glide, hop and come-down (1/0-1/3), subtype 2 through the leap out (1/5) and the walk. The change into a Red
+  Arremer was forced in both too (Matching (audited), Red Arremers).
 
 - **Ending, what's left** (Fixed 56, 72, 85): the texts' colours are the nearest the palette lines allow (the HUD's), the
   heart's too. Firebrand's ending is reached headless now (`tools/headless/fb_plus_test.py`: the final room's

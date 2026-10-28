@@ -1,7 +1,7 @@
 """slots.py arc <state> <frames> | port <core> <rom> <frames> <out>: per frame, the enemy slots of TYPES (all slots
 when unset) as 'slot:type:states:x,y' + the frame counter; arcade PAD/POKE (f:addr:hex), port PAD/POKE (lr form);
 Arthur invincible in both; HOLDX=x Arthur's x held (both); SHOTS=1 also the 6 enemy shots (as slots 100-105:
-the arcade's projectiles $13D0, the port's shot pool $FFC100, which is the arcade's <$A7/<$A8 pool). The port's
+the arcade's projectiles $13D0, the port's shot pool $FFC100, which is the arcade's <$A7/<$A8 pool); FORCE=0/2 makes each stage 2 window devil subtype 0 or 2. The port's
 lines end with its update count and rng_lag (POKE it on frame 1 to line $FFA206 up with <$21, as in Fixed 51);
 cmp_slots.py compares two logs update for update."""
 import os, sys
@@ -11,6 +11,18 @@ shots = os.environ.get('SHOTS')
 holdx = int(os.environ['HOLDX']) if os.environ.get('HOLDX') else None
 pad = int(os.environ.get('PAD', '0'), 16)       # the game's own pad bits
 pk = [(int(a), int(b, 16), c) for a, b, c in (x.split(':') for x in os.environ.get('POKE', '').split(',') if x)]
+force = int(os.environ['FORCE']) if os.environ.get('FORCE') else None
+seen = set()
+
+
+def forced(i, live, sub, st):
+    """FORCE=0/2: a stage 2 window devil (type 4) on its first frame made subtype 0 or 2, as if spawned so: the
+    subtype 1 set-up ($B1EC) undone (live flag halved, states 0) for 0, its window state 4 made 5 (the leap) for 2.
+    Returns the new (live, sub, states) or None."""
+    if i in seen: return None
+    seen.add(i)
+    if force == 0: return (live >> 1 if st[0] else live, 0, (0, 0, 0))
+    return (live, 2, (1, 5, 0) if st[0] else st)
 
 
 def lag_addr():
@@ -39,6 +51,13 @@ if sys.argv[1] == 'arc':
         if holdx is not None: m[0x506] = holdx >> 8; m[0x507] = holdx & 255
         g.set_inputs(0, pad, 0); g.run_frame()
         sl = []
+        if force is not None:
+            for i in range(40):
+                x = 0x890 + 48 * i
+                if not m[x - 16]: seen.discard(i)
+                elif m[x + 5] == 4:
+                    v = forced(i, m[x - 16], m[x - 14], (m[x - 13], m[x - 12], m[x - 11]))
+                    if v: m[x - 16], m[x - 14], (m[x - 13], m[x - 12], m[x - 11]) = v[0], v[1], v[2]
         for i in range(40):
             x = 0x880 + 48 * i + 0x10
             if m[x - 16] and (not types or m[x + 5] in types):
@@ -72,6 +91,16 @@ else:
         SCRIPT[:] = [(f, f, pad)]
         L.retro_run()
         r = ram()
+        if force is not None:
+            for i in range(40):
+                a = 0xFFB800 + 48 * i
+                if not rd(r, a + 4, 1): seen.discard(i)
+                elif rd(r, a + 10, 1) == 4:
+                    v = forced(i, rd(r, a + 4, 1), rd(r, a + 6, 1), (rd(r, a + 7, 1), rd(r, a + 8, 1), rd(r, a + 9, 1)))
+                    if v:
+                        w8(a + 4, v[0]); w8(a + 6, v[1])
+                        for k in range(3): w8(a + 7 + k, v[2][k])
+            r = ram()
         sl = []
         for i in range(40):
             a = 0xFFB800 + 48 * i
