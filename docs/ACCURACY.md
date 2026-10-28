@@ -1247,6 +1247,15 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   building and past it (teleported to x 5488/5632/5760 and walking on, ~6,000 frames) every one was drawn whenever the
   game ran; the only frames without were the 8 paused, blank frames of the camera snap above (after a teleport). The Big Men's own
   stand-ins in that area (a clamp to x 5200-5808 and a floor assumed where the probe found none) were removed with Fixed 54. Fixed 78 later found every Big Man drawn split down the middle (the halves swapped since Fixed 21), which may be what was seen.
+- **"Stage 5's enemies run much faster than normal" (player report, Genesis Plus GX; build and mode not given):** not
+  reproduced on V0.6. Checked: stage 5 after a real stage 4 clear (stage 4's proof played from its launch) runs as a
+  direct launch does, at 1.0 updates per frame once play starts (the first ~700 frames are the map and the stage-start
+  hold), rank `$0A` (the base 6 + 4 for the clear, as the arcade's); the rank goes back to the base at every life start
+  (20,000 frames of deaths: base and working rank 6 at each restart); the rank-indexed tables of the C handlers (devils,
+  Satans, skulls, window devils) are masked to their sizes; per-type steps along Firebrand's stage 5 route are the same
+  in V0.5 and V0.6 (no type above the arcade's speeds). Stage 5's devils and skulls are the arcade's (Fixed 51, 52, lockstep),
+  much quicker than the original port's own. Needs the build, the mode (1P, co-op, Firebrand, Plus) and the difficulty
+  setting (Hardest starts at rank `$20`, so stage 5 at `$30`+).
 - **Co-op speed, a known limit** (Fixed 82; kept as it is for V0.6): co-op now runs 0.82 (stage 2), 0.91-0.93 (stages 3, 5, 6) and 0.97 (stages 1, 4) in-play
   updates per frame (3-seed means), 1P and Firebrand 0.93-1.0. What's left per update on the stage 2 co-op snapshot (~203
   lines, Unicorn estimate): Maximo's context swap (~12, 248 bytes exchanged twice; every byte must stay as before), his
