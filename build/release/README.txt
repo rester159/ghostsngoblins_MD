@@ -7,7 +7,7 @@ run on real hardware and accurate emulators, faster, with 2-player co-op as
 Maximo and a campaign as Firebrand, the Red Arremer.
 
 File: Ghosts'nGoblinsMD_Alpha_0.6.1.bin  (4 MiB, regions J/U/E, NTSC and PAL)
-SHA-1: 089ee970f388c354c84ea3c4fdaf7dcc97c4a9d9
+SHA-1: bd83831ae1cb414a12833132fa3a8cb8026d1834
 
 
 FIXED IN V0.6.1

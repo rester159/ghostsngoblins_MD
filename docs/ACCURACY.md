@@ -1132,8 +1132,11 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     enemy burst and other art sit there), so its Big Men were drawn from that art. Now, in stage 5 only, each pose drawn
     takes one of three 16-tile VRAM slots stage 5 doesn't use (`$690`, `$6A8`, `$6B8`: the window table's space, the
     window being off in play; zero through the whole tower and the room in VRAM scans), its four pieces uploaded from the
-    ROM copy with the sprite table that first shows it, and its pieces point there (a fourth pose at once is drawn as
-    before). (2) The Big Man's set-up gave it the arcade's 10 hit points (`$CF36`'s `+$26`, 10 in stages 2 and 5) only at
+    ROM copy with the sprite table that first shows it, and its pieces point there. The slots are what the mode leaves
+    free (scanned per mode): Arthur alone `$690`, `$6A8`, `$6B8`; co-op `$6A8`, `$6B8` (Maximo uses `$681`-`$69B`);
+    Firebrand `$6B8` (his wing columns, fire icon and map marker are `$690`-`$69F`, his frames fill the rest to `$6B7`);
+    a pose with no slot borrows the first slot's (a Big Man in another pose). Checked in Firebrand's stage 5 proof: his
+    weapon-box fire icon intact at all 472 samples, the Big Men drawn from `$6B8`. (2) The Big Man's set-up gave it the arcade's 10 hit points (`$CF36`'s `+$26`, 10 in stages 2 and 5) only at
     stage index 1; in stage 5 `+11` stayed 0 and every hit took it to 255, 254, ... Now every stage but the final room
     (whose type 10 are Astaroth's flames). Measured: the stage 5 pose rendered from VRAM is the Big Man (it was the burst's
     pixels); a stage 5 Big Man takes 10 lance hits, dies and gives 500 points (V0.6: 0 -> 212 after the first hits).
