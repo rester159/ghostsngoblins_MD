@@ -627,6 +627,37 @@ def chr_pen(code, x, y):
     return ((b >> (bit + 4)) & 1) | (((b >> bit) & 1) << 1)
 
 
+# Stage 2's stepping stones (type-4 platforms, x 6032-6608; the port's $A19E draws them 32 x 16 from tile $7F0,
+# line 0, with a slab of its own): the arcade's sprites $170/$171 (colour 3, its greys), as 8 tiles (4 x 2,
+# column first) in line 1's colours (stage 2's line 1, measured in play: its greys 4, 11, 13, 14 and black 1).
+STONE_LINE1 = [(0, 0, 0), (0, 0, 0), (116, 52, 0), (0, 52, 52), (52, 52, 52), (87, 52, 52), (0, 87, 52), (87, 87, 52),
+               (116, 116, 52), (0, 87, 87), (116, 116, 87), (116, 116, 116), (144, 116, 116), (144, 144, 116),
+               (172, 144, 144), (172, 172, 144)]
+STONE_ARC = {0: (187, 187, 187), 1: (0, 0, 0), 12: (85, 85, 85), 13: (119, 119, 119), 14: (153, 153, 153),
+             6: (170, 153, 119), 7: (136, 119, 85)}
+
+
+def stone_tiles():
+    def near(c):
+        return min(range(1, 16), key=lambda i: sum((a - b) ** 2 for a, b in zip(c, STONE_LINE1[i])))
+    px = [[0] * 32 for _ in range(16)]
+    for half, code in enumerate((0x170, 0x171)):
+        for y in range(16):
+            for x in range(16):
+                pen = spr_pen(code, x, y)
+                if pen == 15: continue
+                assert pen in STONE_ARC, 'stone pen %d' % pen
+                px[y][half * 16 + x] = near(STONE_ARC[pen])
+    words = []
+    for tx in range(4):
+        for ty in range(2):
+            for r in px[ty * 8:ty * 8 + 8]:
+                c = r[tx * 8:tx * 8 + 8]
+                words += [c[0] << 12 | c[1] << 8 | c[2] << 4 | c[3], c[4] << 12 | c[5] << 8 | c[6] << 4 | c[7]]
+    emit_words('stone_tiles', words)
+
+
+stone_tiles()
 intro_scene()
 
 # The black part (opening.c): frame n of it is the arcade's frame 999 + n (Start at 800; the graveyard is

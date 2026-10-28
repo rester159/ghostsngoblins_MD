@@ -322,6 +322,7 @@ hook_sat_dma:
     rts
 1:  movem.l %d0-%d1/%a0-%a1,-(%sp)
     jsr     sat_vblank              | bossart.c: the Satans' pose uploads
+    jsr     bm_vblank               | bmart.c: stage 5's Big Men's poses
     movem.l (%sp)+,%d0-%d1/%a0-%a1
     movem.l %d1/%a0-%a1,-(%sp)
     move.l  %d0,-(%sp)
@@ -334,9 +335,12 @@ hook_sat_dma:
 | Every 8 frames the arcade ($EE00, stage 1) sets colours 42-44 from tables
 | $EE57/$EE6B by the frame counter's bits 3-4; the port's stage 1 palette has
 | 42 and 43 as line 3's 13 and 14 (water only) and 44, the crests, fixed
-| (patch_gng.py). The phase is the VBlank count's.
+| (patch_gng.py). The phase is the VBlank count's. $644 is stage 2's sprite-
+| table DMA too, where line 3's 13 and 14 are building colours: stage 1 only.
     .global water_cycle
 water_cycle:
+    tst.b   0xFFC512
+    bne     hook_sat_dma
     move.l  %d0,-(%sp)
     move.w  0xFF7DFE,%d0
     lsr.w   #1,%d0

@@ -1125,6 +1125,33 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     the 5 frames identical in mask (IoU 0.57 -> 1.000), 2580-3060 mean IoU 0.982 -> 0.987, colour agreement 0.9968 ->
     0.9989; after Start nothing changes. Stage 1 1P bench clean, Firebrand's ending into Plus as before.
 
+88. **Stage 5's Big Men: their art and their hit points** (`bmart.c`, `bigman.s` `bm_attr_hook` at `$AFF4`, `glue.s`
+    `hook_sat_dma`; `$11BA30`). Reported on V0.6: the stage 5 Big Men looked like sprite glitches and couldn't be killed.
+    (1) The type-10 builder draws every Big Man from the frame records (`$125620` via `$123B3E`), whose pieces point at
+    tiles `$320`-`$3F3`; stage 2 loads the Big Man's art there (the port's copy at `$123BA0`), stage 5 never does (its
+    enemy burst and other art sit there), so its Big Men were drawn from that art. Now, in stage 5 only, each pose drawn
+    takes one of three 16-tile VRAM slots stage 5 doesn't use (`$690`, `$6A8`, `$6B8`: the window table's space, the
+    window being off in play; zero through the whole tower and the room in VRAM scans), its four pieces uploaded from the
+    ROM copy with the sprite table that first shows it, and its pieces point there (a fourth pose at once is drawn as
+    before). (2) The Big Man's set-up gave it the arcade's 10 hit points (`$CF36`'s `+$26`, 10 in stages 2 and 5) only at
+    stage index 1; in stage 5 `+11` stayed 0 and every hit took it to 255, 254, ... Now every stage but the final room
+    (whose type 10 are Astaroth's flames). Measured: the stage 5 pose rendered from VRAM is the Big Man (it was the burst's
+    pixels); a stage 5 Big Man takes 10 lance hits, dies and gives 500 points (V0.6: 0 -> 212 after the first hits).
+
+89. **Stage 2's buildings no longer flash** (`glue.s` `water_cycle`). Reported on V0.6. Stage 1's water colour cycle
+    (Fixed 75: colours 61 and 62 every 8 frames) is hooked on `$644`, which is stage 2's sprite-table DMA too, where line
+    3's 13 and 14 are building colours: they swapped every 8 frames all through stage 2. Now stage 1 only: stage 2's CRAM
+    changed 545 times in 5,000 frames, now once (an unrelated load); stage 1's water cycles as before.
+
+90. **Stage 2's stepping stones in their arcade art** (`mkart.py` `stone_tiles`, `bossart.c` `stone_load` from `pad.c`
+    `stage_hold`, `bigman.s` `stone_attr` at `$A226`). Reported on V0.6 as frozen platforms. The type-4 platforms over the
+    water (x 6032-6608) were drawn from tile `$7F0`, line 0, which the start of play fills with art of the port's own
+    (a pale slab, like ice); the arcade draws them with its stone sprites `$170`/`$171` (colour 3, greys). Now those are
+    converted into 8 tiles in stage 2's line 1 greys, loaded at `$48C`-`$493` (unused all through stage 2: VRAM scans of a
+    whole stage 2 run and two town walks) at every stage 2 start, and the platforms drawn from them. Their movement was
+    already the arcade's: all three wake together when Arthur reaches x 6018, in both games, and bob from then on.
+    With 88-90: no faults in stages 1-6 x 1P/co-op/Firebrand (`bench.sh`, seed 1), updates per frame as before.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn

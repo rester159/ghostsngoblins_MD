@@ -912,6 +912,16 @@ def install_big_man_edge(rom, sym):
         expect(rom, a + 2, b'\xff\xf0', 'type 10 frame first piece x')
     expect(rom, 0xAFB2, bytes.fromhex('3412d4519453'), 'type 10 piece x')
     put(rom, 0xAFB2, jsr(sym['bm_piece_x']))
+    # stage 5's Big Men drawn from their own art (bmart.c: the poses in VRAM slots stage 5 doesn't use)
+    expect(rom, 0xAFF4, bytes.fromhex('3b6a00040004'), 'type 10 piece attribute')
+    put(rom, 0xAFF4, jsr(sym['bm_attr_hook']))
+    # stage 2's stepping stones in their arcade art (bossart.c stone_load, bigman.s stone_attr)
+    expect(rom, 0xA226, bytes.fromhex('3b790014c9b40004'), 'type-4 platform attribute')
+    put(rom, 0xA226, jsr(sym['stone_attr']) + bytes.fromhex('4e71'))
+    # Big Men have the arcade's 10 hit points in stages 2 and 5 ($CF36's +$26); the port gave them only in stage 2
+    # (and 0 in stage 5: no hit killed them). Now every stage but the final room, whose type 10 are its flames.
+    expect(rom, 0x11BA30, bytes.fromhex('0c390001' '00ffc512' '660c'), 'Big Man hit points stage test')
+    put(rom, 0x11BA30, bytes.fromhex('0c390006' '00ffc512' '670c'))
     put(rom, 0x11B493, b'\x27')
     # their shots (shot type 3, pool pass $ACB8; arcade projectile type 3, $FEBE: move, animate, the range test
     # $8F62 only): the port also took one out after 120 frames (+33)

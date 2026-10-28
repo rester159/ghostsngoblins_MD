@@ -155,6 +155,7 @@ void pad_update(void)
 void ter_fill(void);
 int  intro_hold(void);      /* opening.c: after the opening, the HUD on black */
 void hide_frame(void);
+void stone_load(void);
 extern u16 fs_last, fs_flags, fs_stale;     /* pace.c */
 void stage_hold(void)
 {
@@ -168,6 +169,8 @@ void stage_hold(void)
         game_sound_tick();
         if (i == 0)
             ter_fill();     /* the stage draw's terrain (terrain.c), well inside this frame */
+        if (i == 1)
+            stone_load();   /* bossart.c: stage 2's stepping stones */
     }
     /* The first update starts on the next VBlank's first line (its VBlank
      * counted by the handler, interrupts on from the return). It began on the

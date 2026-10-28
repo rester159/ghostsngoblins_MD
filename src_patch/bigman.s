@@ -76,3 +76,31 @@ bm_piece_x:
     sub.w   (%a3),%d2
     rts
 
+
+| $AFF4 (`jsr`, over move.w 4(a2),4(a5)): the piece's attribute; in stage 5
+| the Big Man's pose from its VRAM slot (bmart.c), elsewhere as before.
+    .global bm_attr_hook
+bm_attr_hook:
+    cmpi.b  #4,0xFFC512
+    beq.s   1f
+    move.w  4(%a2),4(%a5)
+    rts
+1:  movem.l %d0-%d1/%a0-%a1,-(%sp)
+    move.l  %a2,-(%sp)
+    move.l  %a1,-(%sp)
+    jsr     bm_attr
+    addq.l  #8,%sp
+    move.w  %d0,4(%a5)
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+    rts
+
+| $A226 (`jsr` + nop, over move.w $14C9B4,4(a5)): the stage 1-2 build's type-4
+| platform attribute (tile $7F0, line 0); stage 2's stepping stones from their
+| arcade stone art, tile $48C, line 1 (bossart.c stone_load).
+    .global stone_attr
+stone_attr:
+    move.w  0x14C9B4,4(%a5)
+    cmpi.b  #1,0xFFC512
+    bne.s   1f
+    move.w  #0x248C,4(%a5)
+1:  rts

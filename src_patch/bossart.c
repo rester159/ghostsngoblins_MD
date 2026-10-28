@@ -511,3 +511,18 @@ const s16 *pd_entry(u16 f)
 
 /* a devil's fireball (type-6 shot, +8 = $D8) in stage 5: $F7 */
 const s16 fire_frame[4] = { 1, -8, 8, FIRE_T };
+
+/* pad.c stage_hold, at every stage and life start: stage 2's stepping stones
+ * (type-4 platforms) as the arcade's stone blocks (mkart.py stone_tiles, line
+ * 1), at tiles $48C-$493, which stage 2 never uses (a VRAM scan of a whole
+ * stage 2 run and two town walks); bigman.s stone_attr points them there.
+ * The port drew them from $7F0, which the start of play fills with art of its
+ * own (a pale slab). */
+#define STONE_T 0x48C
+void stone_load(void)
+{
+    int k;
+    if (RAM8(0xFFC512) != 1) return;
+    VDP_CTRLL = VRAM_W(STONE_T * 32);
+    for (k = 0; k < 128; k++) VDP_DATA = stone_tiles[k];
+}
