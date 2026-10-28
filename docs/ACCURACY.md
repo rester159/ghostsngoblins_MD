@@ -1300,8 +1300,13 @@ They stay as they are; each note says why.
   release. In co-op stage 2 the game slows by about a fifth when the screen is busy; nothing is lost (no fault in the
   V0.6 sweep, stages 1-6 x 1P/co-op/Firebrand x 3 seeds).
 - **Intro** (Fixed 62, 70, 71, 83, 84, 87): after the second clear the arcade shows the HUD alone for 2 frames before
-  the graveyard, where the port is still loading it with the display off. Its black part's cloak blinks and the
-  Satan's and Arthur's 1-4 px offsets follow the frame counter and the sub-pixel parts the objects keep from the final
-  room, so they change with the run (a list recorded from one run matched the reference run worse, IoU 0.847 against
-  the current 0.985): the port plays the reference run's frames. The second clear's bonus life shows a few frames
-  into play.
+  the graveyard (2587-2588 of the `fb_cmp.py` run), where the port is still loading the scene with the display off
+  (its load takes 3 frames; the arcade's last text is still on the screen until 2586, so the ending can't hand over
+  sooner without blanking it: tried, the 2 text frames lost; the HUD frames would also need the graveyard to be
+  loaded while the text shows). Its black part's cloak blinks and the Satan's and Arthur's 1-4 px offsets follow the
+  frame counter and the sub-pixel parts the objects keep from the final room, so they change with the run (a list
+  recorded from one run matched the reference run worse, IoU 0.847 against 0.985): the port plays the reference
+  run's frames. The second clear's bonus life follows the arcade's rule (the first frame with the counter & 7 = 0
+  in play, Fixed 58), so its frame depends on the counter's phase in both games; the port's counter doesn't count the
+  opening's frames (the arcade's counts every frame), which only moves that phase, as the arcade's own time before
+  Start does.
