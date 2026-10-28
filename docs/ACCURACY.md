@@ -1257,8 +1257,9 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
   much quicker than the original port's own. The report was on V0.5: there, too, stage 5 runs at 1.0 updates per frame and every
   enemy type's steps are within a few percent of V0.6's, none faster than the arcade's (1P walks at the start; `fb_explore.py P=0 STATS=...` on each build, Arthur
   climbing to y 1234 (V0.5) and 1248 (V0.6) of the tower in 22,000 rounds, every update of the play logged: per 200 px
-  band and type the mean step 1.3-2.5 px in both, the 95th percentiles the same or a pixel apart; the top, y 1250-1700,
-  and the Satan's room not reached). Needs the mode (1P, co-op, Firebrand, Plus), the difficulty setting (Hardest starts at
+  band and type the mean step 1.3-2.5 px in both, the 95th percentiles the same or a pixel apart; the top: both builds from
+  a life start in the Satan's room (`restart_entry.py` entry `40DB6050`), 4,000 rounds each, y 1200-1650: the same,
+  the Satan 1.93/1.96 px mean, 95th percentile 4, max 11 in both). Needs the mode (1P, co-op, Firebrand, Plus), the difficulty setting (Hardest starts at
   rank `$20`, so stage 5 at `$30`+) and the place.
 - **Co-op speed, a known limit** (Fixed 82; kept as it is for V0.6): co-op now runs 0.82 (stage 2), 0.91-0.93 (stages 3, 5, 6) and 0.97 (stages 1, 4) in-play
   updates per frame (3-seed means), 1P and Firebrand 0.93-1.0. What's left per update on the stage 2 co-op snapshot (~203
