@@ -1115,6 +1115,16 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     skipped for that frame (its art not streamed) instead; Arthur can meet the same three. Checked: the same path
     goes on without a fault, the knockback lands and the death and restart follow.
 
+87. **After the second clear, the graveyard's first frames in the final room's colours** (`mkart.py` `isc_cram_room`,
+    `opening.c` `ISC_ROOM_FRAMES`). The arcade draws the graveyard's bg on the scene's 4th frame and changes its palette
+    on the 9th, so the graveyard shows in the final room's bg palette for 5 frames (grey mountains, red ground, the hill
+    dark); the port showed stage 1's colours from the first. Now `mkart.py` boots the arcade to the final room, forces
+    the end and takes the room's palette 6 frames into the scene; each CRAM entry the graveyard's bg uses takes the
+    room's colour for that (palette, pen), the one entry the sprites share keeps its own (25 entries). Measured
+    frame by frame (`fb_arc.py` / `fb_port_end.py` / `fb_cmp.py`, an `arc_start.py 6 0` state with the end forced):
+    the 5 frames identical in mask (IoU 0.57 -> 1.000), 2580-3060 mean IoU 0.982 -> 0.987, colour agreement 0.9968 ->
+    0.9989; after Start nothing changes. Stage 1 1P bench clean, Firebrand's ending into Plus as before.
+
 ## Matching (audited)
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
@@ -1289,6 +1299,9 @@ They stay as they are; each note says why.
   passes (lists of the live slots instead of all 40) and a lighter second-player update; that isn't planned for this
   release. In co-op stage 2 the game slows by about a fifth when the screen is busy; nothing is lost (no fault in the
   V0.6 sweep, stages 1-6 x 1P/co-op/Firebrand x 3 seeds).
-- **Intro** (Fixed 62, 70, 71, 83, 84): after the second clear the arcade's graveyard shows its bg in the final room's
-  palette for 6 frames and its swoop/walk stand 1-4 px from Start's on 47 frames (sub-pixel parts kept from the room);
-  the port draws stage 1's colours and Start's positions. The second clear's bonus life shows a few frames into play.
+- **Intro** (Fixed 62, 70, 71, 83, 84, 87): after the second clear the arcade shows the HUD alone for 2 frames before
+  the graveyard, where the port is still loading it with the display off. Its black part's cloak blinks and the
+  Satan's and Arthur's 1-4 px offsets follow the frame counter and the sub-pixel parts the objects keep from the final
+  room, so they change with the run (a list recorded from one run matched the reference run worse, IoU 0.847 against
+  the current 0.985): the port plays the reference run's frames. The second clear's bonus life shows a few frames
+  into play.

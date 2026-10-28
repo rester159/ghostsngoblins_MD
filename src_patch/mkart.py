@@ -272,6 +272,30 @@ def intro_scene():
                     assert bytes(m[0x2000 + 64:0x2000 + 128]) == snap[870]['fg'][64:128]   # the HUD's rows as the graveyard's
                 continue
             snap[f] = dict(bg=bytes(m[0x2800:0x3000]), fg=bytes(m[0x2000:0x2800]), spr=sp, scroll=list(g.scroll))
+    # After the second clear the arcade shows the graveyard's bg in the final room's bg palette for its first frames
+    # (the room's palette stays until the scene's 9th frame, the bg is written on its 4th): the final room reached
+    # as arc_start.py does, the end forced (<$7F = 1, <$08 = 2, <$0B = 0), that palette taken 6 frames into the scene
+    # (the black part's first frame, the first with its opening list, is the scene's frame 193)
+    g = GnG(romdir); m = g.mem; t = None
+    for f in range(1, 4000):
+        if 820 <= f < 1320 and f % 10 == 0: m[0x72] = 6; m[0x81] = 0
+        g.set_inputs(0x40 if 700 <= f <= 710 else (1 if 800 <= f <= 805 else 0), 0, 0); g.run_frame()
+        if t is None and f > 1320 and (m[0x506] << 8 | m[0x507]) > 200 and (m[0x9C] or m[0x9D] or m[0x9E] or m[0x9F]): t = f + 30
+        if t and f == t: break
+    assert t, 'final room not reached'
+    m[0x7F] = 1; m[0x08] = 2; m[0x0B] = 0
+    ph = []
+    for k in range(4000):
+        g.set_inputs(0, 0, 0); g.run_frame(); ph.append(g.palette())
+        b = g.spritebuf; sp = []
+        for o in range(0x200 - 4, -1, -4):
+            attr = b[o + 1]; code = b[o] + ((attr << 2) & 0x300)
+            x = b[o + 3] - (0x100 if attr & 1 else 0); y = b[o + 2] - 16
+            if -16 < y < 224 and -16 < x < 256: sp.append((code, (attr >> 4) & 3, attr & 4, attr & 8, x, y))
+        if sp == blk_spr[999]: break
+    assert sp == blk_spr[999], 'the second clear\'s black part not found'
+    pal_room = ph[k - 193 + 6]
+    assert pal_room[:0x40] != pal[806][:0x40] and ph[k - 193 + 9][:0x40] == pal[806][:0x40]
     assert snap[870]['scroll'] == [0, 0, 0, 0]
     assert snap[993]['spr'] == snap[996]['spr']
     phases = (806, 871, 935)
@@ -423,6 +447,27 @@ def intro_scene():
                 row[i + 1] = cram(c[k])
             cr += row
         emit_words('isc_cram%d' % k, cr)
+    # the graveyard in the final room's bg colours (after the second clear): each entry a bg group uses takes the
+    # room's colour for that (palette, pen); entries only the sprites and the HUD use keep the first phase's
+    room = {}
+    for gk, pens in groups.items():
+        if gk[0] != 'bg': continue
+        for pen in pens:
+            c = key_col('bg', gk[1], pen)
+            if c == black: continue
+            e = (gline[gk], lines[gline[gk]].index(c) + 1)
+            room.setdefault(e, set()).add(q(pal_room[gk[1] * 8 + pen]))
+    shared = [e for e in room if any(gk[0] != 'bg' and e[0] == li and key_col(*gk, pen) == lines[li][e[1] - 1]
+                                     for gk, li in gline.items() for pen in groups[gk])]
+    cr = []
+    for li in range(4):
+        row = [0] * 16
+        for i, c in enumerate(lines[li]):
+            row[i + 1] = cram(sorted(room[(li, i + 1)])[0]) if (li, i + 1) in room and (li, i + 1) not in shared else cram(c[0])
+        cr += row
+    out.append('/* the graveyard in the final room\'s colours: %d entries, %d with two room colours, %d shared with sprites/HUD (kept) */'
+               % (len(room), sum(len(v) > 1 for v in room.values()), len(shared)))
+    emit_words('isc_cram_room', cr)
     for f in sprs:
         out.append('#define ISC_NSPR%d %d' % (f, len(sprdat[f])))
         out.append('static const u16 isc_spr%d[%d][3] = { %s };' % (f, len(sprdat[f]), ', '.join(

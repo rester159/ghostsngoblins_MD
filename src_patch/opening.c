@@ -52,6 +52,10 @@ static u8 after_end;
 static const u16 isc_ev[2][10] = {
     { AF(805), AF(871), AF(935), AF(955), AF(826), AF(993), AF(994), AF(996), AF(997), AF(999) },
     { 1, 65, 129, 150, 22, 188, 189, 190, 191, 193 } };
+/* after the second clear the arcade shows the graveyard in the final room's bg
+ * colours on its first frames (its palette changes on the scene's 9th frame,
+ * the bg is drawn from the 4th; mkart.py isc_cram_room) */
+#define ISC_ROOM_FRAMES 5
 #define HIDE_FRAMES 29
 #define STAGE_HOLD 26                           /* pad.c's */
 #define LOAD_TOTAL 35                           /* the load's and the hold's frames after the opening */
@@ -212,7 +216,8 @@ int intro_scene(void)
     for (n = 0; n < ev[9]; n++) {
         intro_wait();
         sr = irq_off();
-        if (n == 0) isc_cram(isc_cram0);
+        if (n == 0) isc_cram(after_end ? isc_cram_room : isc_cram0);
+        if (n == ISC_ROOM_FRAMES && after_end) isc_cram(isc_cram0);
         if (n == ev[0]) isc_sprites(isc_spr870, ISC_NSPR870);
         if (n == ev[1]) isc_cram(isc_cram1);
         if (n == ev[2]) isc_cram(isc_cram2);
