@@ -12,7 +12,7 @@ BOSS=1 keys the cells by the boss's damage, its death and the key too, ranks
 them by height plus that progress, and runs until the stage is cleared.
 
 usage: [SEED_MOVES=<file>] [BOSS=1] fb_explore.py <rom> <stage 5|6> <out prefix> [rounds] [stop y]
-SEED_MOVES puts every cell along a known path into the archive first.
+SEED_MOVES puts every cell along a known path into the archive first. P=0 plays Arthur (1P) instead.
 Writes <out>.moves (the path to the highest cell, one input mask per frame
 from the launch) whenever the top rises, and stops once he is at stop y
 (world y, up; default: the boss floor, 1700 for stage 5, 2700 for stage 6)
@@ -37,7 +37,7 @@ K = 8
 random.seed(int(os.environ.get('SEED', '1')))
 g = Game(rom, sysdir=os.path.dirname(os.path.abspath(out)),
          options={'genesis_plus_gx_overclock': os.environ.get('OC', '200%')})
-g.launch(stage)
+g.launch(stage, int(os.environ.get('P', '2')))     # P=0: Arthur, 1P
 g.want_video = False
 stage0, idx0 = g.r8(0xFFF400), g.r8(0xFFC512)
 
