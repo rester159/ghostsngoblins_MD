@@ -488,6 +488,10 @@ def install_features(rom, build_dir):
               0x1115FA, 0x1177A6, 0x118816, 0x118D80, 0x119896):
         expect(rom, a, jsr(0x704BE), 'sprite table DMA')
         put(rom, a, jsr(sym['water_cycle' if a == 0x644 else 'hook_sat_dma']))
+        # a held frame writes these $4E bytes' scroll itself and returns past them
+        expect(rom, a + 6, bytes.fromhex('33fc000000a11100323cffff23fc7c00000300c0000433fc000000c00000'
+                                         '303900ff9100444033c000c0000023fc4000001000c0000433fc000000c00000'
+                                         '303c0010907900ff910233c000c00000'), 'scroll after the sprite table DMA')
     # English / Japanese logo: title palette source and attract overlay sources
     lea = lambda reg, a: bytes([0x41 | (reg << 1), 0xF9]) + be32(a)
     expect(rom, 0xBB8, lea(0, 0x2045E8), 'title palette lea')

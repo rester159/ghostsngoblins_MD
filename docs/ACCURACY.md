@@ -1155,7 +1155,48 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     already the arcade's: all three wake together when Arthur reaches x 6018, in both games, and bob from then on.
     With 88-90: no faults in stages 1-6 x 1P/co-op/Firebrand (`bench.sh`, seed 1), updates per frame as before.
 
+91. **Tombstones no longer shiver while scrolling** (`pace.c` `pace_sat`, `glue.s` `hook_sat_dma`). Reported on V0.7.
+    The tombstones are sprites (stage 1: four 2x2 pieces centred on the object's x), so they only stay fixed to the
+    ground if each frame's sprite table and plane B scroll come from the same camera. On a held frame (the render
+    skip, `pace.c`: no sprite uploads after a skipped build, or when an update starts late in VBlank) the sprites
+    stayed but every stage loop still wrote the new scroll right after the sprite-table DMA (`-$FF9100` to hscroll,
+    `16 - $FF9102` to vscroll), so the background moved on and every sprite slipped by the camera's step for a frame.
+    Measured as sprite x + scroll on stage 1's first tombstone (240 when in step), walking right then left for 200
+    frames: V0.7 1 frame off by 1 px; with every other build skipped (`fs_force`), 96 frames off by 1-4 px. Now a held
+    frame writes the scroll of the sprites on screen (`fs_sx`/`fs_sy`, kept at each upload) and returns past the
+    loop's own writes (the same `$4E` bytes after all ten hooks, checked by `patch_gng.py`): 200 of 200 frames at 240
+    in both runs. Two limits, from the Firebrand proof paths of stages 1-6 replayed with every other build skipped
+    (~28,000 held frames), comparing each held frame's visible plane cells with the frame it holds:
+    - vertically the plane has 32 rows for 29 on screen and the game streams the rows past the bottom edge into the
+      other 3, so a held scroll in another cell row showed a line of the new bottom row at the top of the screen
+      (falls). The vertical scroll is held only within the same cell row (otherwise the sprites lag vertically for
+      that frame, as before): no row differences left;
+    - moving left, the incoming column is streamed 31 cells ahead, into the column just past the right edge: a held
+      frame whose scroll isn't on a cell boundary shows up to (scroll & 7) px of it at the right edge, in practice 1 px
+      for one frame. Left as is.
+    The other differences on held frames are the game's own redraws (the boss rooms' 6x8 gate, stage transitions).
+    No faults in stages 1-6 x 1P/co-op/Firebrand (`bench.sh`, seed 7), updates per frame as before.
+
 ## Matching (audited)
+
+- **Tombstone boxes against their art** (reported on V0.7: drawn in one place, solid slightly to the right).
+  As the arcade's. Walking right into stage 1's first tombstone (object x 256), both games stop Arthur at x 243 with
+  the camera at 115 (`<$0506`, `<$9C`), the tombstone drawn at the same screen x, and Arthur's sprite overlapping the
+  left of its art by the same few pixels: the box is the arcade's x -12..+12 (`$A052`), about 3 px wider each side
+  than the 18 px stone, and Arthur's x is his sprite's centre (`tools/arcade/gng.py` and the port side by side).
+
+- **Difficulty** (reported on V0.7 as doing nothing, as in the US/World arcade sets). The World set used here applies
+  it: DSW2 NORMAL/EASY/DIFFICULT/VERY DIFFICULT gives base rank `<$57` = `$06/$00/$18/$20` (`$629A`), copied to the
+  stage rank `<$61` at the game start (`$6C0C`) and to the working rank `<$9A` at every life start (`$6C65`; 0 only in
+  the attract demo, `<$28` = 0), then the creep (Fixed 27). Run in `gng.py` with each setting: `$9A` = `$06xx`,
+  `$00xx`, `$18xx`, `$20xx`. The port sets the same (`settings.c`; `$FFC501`/`$FFA208` = `$06`/`$20` for NORMAL/VERY
+  DIFFICULT in a headless run). Most enemy tables read the rank as `(rank & $30) >> 4`, so the four settings are
+  tiers 0, 0, 1, 2: EASY and NORMAL play almost the same (rank / 8 tables: 0 for both), and DIFFICULT and VERY
+  DIFFICULT step up one and two tiers. MAME's driver has the same four settings for the World and Japanese sets and no note of
+  them not working. Arcade mode keeps them as the board's. Home (and the developer menu) keeps NORMAL, DIFFICULT
+  and VERY DIFFICULT and makes EASY its own level: the base and working ranks held at 0 all game (`rank_easy`,
+  `glue.s` `rank_creep`: no creep, the stage clears' +4 undone). Measured: Home EASY 0 through 2,500 frames of play
+  and a poked base +4; Home NORMAL 6 -> A over the same run; Arcade EASY 0 -> 4 over 2,600 frames, as the board's.
 
 - **Weapons** (all five): speed tables (`$9E0D`/port `$293D9C`), ranges (`$9DEB`/`$293DC4`), throw spawn
   offsets, shots on screen 2/3/2/3/3, throw timer 15 with re-throw at <= 5, cancel by a new direction, shots vs

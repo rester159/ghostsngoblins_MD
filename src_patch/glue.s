@@ -310,7 +310,11 @@ dma_vram:
 | every stage loop: link player 2's sprite, then the original DMA.
 |
 | On a held frame (pace.c) nothing is uploaded: the sprites stay as they
-| are on screen.
+| are on screen, and so does the background. Every caller (the ten stage
+| loops, patch_gng.py) goes on with the same $4E bytes: the Z80 bus
+| release, d1 = -1 and the plane B scroll from $FF9100/$FF9102; a held
+| frame does those with the scroll of the sprites on screen (fs_sx/fs_sy)
+| and returns past them.
     .global hook_sat_dma
 hook_sat_dma:
     movem.l %d0-%d1/%a0-%a1,-(%sp)
@@ -319,6 +323,19 @@ hook_sat_dma:
     tst.w   %d0
     movem.l (%sp)+,%d0-%d1/%a0-%a1
     beq.s   1f
+    move.w  #0,0xA11100
+    move.w  #-1,%d1
+    move.l  #0x7C000003,0xC00004    | hscroll $FC00
+    move.w  #0,0xC00000
+    move.w  fs_sx,%d0
+    neg.w   %d0
+    move.w  %d0,0xC00000
+    move.l  #0x40000010,0xC00004    | vscroll
+    move.w  #0,0xC00000
+    move.w  #16,%d0
+    sub.w   fs_sy,%d0
+    move.w  %d0,0xC00000
+    addi.l  #0x4E,(%sp)
     rts
 1:  movem.l %d0-%d1/%a0-%a1,-(%sp)
     jsr     sat_vblank              | bossart.c: the Satans' pose uploads
@@ -655,9 +672,17 @@ rng_tick:
 | $FFA200. Runs while $FFC570 is 0 (not the death sequence or the continue
 | countdown). Updates that miss a frame still count a wrap of the counter;
 | after a gap (the map) only a counter of 0 does.
+| Home's EASY (rank_easy, settings.c player_init) holds the base and working
+| ranks at 0 all game: no creep, and the stage clears' +4 to the base is
+| undone before the next start copies it.
     .global rank_creep
 rank_creep:
-    tst.w   0xFFC570
+    tst.b   rank_easy
+    beq.s   0f
+    clr.b   8(%a3)
+    clr.b   0xFFC501
+    rts
+0:  tst.w   0xFFC570
     bne.s   9f
     movem.l %d1-%d2,-(%sp)
     move.l  0xFF7DFC,%d1

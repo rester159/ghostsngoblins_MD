@@ -25,7 +25,7 @@ Without `--features` the patcher produces the compatibility-only ROM.
   - Demo sound, continue.
 - **HOME → OPTIONS**:
   - Lives 1–9; continues 0–9 or infinite (Start continues during the countdown).
-  - Bonus life, including none; difficulty.
+  - Bonus life, including none; difficulty: NORMAL, DIFFICULT and VERY DIFFICULT as the arcade's; EASY keeps the rank at 0 all game (no creep, no +4 per stage clear), since the arcade's EASY plays almost as NORMAL.
   - English / Japanese title (arcade Makaimura logo on the menus, title screen and attract overlay).
   - Sound test.
 - **High scores**: separate top-10 tables for Arcade and Home. Initials entry at game over, and TOP SCORE starts from the saved best.

@@ -23,6 +23,8 @@ static const char *const bonus_vals[] = {
  * table at $6228, indexed by (~DSW2 & $60) >> 5 */
 static const char *const diff_vals[] = { "NORMAL", "EASY", "DIFFICULT", "VERY DIFFICULT" };
 static const u8 diff_rank[4] = { 0x06, 0x00, 0x18, 0x20 };
+#define DIFF_EASY 1
+extern u8 rank_easy;    /* arthur.s; glue.s rank_creep holds the rank at 0 */
 static const char *const onoff_vals[] = { "OFF", "ON" };
 
 const char *const home_names[HOP_N] = { "LIVES", "CONTINUES", "BONUS", "DIFFICULTY" };
@@ -147,7 +149,12 @@ void player_init(void)
     p2_reset();
     LIVES = start_lives();
     RANK = diff_rank[difficulty()];
-    if (fb_plus_on()) RANK = FB_PLUS_RANK;  /* Firebrand's Quest Plus: the top starting rank */
+    /* Home's EASY: the arcade's EASY starts at rank 0 but plays almost as
+     * NORMAL (the enemies read rank >> 4, tier 0 for both, and the rank
+     * creeps up the same way), so on Home it stays at 0 all game. Arcade
+     * keeps the board's four settings as they are. */
+    rank_easy = !is_arcade() && difficulty() == DIFF_EASY;
+    if (fb_plus_on()) { RANK = FB_PLUS_RANK; rank_easy = 0; }  /* Firebrand's Quest Plus: the top starting rank */
     RAM8(0xFFC561) = RANK;          /* floor for the per-death rank decrease */
     /* debug launch to a later stage: entered on the first frame of play */
     stage_pending = PERSIST->dev_on && PERSIST->dev_stage > 1 ? PERSIST->dev_stage : 0;

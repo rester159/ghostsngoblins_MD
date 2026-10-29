@@ -48,11 +48,34 @@ void pace_start(void)
 /* Holding is only meant for the uploads of the update pace_start opened. */
 static u16 holding(void) { return fs_hold && RAM16(0xFF7DFE) == fs_last; }
 
+/* The plane B scroll ($FF9100/$FF9102) that goes with the sprites on screen:
+ * the stage loops write it right after the sprite table DMA, so on a held
+ * frame the background moved on while the sprites stayed, and everything
+ * fixed to the scenery (the tombstones) slipped by the camera's step for a
+ * frame, a shiver while scrolling. A held frame now writes these instead
+ * (glue.s hook_sat_dma). */
+u16 fs_sx, fs_sy;
+
+static u16 near(u16 a, u16 b, u16 d) { return (u16)(a - b + d) <= 2 * d; }
+
 /* hook_sat_dma: nonzero = skip the sprite table upload this frame. Otherwise
  * the held-back Arthur frame goes up with it. */
 u16 pace_sat(void)
 {
-    if (holding()) return 1;
+    u16 sx = RAM16(0xFF9100), sy = RAM16(0xFF9102);
+    if (holding()) {
+        /* a jump (a restart, a new stage) isn't held back */
+        if (!near(sx, fs_sx, 16) || !near(sy, fs_sy, 16)) { fs_sx = sx; fs_sy = sy; }
+        /* nor a vertical scroll into another cell row: the plane has 32 rows
+         * for 29 on screen and the game streams the rows past the bottom edge
+         * into the other 3, so the held view's top row may already hold the
+         * new bottom's (a line of it at the top of the screen, measured on
+         * falls). The sprites then lag the background vertically for that
+         * frame, as before. */
+        if ((u16)(16 - sy) >> 3 != (u16)(16 - fs_sy) >> 3) fs_sy = sy;
+        return 1;
+    }
+    fs_sx = sx; fs_sy = sy;
     if (fs_pend) { dma_vram(fs_pend, 512, 0x6000); fs_pend = 0; }
     return 0;
 }

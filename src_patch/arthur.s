@@ -183,10 +183,11 @@ kb_land:
 | rank_creep (glue.s): the fraction of the working rank, the counter at the
 | last update and the VBlank count then. Last in .bss so the earlier
 | variables (menu_frames at $FF5137, ...) keep their addresses.
-    .global rank_frac, rank_prev, rank_vbl
+    .global rank_frac, rank_prev, rank_vbl, rank_easy
     .lcomm  rank_vbl, 4
     .lcomm  rank_frac, 1
     .lcomm  rank_prev, 1
+    .lcomm  rank_easy, 1                | settings.c: Home's EASY (the rank held at 0)
 
 | Stage 1's terrain map ($FF0000: 32 columns of 16 px, a ring) holds the
 | columns cam/16 - 8 .. cam/16 + 23 in the port ($93D6 full fill, $944A one
