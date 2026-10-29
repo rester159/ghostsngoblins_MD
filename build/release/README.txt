@@ -1,4 +1,4 @@
-GHOSTS'N GOBLINS MD  -  V0.7 ALPHA
+GHOSTS'N GOBLINS MD  -  V0.7.1 ALPHA
 rester159, 2026
 ==================================
 
@@ -6,8 +6,19 @@ A reworked version of the Ghosts 'n Goblins Mega Drive / Genesis port: fixed to
 run on real hardware and accurate emulators, faster, with 2-player co-op as
 Maximo and a campaign as Firebrand, the Red Arremer.
 
-File: Ghosts'nGoblinsMD_Alpha_0.7.bin  (4 MiB, regions J/U/E, NTSC and PAL)
-SHA-1: bd83831ae1cb414a12833132fa3a8cb8026d1834
+File: Ghosts'nGoblinsMD_Alpha_0.7.1.bin  (4 MiB, regions J/U/E, NTSC and PAL)
+SHA-1: 76eb1c103708cd4a84c80d28f504ae9ce0faa2c3
+
+
+FIXED IN V0.7.1
+---------------
+- The tombstones (and every other sprite) no longer shiver against the
+  background while the screen scrolls.
+- Home mode's EASY is now really easier: the difficulty rank stays at its
+  lowest all game. NORMAL, DIFFICULT and VERY DIFFICULT are as before, and
+  Arcade mode keeps the board's four DIP settings as they are.
+- Checked against the arcade and left as is: tombstones are solid about
+  3 px wider than their stone on each side, as in the arcade.
 
 
 FIXED IN V0.7
