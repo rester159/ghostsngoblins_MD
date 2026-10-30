@@ -504,6 +504,7 @@ def install_features(rom, build_dir):
         put(rom, a, jsr(sym[name]))
     install_stage_end(rom, sym)
     install_crow_tdevil(rom, sym)
+    install_door2(rom, sym)
     install_hud(rom, sym)
     install_petite(rom, sym)
     install_slot_fraction(rom, sym)
@@ -813,6 +814,22 @@ def install_stage_end(rom, sym):
     put(rom, 0x6938, jmp(sym['se_pace']))
 
 
+def install_door2(rom, sym):
+    """Stage 2's stage-end door opening in its closed door's colours (stageend.s door_art): the kind-1 art at
+    $A0700 is stage 1's ($A0000) with its colours moved for another line; in stage 2's line 1 it drew teal panels
+    with orange edges and specks beside the grey closed door (7 dark grey, 12 frame, 14 rivets). Mapped: the
+    fill 6 -> 7, the edges and frames 4, 10 -> 12, the rivets and specks 2, 3, 5 -> 14."""
+    expect(rom, 0x8A550, bytes.fromhex('41f9000a0700'), 'door kind 1 art')
+    put(rom, 0x8A550, jsr(sym['door_art']))
+    cmap = list(range(16))
+    for a, b in ((6, 7), (4, 12), (10, 12), (2, 14), (3, 14), (5, 14)):
+        cmap[a] = b
+    src = rom[0xA0700:0xA0E00]
+    a = sym['door2_art']
+    expect(rom, a, b'\x01' + bytes(0x6FF), 'door2_art (reserved)')
+    put(rom, a, bytes(cmap[b >> 4] << 4 | cmap[b & 15] for b in src))
+
+
 def install_crow_tdevil(rom, sym):
     """Crows (type 1), stage 2 window/tower devils (type 4), the stage 3 Red Arremers (crow.c, tdevil.c)."""
     jmp = lambda a: b'\x4e\xf9' + be32(a)
@@ -827,6 +844,31 @@ def install_crow_tdevil(rom, sym):
     # wait for the on-screen flag
     expect(rom, 0x452C, bytes.fromhex('0c39000100ffc512661c'), 'stage 2 crow hold-back')
     put(rom, 0x452C, b'\x60\x24')
+    # subtype 4 (stage 2's building crows) drawn from stage 2's crow frames:
+    # the stage 2 build ($B152, records $14B5B0) has the crow's poses at 49-84,
+    # stage 1's at 1-36 are empty there; subtype 3 took the 49-84 tables
+    # ($4E904), subtype 4 stage 1's ($4E8F0, $4E8F6, its set-up's $1141D2), so
+    # it flew invisible. Its set-up frames 13/19 -> 61/67, ...
+    expect(rom, 0x1141D2, bytes.fromhex('000d0013'), 'crow subtype 4 set-up frames')
+    put(rom, 0x1141D2, bytes.fromhex('003d0043'))
+    # ... its flight start by facing (crow_fly_tab) ...
+    expect(rom, 0x468E, bytes.fromhex('43f90004e8f6'), 'crow flight frames')
+    put(rom, 0x468E, jsr(sym['crow_fly_tab']))
+    # ... and the turn's frames: $4E8F0 for subtype 5 only (was: all but 3)
+    expect(rom, 0x48B6, bytes.fromhex('0c2c000300066708'), 'crow turn frames')
+    put(rom, 0x48B6, bytes.fromhex('0c2c000500066608'))
+    # ... and, in the building, from their own art (the Big Man's bank is in: bmart.c crow_attr)
+    expect(rom, 0xB21E, bytes.fromhex('3b6a00040004'), 'type 1 piece attribute (stages 1-2 build)')
+    put(rom, 0xB21E, jsr(sym['crow_hook']))
+    # their poses blue, as the arcade's building crows (its stepping-stone crows are red, as the port's): the crow
+    # bank's pose tiles ($378-$397, ROM $14C176) with line 0's dark red 2 -> dark blue 9, red 3 -> blue 13 and the
+    # head's blue 13 -> red 3
+    src = rom[0x14C176:0x14C176 + 32 * 32]
+    cmap = list(range(16)); cmap[2], cmap[3], cmap[13] = 9, 13, 3
+    blue = bytes(cmap[b >> 4] << 4 | cmap[b & 15] for b in src)
+    a = sym['crow_blue']
+    expect(rom, a, b'\x01' + bytes(32 * 32 - 1), 'crow_blue (reserved)')
+    put(rom, a, blue)
     # stage 2's type-4 devils: states 0 and 1 as the arcade's ($B146; tdevil.c)
     expect(rom, 0x107A5E, bytes.fromhex('7000102c00076700003c'), 'type 4 state dispatch')
     put(rom, 0x107A5E, jmp(sym['tdevil_entry']) + b'\x4e\x71\x4e\x71')
@@ -919,6 +961,9 @@ def install_big_man_edge(rom, sym):
     # stage 5's Big Men drawn from their own art (bmart.c: the poses in VRAM slots stage 5 doesn't use)
     expect(rom, 0xAFF4, bytes.fromhex('3b6a00040004'), 'type 10 piece attribute')
     put(rom, 0xAFF4, jsr(sym['bm_attr_hook']))
+    # ... and their shots (shot type 3, $B042; bmart.c bm_shot_attr: four pieces in tiles stage 5 leaves free)
+    expect(rom, 0xB118, bytes.fromhex('3b6a00040004'), 'type 3 shot piece attribute')
+    put(rom, 0xB118, jsr(sym['bm_shot_hook']))
     # stage 2's stepping stones in their arcade art (bossart.c stone_load, bigman.s stone_attr)
     expect(rom, 0xA226, bytes.fromhex('3b790014c9b40004'), 'type-4 platform attribute')
     put(rom, 0xA226, jsr(sym['stone_attr']) + bytes.fromhex('4e71'))
@@ -927,6 +972,11 @@ def install_big_man_edge(rom, sym):
     expect(rom, 0x11BA30, bytes.fromhex('0c390001' '00ffc512' '660c'), 'Big Man hit points stage test')
     put(rom, 0x11BA30, bytes.fromhex('0c390006' '00ffc512' '670c'))
     put(rom, 0x11B493, b'\x27')
+    # a hit stops them for 6 frames in every stage, as the arcade's ($CFA6: the hit flag -$E -> sub-state 3,
+    # $CFCA); the port's (+6 -> sub-state 3, $11B606) ran in stage 2 only, so stage 5's walked on through
+    # every hit. Now every stage but the final room, as their hit points.
+    expect(rom, 0x11B9DE, bytes.fromhex('0c390001' '00ffc512' '6628'), 'Big Man hit pause stage test')
+    put(rom, 0x11B9DE, bytes.fromhex('0c390006' '00ffc512' '6728'))
     # their shots (shot type 3, pool pass $ACB8; arcade projectile type 3, $FEBE: move, animate, the range test
     # $8F62 only): the port also took one out after 120 frames (+33)
     expect(rom, 0xAD4C, bytes.fromhex('532c00216772'), 'type 3 shot life')

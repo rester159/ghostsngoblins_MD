@@ -1177,6 +1177,45 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     The other differences on held frames are the game's own redraws (the boss rooms' 6x8 gate, stage transitions).
     No faults in stages 1-6 x 1P/co-op/Firebrand (`bench.sh`, seed 7), updates per frame as before.
 
+92. **Stage 2's building crows drawn, blue, and their bursts as crows** (`patch_gng.py` `install_crow_tdevil`,
+    `tdevil_glue.s` `crow_fly_tab`, `bigman.s` `crow_hook` at `$B21E`, `bmart.c` `crow_attr`). Reported on V0.7.1:
+    invisible "blue ravens" in the building, and distorted Big Men in various spots there. The building's crows are
+    subtype 4 (they fly in from off the screen). (1) The stage 2 build (`$B152`, records `$14B5B0`) has the crow's
+    poses at frames 49-84 (1-36, stage 1's numbers, are empty there); subtype 3 took the 49-84 tables (`$4E904`),
+    subtype 4 stage 1's (`$4E8F0`, `$4E8F6`, its set-up's `$1141D2`), so it flew with no sprite: 45-200 frames per
+    crow live, on screen and undrawn (headless check of every frame, floors y 160-400 from x 5300). (2) While the
+    building's art bank is in (`$FFB028` = 0), tiles `$320`-`$3F3` hold the Big Man, where the crow's pieces point
+    (poses `$378`-`$397`, the burst `$320`-`$377`): a crow shot there burst into halves of Big Men at the windows.
+    Now subtype 4 takes the 49-84 frames, and there each crow piece takes a 4-tile slot of a 12-slot cache in tiles
+    the building leaves free in every mode (VRAM scans of three floors x 1P/co-op/Firebrand: `$6B8`-`$6C7`,
+    `$6D0`-`$6DB`, `$79A`-`$7A1`, and `$6AB`-`$6B6` but with Firebrand, whose frames reach `$6B7`), uploaded from the
+    crow bank (`$14B676`) with the sprite table that first shows it. The arcade's building crows are blue (its
+    stepping-stone crows red, as the port's): their poses come from a copy recoloured on line 0 (2 -> 9, 3 -> 13,
+    13 -> 3). Measured: every crow drawn on every frame mid-screen (0 misses; V0.7.1 up to 200), poses and bursts
+    rendered as crows. Not compared: the burst's colours (the port's crow burst, yellow-green, the arcade's orange).
+
+93. **Stage 5's Big Men's spike balls in their art** (`bigman.s` `bm_shot_hook` at `$B118`, `bmart.c`
+    `bm_shot_attr`). Reported on V0.7.1 (distorted spike balls). The shot (type 3, `$B042`) is one 16x16 piece from
+    the Big Man's art (frames 1-6: tiles `$390`, `$394` flipped and not, `$398`, `$39C`); Fixed 88 gave stage 5 the
+    Big Men's poses but not the shot's. Its four pieces now sit in tiles stage 5 leaves free in every mode (`$6D0`,
+    `$6D4`, `$6D8`, `$24D`: VRAM scans of the tower, the Big Men's floors and the room x 1P/co-op/Firebrand),
+    uploaded with the first sprite table that shows a shot. Measured: 24 shots cropped in flight, all the spike ball.
+
+94. **Stage 5's Big Men stop when hit** (`patch_gng.py`, `$11B9DE`). Reported on V0.7.1: "as soon as we start hitting
+    them they turn around and head straight for us". The arcade's state 1 (`$CFA6`) takes a hit (the flag `-$E`) into
+    sub-state 3 (`$CFCA`: 6 frames still, then sub-state 0 decides again); the port's (`+6` -> `$11B606`) ran only at
+    stage index 1, so stage 5's walked on through every hit. Now every stage but the final room, as their hit points
+    (Fixed 88). Measured from the same stage 5 start (Arthur standing, firing every 8 frames, rank 6 in both): the
+    arcade's Big Man covers 54 px and dies at frame ~150; V0.7.1's walked on as if unhit and died at ~290, now 46 px
+    and ~150. Unfired, both walk alike (1 px a frame, the same turns).
+
+95. **Stage 2's door opens in its own colours** (`stageend.s` `door_art`, `patch_gng.py` `install_door2`). Reported on
+    V0.7.1: a strange appearance in the doorway after the Unicorns. The stage-end door's opening art (`$8A520`) is
+    `$A0000` for stage 1 and `$A0700` (the same tiles, colours moved for another line) for every later stage; on stage
+    2's line 1 it drew teal panels with orange edges and specks beside the grey closed door (the original port's; V0.5
+    the same). Stage 2 now takes a copy in the closed door's colours (fill 6 -> 7, edges and frames 4, 10 -> 12,
+    rivets and specks 2, 3, 5 -> 14). The arcade's door is green and opens onto black; the port's stays grey.
+
 ## Matching (audited)
 
 - **Tombstone boxes against their art** (reported on V0.7: drawn in one place, solid slightly to the right).
@@ -1313,6 +1352,14 @@ They stay as they are; each note says why.
   picture is shown (no free VRAM to hold both) and a refill under a frame, for a case only a teleport reaches.
 
 ## Open
+
+- **V0.7.1 reports not reproduced or not settled** (metalcandyman): sprite glitches just before the stage 3 dragon and
+  at the bottom at the end of stage 2: none seen headless (Arthur from x 2940 to the dragon, 1,500 frames; stage 2's
+  end and Unicorns, 2,600 frames), and no sprite line over the H32 limits there but one line in the dragon fight (272
+  px, 7 frames). The shield (weapon 3) against stage 5's spike balls: the check is the arcade's (`shots.c`, Fixed 18)
+  and takes stage 2's shots; on stage 5's flat floors the shot flies at Arthur's y (1055, as the arcade's) and the
+  shield 9 px lower, 1 px out of the type-3 box, so it passes under; the arcade's weapon y wasn't measured (its weapon
+  slots weren't found).
 
 - **Petite Devils and skulls, what's left** (Fixed 51, 52; their art: Fixed 63; the crows' burst: Fixed 73; stage 4:
   Matching (audited)): the spawner leaves the spawn's x/y fractions from RAM in both games, and

@@ -77,6 +77,44 @@ bm_piece_x:
     rts
 
 
+| $B118 (`jsr`, over move.w 4(a2),4(a5)): a Big Man's shot's piece attribute
+| (shot type 3, $B042); in stage 5 from its VRAM slot (bmart.c), elsewhere
+| as before.
+    .global bm_shot_hook
+bm_shot_hook:
+    cmpi.b  #4,0xFFC512
+    beq.s   1f
+    move.w  4(%a2),4(%a5)
+    rts
+1:  movem.l %d0-%d1/%a0-%a1,-(%sp)
+    move.w  4(%a2),%d0
+    move.l  %d0,-(%sp)
+    jsr     bm_shot_attr
+    addq.l  #4,%sp
+    move.w  %d0,4(%a5)
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+    rts
+
+| $B21E (`jsr`, over move.w 4(a2),4(a5)): a crow piece's attribute (the stage
+| 1-2 build's type 1, $B152); in stage 2 while the building's art bank is in
+| ($FFB028 = 0) from the crow cache (bmart.c), elsewhere as before.
+    .global crow_hook
+crow_hook:
+    cmpi.b  #1,0xFFC512
+    bne.s   2f
+    tst.w   0xFFB028
+    beq.s   1f
+2:  move.w  4(%a2),4(%a5)
+    rts
+1:  movem.l %d0-%d1/%a0-%a1,-(%sp)
+    move.w  4(%a2),%d0
+    move.l  %d0,-(%sp)
+    jsr     crow_attr
+    addq.l  #4,%sp
+    move.w  %d0,4(%a5)
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+    rts
+
 | $AFF4 (`jsr`, over move.w 4(a2),4(a5)): the piece's attribute; in stage 5
 | the Big Man's pose from its VRAM slot (bmart.c), elsewhere as before.
     .global bm_attr_hook

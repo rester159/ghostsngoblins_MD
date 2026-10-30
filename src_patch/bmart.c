@@ -12,7 +12,14 @@
  * ROM copy with the sprite table that first shows it (hook_sat_dma), and its
  * pieces point there. Poses already in a slot keep it; a slot is taken over
  * only when no Big Man of the build being made uses it; a pose that finds
- * none borrows the first slot's (a Big Man in another pose, not garbage). */
+ * none borrows the first slot's (a Big Man in another pose, not garbage).
+ *
+ * Their shots (shot type 3, $B042) are one 16x16 piece each, from the same
+ * art: tiles $390, $394 (frames 1-4, flipped by direction), $398, $39C
+ * (frames 5, 6). In stage 5 the four pieces sit in tiles free there in every
+ * mode (VRAM scans of the tower, the Big Men's floors and the room): $6D0,
+ * $6D4, $6D8 and $24D, uploaded together with the sprite table that first
+ * shows a shot. */
 #include "md.h"
 
 void dma_vram(u32 src, u16 bytes, u16 vram);
@@ -32,6 +39,10 @@ static u16 bm_frame[NSLOT];             /* the pose a slot holds, + 1 (0: none) 
 static u16 bm_used[NSLOT];              /* the build (fs_last) that last drew it */
 static u16 bm_build;                    /* the last build seen */
 static u8 bm_pend;                      /* slots to upload with the next sprite table */
+#define SH_T0    0x390                  /* the shots' first piece */
+static const u16 sh_base[4] = { 0x6D0, 0x6D4, 0x6D8, 0x24D };
+static u8 sh_state;                     /* 0: not in VRAM, 1: upload pending, 2: loaded */
+static u16 sh_build;                    /* the last build that drew a shot */
 
 static u32 rec_of(u16 frame) { return BM_REC + RAM16(BM_IDX + 2 * frame); }
 
@@ -65,11 +76,87 @@ u16 bm_attr(const u8 *slot, u32 piece)
     return (attr & 0xF800) | (bm_base[s] + k * 4);
 }
 
+/* bigman.s bm_shot_hook: a shot piece's attribute in stage 5 */
+u16 bm_shot_attr(u16 attr)
+{
+    u16 k = ((attr & 0x7FF) - SH_T0) >> 2;
+    if (k > 3) return attr;
+    if ((u16)(fs_last - sh_build) > 30) sh_state = 0;   /* a pause, a death, a map: VRAM may have been reloaded */
+    sh_build = fs_last;
+    if (!sh_state) sh_state = 1;
+    return (attr & 0xF800) | sh_base[k];
+}
+
+/* Stage 2's crows in the building (type 1, the stage 1-2 build's $B152).
+ * Their pieces point at the crow bank's tiles $320-$397 (perches and flight
+ * $378-$397, the burst $320-$377; the ROM copy at $14B676), but while the
+ * building's bank is in ($FFB028 = 0) those tiles hold the Big Man: a crow
+ * was drawn as pieces of him (its burst) or, flying, not at all (its frames).
+ * Here each piece drawn there takes a 4-tile slot of a small cache in tiles
+ * the building leaves free in every mode (VRAM scans of its floors; $6AB-$6B6
+ * not with Firebrand, whose frames go up to $6B7), uploaded with the sprite
+ * table that first shows it; a slot is reused once no piece of the build
+ * being made uses it. A crow takes 1 piece flying, 4 bursting. Its poses
+ * ($378-$397) are uploaded from crow_blue, the same tiles recoloured blue on
+ * line 0 by tools/patch_gng.py (the arcade's building crows are blue, its
+ * stepping-stone crows red, as the port's). */
+#define CR_ART   0x14B676               /* the crow bank's tiles from $320 */
+#define CR_T0    0x320
+#define CR_T1    0x398
+#define NCR      12
+static const u16 cr_base[NCR] = { 0x6B8, 0x6BC, 0x6C0, 0x6C4, 0x6D0, 0x6D4, 0x6D8, 0x79A, 0x79E,
+                                   0x6AB, 0x6AF, 0x6B3 };
+static u16 cr_tile[NCR];                /* the crow bank tile a slot holds, 0: none */
+static u16 cr_used[NCR];                /* the build that last drew it */
+static u16 cr_build;
+static u16 cr_pend;                     /* slots to upload with the next sprite table */
+#define CR_POSE  0x378                  /* the first pose tile; below it the burst */
+const u8 crow_blue[32 * 32] = { 1 };    /* filled by tools/patch_gng.py */
+
+/* bigman.s crow_hook: a crow piece's attribute while the building's bank is in */
+u16 crow_attr(u16 attr)
+{
+    u16 t = attr & 0x7FF;
+    int s, n;
+    if (t < CR_T0 || t >= CR_T1) return attr;
+    if ((u16)(fs_last - cr_build) > 30) {           /* a pause, a death, a map: VRAM may have been reloaded */
+        for (s = 0; s < NCR; s++) cr_tile[s] = 0;
+        cr_pend = 0;
+    }
+    cr_build = fs_last;
+    n = fb_on() ? NCR - 3 : NCR;
+    for (s = 0; s < n; s++)
+        if (cr_tile[s] == t) break;
+    if (s == n) {
+        for (s = 0; s < n; s++)
+            if (!cr_tile[s]) break;
+        if (s == n)
+            for (s = 0; s < n; s++)
+                if (cr_used[s] != fs_last) break;
+        if (s == n) s = 0;                          /* more pieces than slots: the first slot's */
+        else { cr_tile[s] = t; cr_pend |= 1 << s; }
+    }
+    cr_used[s] = fs_last;
+    return (attr & 0xF800) | cr_base[s];
+}
+
 /* hook_sat_dma, with the sprite table: the new poses' pieces */
 void bm_vblank(void)
 {
     int s, j, n;
     u32 rec;
+    if (cr_pend) {
+        for (s = 0; s < NCR; s++)
+            if ((cr_pend & (1 << s)) && cr_tile[s])
+                dma_vram(cr_tile[s] >= CR_POSE ? (u32)crow_blue + (u32)(cr_tile[s] - CR_POSE) * 32
+                                               : CR_ART + (u32)(cr_tile[s] - CR_T0) * 32, 128, cr_base[s] * 32);
+        cr_pend = 0;
+    }
+    if (sh_state == 1) {
+        for (j = 0; j < 4; j++)
+            dma_vram(BM_ART + (u32)(SH_T0 - BM_T0 + 4 * j) * 32, 128, sh_base[j] * 32);
+        sh_state = 2;
+    }
     if (!bm_pend) return;
     for (s = 0; s < NSLOT; s++) {
         if (!(bm_pend & (1 << s)) || !bm_frame[s]) continue;

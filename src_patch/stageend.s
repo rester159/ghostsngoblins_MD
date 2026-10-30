@@ -258,6 +258,27 @@ se_pace:
     movem.l (%sp)+,%d0/%a0-%a1
     jmp     pace_hook
 
+| $8A550 (`jsr door_art`, over `lea 0xA0700,a0`): the stage-end door's
+| opening art for kind 1 (stages 2 on; kind 0, stage 1's, is $A0000). It is
+| stage 1's art with its colours moved for another palette line, which in
+| stage 2 drew the opening door teal with orange edges and specks beside its
+| grey closed door. Stage 2 takes door2_art, the same tiles in the closed
+| door's colours of line 1 (filled by tools/patch_gng.py).
+    .global door_art, door2_art
+door_art:
+    lea     0xA0700,%a0
+    cmpi.b  #1,0xFFC512
+    bne.s   1f
+    lea     door2_art,%a0
+1:  rts
+
+    .section .rodata
+    .even
+door2_art:
+    .byte   1
+    .space  0x6FF
+    .section .text,"ax"
+
     .lcomm  se_save, 49
     .lcomm  se_hidden, 1
     .lcomm  se_slot0, 1

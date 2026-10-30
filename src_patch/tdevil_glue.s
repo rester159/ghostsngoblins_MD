@@ -49,6 +49,19 @@ tdv_sound:
     movem.l (%sp)+,%d2-%d7/%a2-%a6
     rts
 
+| $468E (the crows' flight start, subtypes 4 and 5): `jsr crow_fly_tab` over
+| `lea 0x4E8F6,a1`. The flight frames by facing: $4E8F6 holds stage 1's
+| numbers (31, 13: frames 1-36, the stage 1 build's), $4E90A stage 2's (79,
+| 61: the same poses at 49-84, $B152's records, where 1-36 are empty).
+| Subtype 4 is stage 2's (the building's crows), and was drawn from nothing.
+    .global crow_fly_tab
+crow_fly_tab:
+    lea     0x4E8F6,%a1
+    cmpi.b  #4,6(%a4)
+    bne.s   1f
+    lea     0x4E90A,%a1
+1:  rts
+
     .bss
     .even
 tdv_a6: .space 4
