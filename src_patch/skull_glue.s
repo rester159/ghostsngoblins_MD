@@ -2,8 +2,8 @@
 |
 | $110452: `jmp skull_entry` over `tst.b 4(a4)` / `beq.s $1104A0`, the type-9
 | entry of the stage 3-6 object pass ($105C58, a4 = the slot, a3 = the pass
-| context $FFA200). In stage 5 (stage index 4) states 0-2 go to skull_update;
-| elsewhere (the dragon's fire, stages 3, 4 and 6) and in state 3 (removal)
+| context $FFA200). In stages 5 and 6 (indexes 4, 5) states 0-2 go to skull_update;
+| elsewhere (stages 3 and 4) and in state 3 (removal)
 | the port's own code runs. skull_update is C (d2-d7/a2-a6 kept); a0/a1
 | and d0/d1 are free here as in the port's handler ($1074DC uses them).
     .global skull_entry, sk_floor, sk_sound
@@ -11,8 +11,10 @@
 skull_entry:
     tst.b   4(%a4)
     beq.s   9f
-    cmpi.b  #4,0xFFC512
-    bne.s   1f
+    move.b  0xFFC512,%d0
+    subq.b  #4,%d0
+    cmpi.b  #1,%d0
+    bhi.s   1f
     cmpi.b  #3,7(%a4)
     bcc.s   1f
     cmpi.b  #0x5A,8(%a4)            | asleep ($CC70), set by skull_update:

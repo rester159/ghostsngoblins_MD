@@ -473,6 +473,7 @@ static int burst(Spr *o, const u8 *p, const u16 *cam, int j)
  * fire in stages 3, 4 and 6), 3-5 the skull standing up ($CE1A: A8 A0 A9 A1,
  * AA A2 AB A3, AC A4 AD A5; the new pieces in SKULL_T), 6-10 the burst (BURST
  * above) for skull.c to show while it dies. Count, then dx, dy, attribute. */
+const u16 *const skull_pieces = skull_art;     /* bmart.c, stage 6 */
 #define SK(a, b, c, d) 4, -16, 16, a, -16, 0, b, 0, 16, c, 0, 0, d
 const s16 t9_frames[] = {
     1, -8, 8, 0x04A0,
@@ -486,7 +487,7 @@ const s16 t9_frames[] = {
     SK(0x4B68, 0x4B2C, 0x4B60, 0x4B24) };
 const s16 t9_offs[11] = { 0, 8, 22, 36, 62, 88, 114, 140, 166, 192, 218 };
 
-/* $11C15E in stage 5, a dying devil (the port's count +36: 21 down to 1) */
+/* $11C15E in stages 4 and 5, a dying devil (the port's count +36: 21 down to 1) */
 int pd_burst(u8 *p, const u16 *cam, Spr *o)
 {
     u16 n = p[36] << 8 | p[37];
@@ -522,6 +523,7 @@ const s16 fire_frame[4] = { 1, -8, 8, FIRE_T };
 void stone_load(void)
 {
     int k;
+    if (RAM8(0xFFC512) == 2) vram_copy(tower_art, 2 * 64, 0x6C0);       /* the fire towers' shot */
     if (RAM8(0xFFC512) != 1) return;
     VDP_CTRLL = VRAM_W(STONE_T * 32);
     for (k = 0; k < 128; k++) VDP_DATA = stone_tiles[k];

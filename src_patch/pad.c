@@ -156,7 +156,7 @@ void ter_fill(void);
 int  intro_hold(void);      /* opening.c: after the opening, the HUD on black */
 void hide_frame(void);
 void stone_load(void);
-extern u16 fs_last, fs_flags, fs_stale;     /* pace.c */
+extern u16 fs_last, fs_flags, fs_stale, fs_unshown, fs_deferred;  /* pace.c */
 void stage_hold(void)
 {
     int i, n = STAGE_HOLD - intro_hold() - 1;
@@ -183,5 +183,7 @@ void stage_hold(void)
     while (VDP_CTRL & 8) ;
     fs_last = RAM16(0xFF7DFE) + 1;      /* (+ the VBlank pending since the last) */
     fs_flags = 2;                       /* the first update holds the stage start's table */
+    fs_unshown = 0;
+    fs_deferred = 0;
     fs_stale = 0;
 }

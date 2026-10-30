@@ -259,6 +259,16 @@ def install_features(rom, build_dir):
     # render skip: decided at the start of every stage-loop update (pace.c)
     expect(rom, 0x6938, jmp(0x114F58), 'update start')
     put(rom, 0x6938, jmp(sym['pace_hook']))
+    # frame skip: an update that ran past the VBlank is followed at once, not
+    # a frame later (glue.s vbl_wait; pace.c holds that one's uploads); the
+    # loops' own VBlank test after the wait goes, as it only repeated it
+    expect(rom, 0x113E5E, bytes.fromhex('303900c00004'), 'VBlank wait')
+    put(rom, 0x113E5E, jmp(sym['vbl_wait']))
+    for a in (0x10EC66, 0x10FB3C, 0x110B0C, 0x11158A, 0x11772A, 0x1187A2, 0x118D0C, 0x119812, 0x5BC, 0x104812):
+        at = a + (6 if a in (0x5BC, 0x104812) else 4) + 10
+        long_beq = rom[at:at + 2] == b'\x67\x00'
+        expect(rom, at - 10, bytes.fromhex('303900c0000408000003'), 'loop VBlank test')
+        put(rom, at, b'\x4e\x71' * (2 if long_beq else 1))
     expect(rom, 0x92A0, bytes.fromhex('4ebac05633fc002f00ffb204'), 'stage-1 sprite build')
     put(rom, 0x92A0, jmp(sym['render_gate1']))
     expect(rom, 0x4CBE, bytes.fromhex('7000303900ffb20c'), 'stage-1 second sprite pass')
@@ -898,6 +908,16 @@ def install_petite(rom, sym):
     # stage 5's skulls (type 9): the arcade's ($CC45, skull.c) in states 0 and 1
     expect(rom, 0x110452, bytes.fromhex('4a2c00046748'), 'type 9 entry')
     put(rom, 0x110452, b'\x4e\xf9' + be32(sym['skull_entry']))
+    # ... and stage 6's, their pieces from the cache
+    expect(rom, 0x1076B6, bytes.fromhex('3b6a00040004'), 'type 9 piece attribute')
+    put(rom, 0x1076B6, jsr(sym['skull_hook']))
+    assert sym['cr_used'] == sym['cr_build'] + 2, 'skull_hook reaches cr_used from cr_build'
+    # the spawner: a record makes its enemy once a life (arcade $EB08)
+    expect(rom, 0x71AAE, bytes.fromhex('7000102d000d'), 'spawn record type')
+    put(rom, 0x71AAE, jsr(sym['spawn_once']))
+    # stage 3's fire towers fire
+    expect(rom, 0x106872, bytes.fromhex('197c00200029'), 'tower mouth step')
+    put(rom, 0x106872, b'\x4e\xf9' + be32(sym['pillar_fire']))
 
 
 SLOT_COPIES = (0x9180, 0x98FE, 0x104E90, 0x10F1D4, 0x110172, 0x111128, 0x111A82)

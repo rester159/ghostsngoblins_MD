@@ -181,6 +181,8 @@ PM_DEVIL = penmap(ARC_SPR[3], PORT_L0_S56, 15, DEVIL_FIXED)
 emit_words('skull_art', sum((piece(c, PM_SKULL) for c in (0xA0, 0xA1, 0xA8, 0xA9, 0xAA, 0xAB, 0xAC, 0xAD)), []))
 # the fireball ($F7) and the carrier's wing poses with it ($FD-$FF)
 emit_words('fire_art', piece(0xF7, PM_DEVIL))
+# stage 3's fire towers' shot (arcade projectile type 5): sprites $95/$9F, colour 2, drawn with line 0
+emit_words('tower_art', piece(0x95, penmap(ARC_SPR[2], PORT_L0_S56, 15)) + piece(0x9F, penmap(ARC_SPR[2], PORT_L0_S56, 15)))
 emit_words('pd_art', sum((piece(c, PM_DEVIL) for c in (0xFD, 0xFE, 0xFF)), []))
 
 # --- stage 2's windows (the devils' $B457: bg tiles $2F0-$2FF, colour 7) -------

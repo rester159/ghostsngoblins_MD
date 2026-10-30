@@ -320,10 +320,14 @@ hook_sat_dma:
     movem.l %d0-%d1/%a0-%a1,-(%sp)
     jsr     hide_vblank             | opening.c: the stage shown after the opening (held frames too)
     jsr     pace_sat
-    tst.w   %d0
+    move.w  %d0,fs_how
     movem.l (%sp)+,%d0-%d1/%a0-%a1
+    tst.w   fs_how
     beq.s   1f
-    move.w  #0,0xA11100
+    cmpi.w  #2,fs_how
+    bne.s   2f
+    bsr.s   1f                      | a held build: uploaded, then its own scroll
+2:  move.w  #0,0xA11100
     move.w  #-1,%d1
     move.l  #0x7C000003,0xC00004    | hscroll $FC00
     move.w  #0,0xC00000
@@ -378,6 +382,35 @@ pace_hook:
     movem.l (%sp)+,%d0-%d1/%a0-%a1
     jmp     0x114F58
 
+| $113E5E (`jmp vbl_wait` over its first `move.w $C00004,d0`): the stage
+| loops' wait for the next VBlank (the VBlank count $FF7DFC changing from the
+| last one taken, $FF7DF8). When it has already moved on by one, the update
+| before ran past the VBlank: the next one starts at once instead of waiting a
+| whole frame (a frame skipped, not a game update lost); pace_start then
+| holds that update's uploads and skips its sprite build, so the picture stays
+| as it was. Further (a load, a stage start) it waits as before. The loops'
+| own VBlank test after the call is gone (patch_gng.py), as it only repeated
+| this one's.
+    .set FS_SKIP, 3                     | frames held in a row before it waits again
+    .global vbl_wait
+vbl_wait:
+    cmpi.w  #FS_SKIP,fs_stale       | sprites already held that long: wait
+    bcc.s   1f
+    move.l  0xFF7DFC,%d0
+    sub.l   0xFF7DF8,%d0
+    subq.l  #1,%d0
+    bne.s   1f
+    move.l  0xFF7DFC,%d0
+    bra.s   2f
+1:  move.w  0xC00004,%d0
+    btst    #3,%d0
+    beq.s   1b
+    move.l  0xFF7DFC,%d0
+    cmp.l   0xFF7DF8,%d0
+    beq.s   1b
+2:  move.l  %d0,0xFF7DF8
+    rts
+
 | render_gate*: the sprite builds, skipped when pace_start says so (bit 0
 | of fs_flags; bit 1 then tells the next pace_start the buffer is stale).
 | Everything the builds write is render state (the sprite buffer and its
@@ -389,6 +422,8 @@ pace_hook:
 render_gate1:
     bclr    #0,fs_flags+1
     bne.s   1f
+    move.w  #1,fs_unshown           | pace.c: a build not shown yet
+    clr.w   fs_deferred
     jsr     0x52F8
     move.w  #47,0xFFB204
     jmp     0x92AC
@@ -749,6 +784,7 @@ item_save:
     rts
 item_init:
     movem.l %d0/%a1,-(%sp)
+    jsr     spawn_reset
     lea     0x6EA6A,%a0
     lea     item_buf,%a1
     moveq   #7,%d0
@@ -1198,6 +1234,8 @@ clear_sat:
     .endr
     lea     0x200(%a1),%a1
     movem.l (%sp)+,%d1-%d7/%a0
+    move.w  #1,fs_unshown           | pace.c: a build not shown yet
+    clr.w   fs_deferred
     move.l  #0xFFFF,%d0
     andi.b  #0x10,%ccr
     ori.b   #0x04,%ccr

@@ -282,3 +282,41 @@ door2_art:
     .lcomm  se_save, 49
     .lcomm  se_hidden, 1
     .lcomm  se_slot0, 1
+
+| $71AAE: `jsr spawn_once` over `moveq #0,d0 / move.b 13(a5),d0`, at each spawn
+| record of the spawner ($71A62, a5 = the record, a6 = its block). The arcade
+| ($EB08, for types 5, 6, 8, 10, 12 and 13, table $EAE8) lets a record with
+| subtype bit 1 make its enemy once per life: a bit for its id less the
+| stage's first id (<$72, $EB3C) in the record's slot, cleared at each life
+| start; a second try removes the record. The port had no such test, so every
+| Red Arremer of stage 6's tower came back each time the map position came
+| round. The port's first state (+1 = 0) is the arcade's set-up, one call.
+    .global spawn_once
+spawn_once:
+    moveq   #0,%d0
+    move.b  13(%a5),%d0
+    tst.b   1(%a5)
+    bne.s   9f
+    btst    #1,6(%a5)
+    beq.s   9f
+    cmpi.w  #14,%d0
+    bcc.s   9f
+    move.w  #0x3560,%d1
+    btst    %d0,%d1
+    beq.s   9f
+    movem.l %d0/%a0,-(%sp)
+    move.l  %a5,%d0
+    sub.l   4(%a6),%d0
+    move.l  %a5,-(%sp)
+    move.l  %d0,-(%sp)
+    jsr     spawn_seen
+    addq.l  #8,%sp
+    tst.l   %d0
+    movem.l (%sp)+,%d0/%a0
+    beq.s   9f
+    clr.b   (%a5)
+    clr.b   1(%a5)
+    clr.b   2(%a5)
+    addq.l  #4,%sp
+    jmp     0x71CA6
+9:  rts

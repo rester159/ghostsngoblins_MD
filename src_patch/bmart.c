@@ -34,7 +34,14 @@ extern u16 fs_last;                     /* pace.c: the VBlank count at this upda
 int fb_on(void);                        /* firebrand.c */
 int coop_on(void);                      /* p2.c */
 static const u16 bm_base[NSLOT] = { 0x6B8, 0x6A8, 0x690 };   /* in the order the modes allow them */
-static u8 bm_nslot;                     /* slots usable in this mode (1-3) */
+/* skull_hook's fast path (bigman.s), a piece's lookup without the C (12 a frame
+ * with three skeletons standing cost ~20 lines, and stage 6 lost updates): per
+ * 4-tile piece from $320 (CR_T0) to $543 (SK_T1), the slot + 1 that holds it, 0
+ * when not known, $FF when skull_attr passes it through; kept by piece_slot.
+ * Defined first so that it sits after the other RAM here. */
+#define SK_NMAP  ((0x544 - 0x320) >> 2)
+static u8 sk_map[SK_NMAP];
+static u8 bm_nslot;                    /* slots usable in this mode (1-3) */
 static u16 bm_frame[NSLOT];             /* the pose a slot holds, + 1 (0: none) */
 static u16 bm_used[NSLOT];              /* the build (fs_last) that last drew it */
 static u16 bm_build;                    /* the last build seen */
@@ -81,6 +88,7 @@ u16 bm_shot_attr(u16 attr)
 {
     u16 k = ((attr & 0x7FF) - SH_T0) >> 2;
     if (k > 3) return attr;
+    if (RAM8(0xFFC512) == 2) return (attr & 0x1800) | (0x6C0 + (k & 1) * 4);    /* stage 3: a fire tower's shot, line 0 */
     if ((u16)(fs_last - sh_build) > 30) sh_state = 0;   /* a pause, a death, a map: VRAM may have been reloaded */
     sh_build = fs_last;
     if (!sh_state) sh_state = 1;
@@ -113,18 +121,41 @@ static u16 cr_pend;                     /* slots to upload with the next sprite 
 #define CR_POSE  0x378                  /* the first pose tile; below it the burst */
 const u8 crow_blue[32 * 32] = { 1 };    /* filled by tools/patch_gng.py */
 
-/* bigman.s crow_hook: a crow piece's attribute while the building's bank is in */
-u16 crow_attr(u16 attr)
+/* Stage 6's skulls: their standing pieces (the Satans' second buffer holds
+ * something else there) and burst (not resident in stage 6) come the same way,
+ * into tiles the tower leaves free in every mode (VRAM scans of the climb; from $6AC
+ * is type 8's art here, $700 up the live plane and tables). Piece tiles are stage 5's: $320-$36B the
+ * burst, SK_T0 the standing art. */
+#define SK_T0    0x524
+#define SK_T1    0x544
+#define NSK      8
+extern const u16 *const skull_pieces;
+const u16 sk_base[NSK] = { 0x6A0, 0x24D, 0x79E, 0x7CC, 0x6A4, 0x6D0, 0x6D4, 0x6D8 };
+/* for skull_hook (the RAM here keeps its place; cr_used follows cr_build) */
+u8 *const sk_map_p = sk_map;
+u16 *const sk_build_p = &cr_build;
+
+/* sk_map's entry for tile t, if it has one */
+static void map_set(u16 t, u8 v)
+{
+    u16 i = t - CR_T0;
+    if (i < SK_T1 - CR_T0 && !(i & 3)) sk_map[i >> 2] = v;
+}
+
+/* sk_map follows cr_tile here: a skull's piece taking a slot is entered, any
+ * tile leaving one cleared */
+static u16 piece_slot(u16 attr, const u16 *base, int n)
 {
     u16 t = attr & 0x7FF;
-    int s, n;
-    if (t < CR_T0 || t >= CR_T1) return attr;
+    int s;
     if ((u16)(fs_last - cr_build) > 30) {           /* a pause, a death, a map: VRAM may have been reloaded */
-        for (s = 0; s < NCR; s++) cr_tile[s] = 0;
+        for (s = 0; s < NCR; s++) {
+            if (cr_tile[s]) map_set(cr_tile[s], 0);
+            cr_tile[s] = 0;
+        }
         cr_pend = 0;
     }
     cr_build = fs_last;
-    n = fb_on() ? NCR - 3 : NCR;
     for (s = 0; s < n; s++)
         if (cr_tile[s] == t) break;
     if (s == n) {
@@ -134,10 +165,33 @@ u16 crow_attr(u16 attr)
             for (s = 0; s < n; s++)
                 if (cr_used[s] != fs_last) break;
         if (s == n) s = 0;                          /* more pieces than slots: the first slot's */
-        else { cr_tile[s] = t; cr_pend |= 1 << s; }
+        else {
+            if (cr_tile[s]) map_set(cr_tile[s], 0);
+            cr_tile[s] = t; cr_pend |= 1 << s;
+            if (base == sk_base) map_set(t, s + 1);
+        }
     }
     cr_used[s] = fs_last;
-    return (attr & 0xF800) | cr_base[s];
+    return (attr & 0xF800) | base[s];
+}
+
+/* bigman.s crow_hook: a crow piece's attribute while the building's bank is in */
+u16 crow_attr(u16 attr)
+{
+    u16 t = attr & 0x7FF;
+    if (t < CR_T0 || t >= CR_T1) return attr;
+    return piece_slot(attr, cr_base, fb_on() ? NCR - 3 : NCR);
+}
+
+/* bigman.s skull_hook: a type-9 piece's attribute in stage 6 */
+u16 skull_attr(u16 attr)
+{
+    u16 t = attr & 0x7FF;
+    if ((t < CR_T0 || t >= CR_POSE) && (t < SK_T0 || t >= SK_T1)) {
+        map_set(t, 0xFF);
+        return attr;
+    }
+    return piece_slot(attr, sk_base, NSK);
 }
 
 /* hook_sat_dma, with the sprite table: the new poses' pieces */
@@ -146,10 +200,14 @@ void bm_vblank(void)
     int s, j, n;
     u32 rec;
     if (cr_pend) {
+        const u16 *base = RAM8(0xFFC512) == 5 ? sk_base : cr_base;
         for (s = 0; s < NCR; s++)
-            if ((cr_pend & (1 << s)) && cr_tile[s])
-                dma_vram(cr_tile[s] >= CR_POSE ? (u32)crow_blue + (u32)(cr_tile[s] - CR_POSE) * 32
-                                               : CR_ART + (u32)(cr_tile[s] - CR_T0) * 32, 128, cr_base[s] * 32);
+            if ((cr_pend & (1 << s)) && cr_tile[s]) {
+                u16 t = cr_tile[s];
+                dma_vram(t >= SK_T0 ? (u32)skull_pieces + (u32)(t - SK_T0) * 32
+                         : t >= CR_POSE ? (u32)crow_blue + (u32)(t - CR_POSE) * 32
+                         : CR_ART + (u32)(t - CR_T0) * 32, 128, base[s] * 32);
+            }
         cr_pend = 0;
     }
     if (sh_state == 1) {

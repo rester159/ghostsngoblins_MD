@@ -78,11 +78,13 @@ bm_piece_x:
 
 
 | $B118 (`jsr`, over move.w 4(a2),4(a5)): a Big Man's shot's piece attribute
-| (shot type 3, $B042); in stage 5 from its VRAM slot (bmart.c), elsewhere
+| (shot type 3, $B042); in stages 3 and 5 from their tiles (bmart.c), elsewhere
 | as before.
     .global bm_shot_hook
 bm_shot_hook:
     cmpi.b  #4,0xFFC512
+    beq.s   1f
+    cmpi.b  #2,0xFFC512
     beq.s   1f
     move.w  4(%a2),4(%a5)
     rts
@@ -113,6 +115,56 @@ crow_hook:
     addq.l  #4,%sp
     move.w  %d0,4(%a5)
     movem.l (%sp)+,%d0-%d1/%a0-%a1
+    rts
+
+| $1076B6 (`jsr`, over move.w 4(a2),4(a5)): a type-9 piece's attribute (the
+| skull draw); in stage 6 through the piece cache (bmart.c), elsewhere as before.
+| A piece the cache holds is looked up here (sk_map), as skull_attr would:
+| the slot's tile, its build marked used; anything else goes to skull_attr.
+| d6, a0 and a1 are free: $107626 saves d4-d7/a0-a2 and its loop uses none.
+    .global skull_hook
+skull_hook:
+    move.w  4(%a2),4(%a5)
+    cmpi.b  #5,0xFFC512
+    beq.s   1f
+    rts
+1:  move.w  4(%a2),%d6
+    andi.w  #0x7FF,%d6
+    subi.w  #0x320,%d6
+    cmpi.w  #0x544-0x320,%d6
+    bcc.s   9f                      | not a skull piece's tile: as is
+    btst    #0,%d6
+    bne.s   7f
+    btst    #1,%d6
+    bne.s   7f
+    lsr.w   #2,%d6
+    movea.l sk_map_p,%a0
+    move.b  0(%a0,%d6.w),%d6        | d6.w < $89: its high byte stays 0
+    beq.s   7f                      | not known
+    bmi.s   9f                      | passed through
+    swap    %d6                     | the slot + 1 in the high word
+    movea.l sk_build_p,%a0          | the build, then the slots' (cr_used)
+    movea.w fs_last,%a1
+    move.w  %a1,%d6
+    sub.w   (%a0),%d6
+    cmpi.w  #30,%d6
+    bhi.s   7f                      | a pause, a death, a map: skull_attr resets
+    move.w  %a1,(%a0)
+    swap    %d6
+    add.w   %d6,%d6
+    move.w  %a1,0(%a0,%d6.w)        | cr_used[slot]: 2 + 2 * slot
+    lea     sk_base-2,%a0
+    andi.w  #0xF800,4(%a5)
+    move.w  0(%a0,%d6.w),%d6
+    or.w    %d6,4(%a5)
+9:  rts
+7:  movem.l %d0-%d1,-(%sp)
+    move.w  4(%a2),%d0
+    move.l  %d0,-(%sp)
+    jsr     skull_attr
+    addq.l  #4,%sp
+    move.w  %d0,4(%a5)
+    movem.l (%sp)+,%d0-%d1
     rts
 
 | $AFF4 (`jsr`, over move.w 4(a2),4(a5)): the piece's attribute; in stage 5

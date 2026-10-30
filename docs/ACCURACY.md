@@ -481,7 +481,7 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     at up to 3, 0.8 px sideways; the floor probe is the port's `$107ED6` = `$8CA7`), then a leap at his x along a half
     sine 80 px high (`$CE3A`, |dx|/42 px a frame from the `$FED8` division and `$4EE1`), 6 frames, facing him when he's
     more than 64 px away (`$CDDB`); removed out of range (`$8F62`); dying 21 frames with sound `$14` (port: 2 frames).
-    The dragon's fire (stages 3, 4, 6) is unchanged. Measured: Arthur teleported next to the first skull (x 6905) and
+    The dragon's fire (stages 3, 4) is unchanged (stage 6: Fixed 97). Measured: Arthur teleported next to the first skull (x 6905) and
     standing, 2,500 frames: its wake, rise, hops and leaps identical value for value (1,913 positions until the end of
     the run; the port's own skipped updates only delay it); one lance kills it on the same frame in both and it goes on
     the same frame (old build: it flew off at 3.125 px/frame and left the screen in 60 frames). `tools/re/test_skull.py`
@@ -1215,6 +1215,49 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     2's line 1 it drew teal panels with orange edges and specks beside the grey closed door (the original port's; V0.5
     the same). Stage 2 now takes a copy in the closed door's colours (fill 6 -> 7, edges and frames 4, 10 -> 12,
     rivets and specks 2, 3, 5 -> 14). The arcade's door is green and opens onto black; the port's stays grey.
+
+96. **A spawn record makes its enemy once a life** (`stageend.s` `spawn_once` at `$71AAE`, `shots.c` `spawn_seen`, cleared by
+    `item_init`). Reported on V0.7.2: the Red Arremers on the climb to the two Satans came back without end. The arcade's
+    `$EB08` (types 5, 6, 8, 10, 12, 13, table `$EAE8`; subtype bit 1) keeps a bit per id (less the stage's first id, `$EB3C`)
+    in the record's slot and removes a second try; a death clears them (measured: new bits after a life start). The port
+    had no such test. Same walk on stage 6's floor at y 2494 (from the saved climb): V0.7.2 5 Arremers, each of the two
+    right-hand records twice; now 4, each once. Open: the arcade, restarted on that floor, never made the record at
+    (7888, 2344) on that walk; the port makes it once.
+97. **Stage 6's skulls** (`skull_glue.s`, `bigman.s` `skull_hook` at `$1076B6`, `bmart.c` `skull_attr`). Reported on V0.7.2:
+    five skulls flew off at the start, and none on the climb. The 11 type-9 enemies are skulls as in stage 5 (`$CC45`,
+    state 0/1 in the arcade's start), not the dragon's fire as Fixed 52 said; `skull_update` only ran in stage 5. It now
+    runs in stage 6 too. Their standing and burst pieces aren't resident there (`$524` is the second Satan's buffer,
+    `$320`-`$36B` other art), so they go through the crow cache into `$6A0`, `$24D`, `$79E`, `$7CC`, `$6A4`, `$6D0`, `$6D4`,
+    `$6D8`, the tiles never non-zero in a climb in each mode (from `$6AC` is type 8's art; tiles from `$700` are the live
+    plane and tables). Checked by capture: they wake, rise, hop and die in their art. Cost: more enemies awake and drawn,
+    and stage 6's updates already took about a frame. Made cheaper after: `skull.c` takes the image's even fields as
+    words and longs on the 68000 (an awake skull ~3,700 -> ~2,600 cycles a frame; `test_skull.py` on stage 6 with them
+    waking, 22,000 calls, matches the arcade) and `skull_hook` finds a cached piece itself (`sk_map`, ~600-900 -> ~290
+    cycles; 12 a frame with three standing). Stage 6 from its start, 6 seeds, updates a frame, V0.7.2 / this:
+    1P 0.995 / 0.963, Firebrand 0.989 / 0.951, co-op 0.939 / 0.805. Without their handler co-op's updates still take
+    ~260 lines with the skeletons there, so co-op's gap is their being there; Fixed 100 takes most of it back.
+98. **Stage 3's fire towers fire** (`pillar.s` `pillar_fire` at `$106872`, `shots.c` `pillar_shots`; arcade type 18, `$DFC7`).
+    Reported on V0.7.2. The port played the mouths (`$106840`-`$1068E4`) and made no shot. Now the arcade's: the top mouth at
+    y - 16, the low one at y + 7, both for sub-state 4 (`$E18C`, `$E1B7`, `$E23B`), waiting for free shots. The shot is
+    the arcade's projectile type 5, moved by the same generic code as its type 3 (2 px a frame), so the port's type 3
+    (`$ACB8`) runs it; weapons treat it as type 5 (`shots.c`), and it is drawn from `tower_art` (`$95`/`$9F`, tiles
+    `$6C0`-`$6C7`, line 0, so blue-lilac where the arcade's is purple: stage 3 has no purple). Standing 48 px away, 1,800
+    frames: 14 shots in the arcade, 15 here (0 in V0.7.2), the same speed and side.
+99. **Stage 4's Petite Devils burst** (`bossart_glue.s` `pd_draw_hook`). Reported on V0.7.2: they vanish. The burst of
+    Fixed 63 ran in stage 5 only; `$320`-`$36B` hold the same art in stage 4 in all three modes, so a dying devil now
+    shows it there too. Checked on a forced death (state 2), not a real hit.
+100. **Frame skip instead of a lost frame** (`glue.s` `vbl_wait` at `$113E5E`, `pace.c`). The stage loops waited for the
+    next VBlank; an update that ran past the VBlank (co-op stage 6 with its skeletons: built updates ~275 lines,
+    a quarter past 298) cost a whole frame, the game slowing. Now, while the sprites have been held under 3 frames, the
+    next update starts at once (the VBlank count one on), the loops' repeated VBlank test removed. Starting in the
+    picture it uploads nothing (sprite table, Arthur's frame, scroll: the screen stays as it was) and skips its sprite
+    build. A build not shown yet (`fs_unshown`) is shown by the next update allowed to upload, with the plane B scroll
+    of the update that built it (`fs_dsx`/`fs_dsy`), where before a skipped build in between threw it away. The game
+    runs every update as before; fewer frames are drawn when busy. Updates a frame, 6 seeds, stage 6 from its start,
+    V0.7.2 / before / now: 1P 0.995 / 0.963 / 0.997, co-op 0.939 / 0.805 / 0.888, Firebrand 0.989 / 0.951 / 0.982;
+    stages 1-5 the same or faster in every mode. Sprite-table uploads counted in two busy co-op stretches: 25-30 ->
+    32-36 a second, at most 6-8 frames apart (7 before). No limit (sprites built mid-picture past the hold limit, or
+    never waiting) froze the sprites 30-150 frames; skipping the build only every other time cost co-op 0.888 -> 0.837.
 
 ## Matching (audited)
 

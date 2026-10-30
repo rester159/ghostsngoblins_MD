@@ -22,3 +22,25 @@ pillar_step:
     moveq   #0,%d1
     move.b  5(%a1,%d0.w),%d1        | that entry's size class (= $54FB's, 1)
     jmp     0x10F816                | size_shift: y and class as $8EBF (rts to the caller)
+
+| Stage 3's fire towers (type 18; arcade $DFC7). Sub-state 2/3/4 opens the top
+| mouth, the low one or both ($E0D2, $E1E2, $E229); after 30 frames each fires
+| ($E119, $E1F4, $E23B, waiting for free shots). The port played the mouths
+| and fired nothing: $106872 (`jmp`, over `move.b #32,41(a4)`) is that step.
+    .global pillar_fire
+pillar_fire:
+    moveq   #0,%d0
+    move.b  8(%a4),%d0
+    moveq   #1,%d1
+    cmpi.b  #4,%d0
+    bne.s   1f
+    moveq   #2,%d1
+1:  cmp.w   0xFFC220,%d1
+    bls.s   2f
+    jmp     0x106A50                | not enough shots free: try again
+2:  move.l  %d0,-(%sp)
+    move.l  %a4,-(%sp)
+    jsr     pillar_shots
+    addq.l  #8,%sp
+    move.b  #32,41(%a4)
+    jmp     0x106878

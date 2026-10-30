@@ -51,7 +51,26 @@ static u8 *s;
 
 static u16 rd16(const u8 *p) { return (u16)(p[0] << 8 | p[1]); }
 static void wr16(u8 *p, u16 v) { p[0] = v >> 8; p[1] = v; }
-#define XI rd16(s + 6)
+/* At an even offset of the image: on the 68000 the image is even (Rec), so
+ * these take word and long accesses (stage 6 has up to 3 awake at once and
+ * the byte code cost ~7 lines each a frame); the host's are the byte code. */
+#ifdef HOST
+#define ld16 rd16
+#define st16 wr16
+static u32 ld32(const u8 *p) { return (u32)p[0] << 24 | (u32)p[1] << 16 | (u32)p[2] << 8 | p[3]; }
+static void st32(u8 *p, u32 v) { p[0] = v >> 24; p[1] = v >> 16; p[2] = v >> 8; p[3] = v; }
+#else
+#define ld16(p) (*(const u16 *)(p))
+#define st16(p, v) (*(u16 *)(p) = (v))
+#define ld32(p) (*(const u32 *)(p))
+#define st32(p, v) (*(u32 *)(p) = (v))
+#endif
+/* 24-bit values (16.8) at an even (e) or odd (o) offset, kept to 24 bits */
+static u32 ld24e(const u8 *p) { return (u32)ld16(p) << 8 | p[2]; }
+static void st24e(u8 *p, u32 a) { st16(p, a >> 8); p[2] = a; }
+static u32 ld24o(const u8 *p) { return (u32)p[0] << 16 | ld16(p + 1); }
+static void st24o(u8 *p, u32 a) { p[0] = a >> 16; st16(p + 1, a); }
+#define XI ld16(s + 6)
 #define YI rd16(s + 9)
 
 /* the scripts: $CC96 asleep (class 0), $CD26 rising (class 2, which loops
@@ -102,29 +121,20 @@ static void anim(void)                  /* $9074 */
     u16 y;
     u8 b;
     if (X(2)) { X(2)--; return; }
-    y = rd16(&X(0));
+    y = ld16(&X(0));
     wr16(&X(3), y);
     y += ESIZE[CLS & 3];
     b = ab(y - 1);
     if (b & 0x80) { y = (u16)(ab(y) << 8 | ab(y + 1)); b &= 0x7F; }
     X(2) = b;
-    wr16(&X(0), y);
-}
-
-static void add24(u8 *p, u32 v)
-{
-    u32 a = (u32)p[0] << 16 | (u32)p[1] << 8 | p[2];
-    a = (a + v) & 0xFFFFFF;
-    p[0] = a >> 16; p[1] = a >> 8; p[2] = a;
+    st16(&X(0), y);
 }
 
 /* the vertical speed: X+$A..$D, 16.16; y (16.8) += its top 24 bits */
-static void y_step(void) { add24(s + 9, (u32)X(0x0A) << 16 | (u32)X(0x0B) << 8 | X(0x0C)); }
+static void y_step(void) { st24o(s + 9, ld24o(s + 9) + (ld32(&X(0x0A)) >> 8)); }
 static void pull(u16 g)                 /* SUBD #g on X+$C, borrow into X+$A */
 {
-    u32 v = (u32)X(0x0A) << 24 | (u32)X(0x0B) << 16 | (u32)X(0x0C) << 8 | X(0x0D);
-    v -= g;
-    X(0x0A) = v >> 24; X(0x0B) = v >> 16; X(0x0C) = v >> 8; X(0x0D) = v;
+    st32(&X(0x0A), ld32(&X(0x0A)) - g);
 }
 
 static void fall(void)                  /* $CD08 */
@@ -136,7 +146,7 @@ static void fall(void)                  /* $CD08 */
 
 static void hop_move(void)              /* $CDF6 */
 {
-    add24(s + 6, (u32)(long)VX[DIR < 5 ? DIR : 4]);
+    st24e(s + 6, ld24e(s + 6) + (u32)(long)VX[DIR < 5 ? DIR : 4]);
     y_step();
     anim();
 }
@@ -166,12 +176,12 @@ static int floor_at(u8 *p, u8 *adj)    /* $8CA7: carry and B */
 static void arc_y(u8 ph)                /* $CEF3 */
 {
     u8 b = (u8)(SINE[ph] << 1);
-    wr16(s + 9, (u16)(((u16)X(0x17) * b) >> 8) + rd16(&X(0x18)));
+    wr16(s + 9, (u16)(((u16)X(0x17) * b) >> 8) + ld16(&X(0x18)));
 }
 
 static void leap_x(void)                /* $CEA5 */
 {
-    add24(s + 6, (u32)X(0x1A) << 16 | (u32)X(0x1B) << 8 | X(0x1C));
+    st24e(s + 6, ld24e(s + 6) + ld24e(&X(0x1A)));
 }
 
 static void rise(void)                  /* 1/0 */
@@ -225,7 +235,7 @@ static void hops(u8 *p)                 /* 1/1 ($CD30) */
         break;
     case 3:                             /* $CD94 */
         hop_move();
-        if ((s16)rd16(&X(0x0A)) >= -3) pull(0x2A16);    /* $CDA7 */
+        if ((s16)ld16(&X(0x0A)) >= -3) pull(0x2A16);    /* $CDA7 */
         if (floor_at(p, &adj)) { wr16(s + 9, YI + adj); ST2++; }
         break;
     case 4:                             /* $CDBF */
@@ -334,14 +344,15 @@ void skull_host(u8 *img, const SkCtx *x)
 typedef struct { u8 *slot; u8 s[48]; } Rec;
 static Rec rec[NREC];
 
+/* The skull's record, else the first one free (or the first). Two passes: the
+ * free test is only made when the slot has none (once per skull). */
 static Rec *bind(u8 *p, int *fresh)
 {
-    Rec *r, *k = 0;
-    for (r = rec; r < rec + NREC; r++) {
+    Rec *r, *k = rec;
+    for (r = rec; r < rec + NREC; r++)
         if (r->slot == p) { *fresh = 0; return r; }
-        if (!k && (!r->slot || r->slot[10] != 9 || !r->slot[4])) k = r;
-    }
-    if (!k) k = rec;
+    for (r = rec; r < rec + NREC; r++)
+        if (!r->slot || r->slot[10] != 9 || !r->slot[4]) { k = r; break; }
     k->slot = p;
     *fresh = 1;
     return k;
@@ -369,8 +380,9 @@ void skull_update(u8 *p, const u8 *a)
     }
     r = bind(p, &fresh);
     s = r->s;
-    x.camx = rd16(a); x.camy = rd16(a + 2); x.ax = rd16(a + 4); x.ay = rd16(a + 48);
-    x.frame = a[6]; x.slot = a[7]; x.rank = a[8];
+    /* the context's words (even addresses); the handler reads only these */
+    x.camx = ((const u16 *)a)[0]; x.camy = ((const u16 *)a)[1];
+    x.ax = ((const u16 *)a)[2]; x.ay = ((const u16 *)a)[24];
     c = &x;
     if (fresh || (p[7] == 0 && ST0 != 0)) {
         for (k = 0; k < 48; k++) s[k] = 0;
@@ -387,8 +399,8 @@ void skull_update(u8 *p, const u8 *a)
     p[9] = 0;
     p[16] = 0; p[17] = s[6]; p[18] = s[7]; p[19] = s[8];
     p[20] = 0; p[21] = s[9]; p[22] = s[10]; p[23] = s[11];
-    wr16(p, XI);
-    wr16(p + 2, YI);
+    ((u16 *)p)[0] = XI;                     /* the slot is word aligned */
+    ((u16 *)p)[1] = YI;
     p[24] = DIR;
     p[25] = CLS;
     /* the frames (bossart.c t9_frames): 0 asleep ($A7), 1/2 rising ($A2,

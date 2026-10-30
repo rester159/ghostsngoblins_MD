@@ -222,11 +222,14 @@ intro_tick:
     rts
 
 | $11C15E (the type-2 draw, stages 3-6): `jmp pd_draw_hook` + nop over
-| `cmpi.b #1,$FFC512`. A dying devil in stage 5: the burst (pd_burst).
+| `cmpi.b #1,$FFC512`. A dying devil in stages 4 and 5: the burst (pd_burst).
     .global pd_draw_hook
 pd_draw_hook:
     cmpi.b  #4,0xFFC512
+    beq.s   0f
+    cmpi.b  #3,0xFFC512
     bne.s   1f
+0:
     cmpi.b  #2,7(%a4)
     bne.s   1f
     tst.b   4(%a4)
