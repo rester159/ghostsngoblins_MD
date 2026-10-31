@@ -159,6 +159,28 @@ game_sound_play:
     movem.l (%sp)+,%d0-%d7/%a0-%a6
     rts
 
+| Pause (pad.c pause_loop): the music stops. The six FM channels are keyed
+| off through the driver's own queue to the Z80 ($11CB5C: d0 = part, d1 =
+| register, d2 = value, the bus taken and given back there), as its music
+| writes go; the driver isn't ticked during the pause, so the music goes on
+| from where it was after it (a held note silent until its channel's next).
+    .global sound_pause
+sound_pause:
+    movem.l %d0-%d7/%a0-%a6,-(%sp)
+    lea     9f,%a3
+    moveq   #5,%d7
+1:  moveq   #0,%d0
+    moveq   #0x28,%d1               | key on/off
+    moveq   #0,%d2
+    move.b  (%a3)+,%d2              | the channel, no operators: off
+    movem.l %d7/%a3,-(%sp)
+    jsr     0x11CB5C
+    movem.l (%sp)+,%d7/%a3
+    dbf     %d7,1b
+    movem.l (%sp)+,%d0-%d7/%a0-%a6
+    rts
+9:  .byte   0, 1, 2, 4, 5, 6
+
 | Silence: force the driver to re-initialise ($11C5EC skips init while
 | $FF83F8 holds its magic; the title code clears it the same way).
     .global sound_stop
@@ -200,8 +222,23 @@ ovl_tiles3:                         | $11CF2C: lea $3206E0,a0
     bne.s   1f
     lea     0x3206E0,%a0
     rts
-1:  movea.l jp_ovl_chunk+8,%a0
+1:  movem.l %d0-%d1/%a0-%a1,-(%sp)
+    jsr     jp_ovl_extra_up         | title.c: the Makaimura logo's tiles past the 65
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+    movea.l jp_ovl_chunk+8,%a0
     rts
+| $11CE96 (`jsr ovl_rows1` + nop over `move.w #0,d6` / `moveq #8,d2` /
+| `moveq #4,d3`): the logo's rows, 8-11; the Makaimura logo's 6-12.
+    .global ovl_rows1
+ovl_rows1:
+    moveq   #0,%d6
+    moveq   #8,%d2
+    moveq   #4,%d3
+    tst.b   0xFF5008
+    beq.s   1f
+    moveq   #6,%d2
+    moveq   #7,%d3
+1:  rts
 
 | $BB8: title loader palette source (`lea $2045E8,a0`); may draw the JP logo.
     .global hook_title_pal
@@ -381,6 +418,44 @@ pace_hook:
     jsr     pace_start
     movem.l (%sp)+,%d0-%d1/%a0-%a1
     jmp     0x114F58
+
+| $11CED6 (`jmp ovl_keep` over `moveq #0,d4` / `bra.w $11CF8A`): the attract
+| overlay ($11CE5C: the logo, or the high score table's 30 rows) when it
+| hasn't changed since the last update. It rewrote all its rows into plane
+| $E000 every update, as the HUD (hud_rows, every update) wrote over five of
+| them: 960 words a frame for the table, most of it in the picture, and the
+| attract demo ran at half speed while the table showed. hud_rows now leaves
+| out the rows the overlay covers, so they stay; two of its rows go again each
+| update in turn (all of them every 15 updates at most), against anything else.
+| The routine's own movem restores every register at $11CFBA.
+    .global ovl_keep
+ovl_keep:
+    moveq   #0,%d0
+    move.b  0xFF7DFF,%d0
+    add.w   %d0,%d0
+    divu    %d3,%d0
+    swap    %d0                     | (frame * 2) mod rows
+    moveq   #1,%d7
+1:  movem.l %d0/%d2-%d3/%d7/%a1,-(%sp)
+    move.w  %d0,%d1
+    lsl.w   #6,%d1                  | 32 words a row in the map at a1
+    lea     0(%a1,%d1.w),%a0
+    add.w   %d2,%d0                 | the overlay's rows are d2 .. d2 + d3 - 1
+    moveq   #0,%d6
+    move.w  %d0,%d6
+    moveq   #23,%d1
+    lsl.l   %d1,%d6                 | 128 bytes a plane row, in the command's address bits
+    addi.l  #0x60000003,%d6         | VRAM write $E000 + row * 128, as $11CF8A
+    move.l  %d6,0xC00004
+    moveq   #31,%d1
+    jsr     0xB12
+    movem.l (%sp)+,%d0/%d2-%d3/%d7/%a1
+    addq.w  #1,%d0
+    cmp.w   %d3,%d0
+    bcs.s   2f
+    moveq   #0,%d0
+2:  dbf     %d7,1b
+    jmp     0x11CFBA
 
 | $113E5E (`jmp vbl_wait` over its first `move.w $C00004,d0`): the stage
 | loops' wait for the next VBlank (the VBlank count $FF7DFC changing from the

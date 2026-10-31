@@ -35,9 +35,9 @@ static const char *const ordinals[10] = {
 static void header(const char *title)
 {
     screen_init();
-    if (title_jp()) draw_jp_logo(1, PAL_TEXT);
+    if (title_jp()) draw_jp_logo(0, PAL_TEXT);     /* rows 0-6 */
     else draw_logo(1);
-    text_center(6, title, PAL_TEXT);
+    text_center(title_jp() ? 7 : 6, title, PAL_TEXT);
     display_on();
 }
 

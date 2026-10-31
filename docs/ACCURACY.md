@@ -1258,6 +1258,30 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     stages 1-5 the same or faster in every mode. Sprite-table uploads counted in two busy co-op stretches: 25-30 ->
     32-36 a second, at most 6-8 frames apart (7 before). No limit (sprites built mid-picture past the hold limit, or
     never waiting) froze the sprites 30-150 frames; skipping the build only every other time cost co-op 0.888 -> 0.837.
+101. **The Makaimura logo** (`mkjp.py`, `title.c`, `glue.s` `ovl_tiles3`/`ovl_rows1`). Reported on V0.7.3: a placeholder that
+    looked wrong. `mkjp.py` read gg1.bin's logo 32 chars to a row with the colour planes swapped. The arcade keeps logos 16
+    to a row (its English one, `$5180` in bank 3, draws a 22x4 table at `$51A3`: `$100`-`$10F` rows, `$140`-`$144`, `$170`).
+    The Makaimura logo is 21x7: `$180`+ (16x7), `$135`+ beside rows 0-3 (5 wide), `$13A`+ beside rows 4-5 (4 wide), placed
+    where their edges meet the main block (28/32 and 43/48 edge pixels; no other place above 21). No table for it is in
+    these program ROMs. Colours as the arcade's char palette 7: red, light grey, blue (menus: pens 4-6 of the text line;
+    attract: stage 1's line 0 pens 3, $F, $D). 135 tiles with flips. Menus, title (rows 3-9) and the high score screen
+    (rows 0-6, its title one row down) from `$200`. The attract overlay (rows 6-12) has the 65 tiles it had and 67 more
+    free through the whole cycle (`$690`-`$6A9`, `$6AB`-`$6C7`, `$6D0`-`$6DB`, a VRAM scan of it), 132: the 3 tiles with the
+    fewest pixels (flame specks) are left out there.
+102. **The attract demo no longer slows down under the high score table** (`glue.s` `ovl_keep` at `$11CED6`, `speed.s`
+    `hud_rows`). Reported on V0.7.3. The original Genesis port's attract overlay (`$11CE5C`) rewrote all its rows into
+    plane `$E000` every update (the table: 30 rows, 960 words, mostly in the picture) because the HUD (`hud_rows`, rows 8,
+    9, 12, 18, 20) wrote over some each update: the demo ran at half speed while the table showed. Now `hud_rows` leaves
+    out the rows the overlay covers while it runs (its mode at `$FF86A0`; the overlay wrote over them in the same update,
+    so they never showed) and an unchanged overlay rewrites 2 rows an update in turn. Attract cycle, both logos: the
+    table's stretches at 1.0 updates a frame (0.5), the stretch changes ~0.75 for a window (their uploads; V0.7.3 the
+    same); every frame of two table stretches captured, no row missing (V0.7.3: 6 frames, a row blanked between the
+    HUD's write and the overlay's when an update started in the picture).
+103. **Pause stops the music** (`pad.c` `pause_loop`, `glue.s` `sound_pause`). Reported on V0.7.3: it played on, oddly.
+    The pause loop ticked the driver once per `vsync()`, a ~2.4-frame busy wait with the menus' display flag off, so
+    the music ran at ~40%. Now the six FM channels are keyed off through the driver's queue to the Z80 (`$11CB5C`) and
+    it isn't ticked until play goes on; the music then goes on where it was (a held note silent until its next).
+    Recorded: the level falls from ~2,400 to the release tails at once and comes back on unpausing.
 
 ## Matching (audited)
 

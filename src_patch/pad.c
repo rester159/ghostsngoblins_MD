@@ -65,12 +65,17 @@ static int in_play(void)
         && RAM16(0xFFC570) != 2;
 }
 
+void sound_pause(void);                 /* glue.s */
+
+/* The music stops while paused (it went on, and slowly: vsync() here is a
+ * busy wait of ~2.4 frames with the menus' display flag off, so the driver
+ * was ticked at ~40% of its rate) and goes on from where it was after. */
 static void pause_loop(void)
 {
     u16 p, prev = BTN_START;
+    sound_pause();
     for (;;) {
         vsync();
-        game_sound_tick();
         p = pad_read(0);
         if ((p & BTN_START) && !(prev & BTN_START)) break;
         prev = p;

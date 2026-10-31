@@ -259,6 +259,9 @@ def install_features(rom, build_dir):
     # render skip: decided at the start of every stage-loop update (pace.c)
     expect(rom, 0x6938, jmp(0x114F58), 'update start')
     put(rom, 0x6938, jmp(sym['pace_hook']))
+    # attract overlay unchanged: only the rows the HUD writes over go again
+    expect(rom, 0x11CED6, bytes.fromhex('7800600000b0'), 'attract overlay unchanged')
+    put(rom, 0x11CED6, jmp(sym['ovl_keep']))
     # frame skip: an update that ran past the VBlank is followed at once, not
     # a frame later (glue.s vbl_wait; pace.c holds that one's uploads); the
     # loops' own VBlank test after the wait goes, as it only repeated it
@@ -512,6 +515,8 @@ def install_features(rom, build_dir):
                               (0x11CF2C, 0, 0x3206E0, 'ovl_tiles3')):
         expect(rom, a, lea(reg, src), 'overlay lea')
         put(rom, a, jsr(sym[name]))
+    expect(rom, 0x11CE96, bytes.fromhex('3c3c000074087604'), 'overlay logo rows')
+    put(rom, 0x11CE96, jsr(sym['ovl_rows1']) + b'\x4e\x71')
     install_stage_end(rom, sym)
     install_crow_tdevil(rom, sym)
     install_door2(rom, sym)

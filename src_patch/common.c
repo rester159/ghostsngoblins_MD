@@ -60,7 +60,7 @@ static void vram_copy(u16 addr, const u16 *src, u16 words)
 
 static const u16 menu_pal[16 * 3] = {
     /* line 1: normal text */
-    0x0000, 0x0EEE, 0x0E86, 0x0222, 0,0,0,0, 0,0,0,0, 0,0,0,0,
+    0x0000, 0x0EEE, 0x0E86, 0x0222, 0x000C, 0x0CCC, 0x0A40, 0, 0,0,0,0, 0,0,0,0,   /* 4-6: title.c's Makaimura logo */
     /* line 2: selected text */
     0x0000, 0x00EE, 0x006E, 0x0222, 0,0,0,0, 0,0,0,0, 0,0,0,0,
     /* line 3: dim text */

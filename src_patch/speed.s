@@ -422,34 +422,68 @@ copy9600:
 | (a0)+,$C00000`. `jmp hud_rows` over its entry: the same control and data
 | writes in the same order, the data port in a1, every register as it was
 | and the flags of the last word written.
+| While the attract overlay runs, the rows it draws over in the same update
+| are left out (the overlay rewrote them after this, the HUD never showed
+| there; written, they flashed blank when an update started in the picture).
     .global hud_rows
 hud_rows:
-    movem.l %d0/%a0-%a1,-(%sp)
+    movem.l %d0-%d1/%a0-%a1,-(%sp)
     move.w  #0x8F02,0xC00004
-    lea     0xFFD810,%a0
+    moveq   #0,%d1
+    cmpi.w  #1,0xFF7FFC             | the attract overlay ($11CE5C) runs this update:
+    bne.s   0f
+    move.w  0xFF86A0,%d0            | its mode, 1 the logo, 2 the high score table
+    moveq   #0x1F,%d1               | the table covers rows 0-29: all five
+    cmpi.w  #2,%d0
+    beq.s   0f
+    moveq   #0,%d1
+    cmpi.w  #1,%d0
+    bne.s   0f
+    moveq   #0x11,%d1               | the logo, rows 8-11: rows 8, 9
+    tst.b   0xFF5008
+    beq.s   0f
+    moveq   #0x13,%d1               | the Makaimura logo, rows 6-12: 8, 12, 9
+0:  lea     0xFFD810,%a0
     lea     0xC00000,%a1
-    move.l  #0x64080003,0xC00004
+    btst    #0,%d1
+    bne.s   1f
+    move.l  #0x64080003,0xC00004    | row 8
     .rept   26
     move.w  (%a0)+,(%a1)
     .endr
-    move.l  #0x660C0003,0xC00004
+    bra.s   2f
+1:  lea     52(%a0),%a0
+2:  btst    #1,%d1
+    bne.s   1f
+    move.l  #0x660C0003,0xC00004    | row 12
     .rept   22
     move.w  (%a0)+,(%a1)
     .endr
-    move.l  #0x69240003,0xC00004
+    bra.s   2f
+1:  lea     44(%a0),%a0
+2:  btst    #2,%d1
+    bne.s   1f
+    move.l  #0x69240003,0xC00004    | row 18
     .rept   5
     move.w  (%a0)+,(%a1)
     .endr
-    move.l  #0x6A240003,0xC00004
+    bra.s   2f
+1:  lea     10(%a0),%a0
+2:  btst    #3,%d1
+    bne.s   1f
+    move.l  #0x6A240003,0xC00004    | row 20
     .rept   5
     move.w  (%a0)+,(%a1)
     .endr
-    move.l  #0x64940003,0xC00004
+1:  btst    #4,%d1
+    bne.s   1f
+    move.l  #0x64940003,0xC00004    | row 9
     lea     0xFFC5D0,%a0
     .rept   15
     move.w  (%a0)+,(%a1)
     .endr
-    movem.l (%sp)+,%d0/%a0-%a1
+1:  tst.w   0xFFC5EC                | the flags of the last word, written or not
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
     rts
 
 | ---------------------------------------------------------------------------

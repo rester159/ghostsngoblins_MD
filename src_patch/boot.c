@@ -77,7 +77,7 @@ static int menu_run(const Menu *m, int y0, int sel)
 static void frame_screen(const char *title)
 {
     screen_init();
-    if (title_jp()) draw_jp_logo(4, PAL_TEXT);
+    if (title_jp()) draw_jp_logo(3, PAL_TEXT);
     else draw_logo(5);
     if (title) text_center(10, title, PAL_TEXT);
     text_center(26, "rester159, 2026", PAL_TEXT);
@@ -86,9 +86,9 @@ static void frame_screen(const char *title)
 static void redraw_logo(void)
 {
     int i;
-    VDP_CTRLL = VRAM_W(0xC000 + 4 * 128);
-    for (i = 0; i < 5 * 64; i++) VDP_DATA = 0;
-    if (title_jp()) draw_jp_logo(4, PAL_TEXT); else draw_logo(5);
+    VDP_CTRLL = VRAM_W(0xC000 + 3 * 128);
+    for (i = 0; i < 7 * 64; i++) VDP_DATA = 0;     /* rows 3-9: either logo */
+    if (title_jp()) draw_jp_logo(3, PAL_TEXT); else draw_logo(5);
 }
 
 static int wrap(int v, int dir, int n) { v += dir; return v < 0 ? n - 1 : v >= n ? 0 : v; }
