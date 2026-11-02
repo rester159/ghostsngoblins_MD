@@ -10,7 +10,8 @@
  *    probe stops him at, never an object) makes him cling to it, facing out,
  *    for as long as he likes; he fires away from it. Jump leaps straight up
  *    and he grabs the wall again at the top of the leap if still pushing into
- *    it; pushing away lets go. A grab refills the hover.
+ *    it; pushing away lets go. A grab refills the hover. In Firebrand's
+ *    Vendetta he also grabs solid scenery's faces (below).
  *  - solid scenery: the insides of rocks and stage 3's tower are only
  *    background to the engine (attribute $C0, no wall or floor): Arthur can't
  *    get there, but Firebrand flies. A move that puts his body in one is
@@ -41,6 +42,7 @@ u32  gcall(u32 addr, u32 d0, u32 a3);   /* glue.s: jsr addr, a0=$FF0000 a4=$FF90
 long wall_probe(u32 addr, u32 x, u32 y, u32 table);    /* glue.s: px into the wall, or -1 */
 void jump_sfx(void);                    /* glue.s */
 void score_event(u16 idx);              /* glue.s: score table entry idx */
+int  vd_on(void);                       /* vendetta.c */
 
 #define FB_BANK     0x3A0000UL          /* placed by tools/patch_gng.py from art/firebrand */
 #define FB_FLAGS    ((const u8 *)0x3B6000UL)
@@ -83,7 +85,7 @@ static u32 shown_src;                   /* non-Firebrand frame (the frog) in VRA
 
 int fb_on(void)
 {
-    return is_home() && PERSIST->home_sub == HOME_FIREBRAND;
+    return is_home() && (PERSIST->home_sub == HOME_FIREBRAND || PERSIST->home_sub == HOME_VENDETTA);
 }
 
 int fb_plus_on(void)
@@ -103,6 +105,12 @@ void fb_cleared(void)
     p->fb_plus = 1;
     RAM8(0xFFC501) = FB_PLUS_RANK;      /* rank */
     RAM8(0xFFC561) = FB_PLUS_RANK;      /* its floor for the per-death decrease */
+}
+
+/* clinging to a wall or hovering: climbing on purpose (vendetta.c) */
+int fb_lifting(void)
+{
+    return cling || hovering;
 }
 
 /* 2 s, 1 s in Firebrand's Quest Plus */
@@ -133,12 +141,19 @@ static int bank_index(u32 a)
 /* Is the wall on this side within 2 px? If so, move him flush against it.
  * The probe tests one point (x +- 16, y - 8) against the cell's wall edge,
  * as the walk and the jump do. */
+static int solid_at(u16 x, u16 y);
+
 static int touch_wall(u8 side)
 {
     u16 x = POS_X >> 8;
     long in = side == WALL_RIGHT ? wall_probe(0x8510, x + 2, POS_Y, 0x1486E)
                                 : wall_probe(0x8538, x - 2, POS_Y, 0x1496E);
-    if (in < 0) return 0;
+    if (in < 0) {
+        /* Vendetta: solid scenery's faces too (stage 3's cave stone, the
+         * towers' rock), where scenery_block stops his body (6 px each side) */
+        u16 sx = side == WALL_RIGHT ? x + 8 : x - 8;
+        return vd_on() && (solid_at(sx, POS_Y + 8) || solid_at(sx, POS_Y + 20));
+    }
     in -= 2;                            /* px into the wall where he is */
     if (in) {
         POS_X = (POS_X + ((side == WALL_RIGHT ? -in : in) << 8)) & 0xFFFFFF;

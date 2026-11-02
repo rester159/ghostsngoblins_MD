@@ -493,6 +493,27 @@ def install_features(rom, build_dir):
     # stage 6's cross check: Firebrand passes it (firebrand.c fb_gate_weapon)
     expect(rom, 0x119E16, bytes.fromhex('123900ffa218'), 'cross check weapon')
     put(rom, 0x119E16, jsr(sym['hook_cross_gate']))
+    # Firebrand's Vendetta (vendetta.c): the stages' far ends as the restart
+    # entries for checkpoint 0, and the checkpoint passed walking left
+    expect(rom, 0x103E72, bytes.fromhex('43fa0258d2c0'), 'restart entry lookup')
+    put(rom, 0x103E72, jsr(sym['vd_start_entry']))
+    expect(rom, 0x103CB0, bytes.fromhex('b27000006300 0044'.replace(' ', '')), 'checkpoint mark test')
+    put(rom, 0x103CB0, jsr(sym['vd_cp_cmp']) + b'\x63\x42')
+    # ... and its camera ahead of him, put on him at each start
+    expect(rom, 0x10415C, bytes.fromhex('90414a406b36'), 'camera x gap')
+    put(rom, 0x10415C, jsr(sym['vd_cam_xgap']))
+    expect(rom, 0x1042BE, bytes.fromhex('302c0002906b000a04408000d06b000a4e75'), 'camera new x')
+    put(rom, 0x1042BE, jmp(sym['vd_cam_lead']))
+    expect(rom, 0x1041E6, bytes.fromhex('90414a2b0001'), 'camera y gap')
+    put(rom, 0x1041E6, jsr(sym['vd_cam_ygap']))
+    expect(rom, 0x1042D0, bytes.fromhex('7000102b0005'), 'camera speed lookup')
+    put(rom, 0x1042D0, jmp(sym['vd_cam_speed']))
+    expect(rom, 0x104372, bytes.fromhex('3740002037410022 6148'.replace(' ', '')), 'camera set-up end')
+    put(rom, 0x104372, jsr(sym['vd_cam_init']) + b'\x4e\x71' * 2)
+    for a in (0x110A2C, 0x119724):
+        expect(rom, a, bytes.fromhex('33fc1d0000ff910033fc060000ff910223fc001d000000fff42823fc0006000000fff42c'),
+               'stage 6 camera start')
+        put(rom, a, jsr(sym['vd_cam_s6']) + b'\x60\x1c' + b'\x4e\x71' * 14)
     # co-op death handling (Arthur respawns instead of restarting the stage)
     expect(rom, 0x61DC, b'\x4a\x79' + be32(0xFFC570), 'death handling tst')
     put(rom, 0x61DC, jsr(sym['hook_p1_death']))

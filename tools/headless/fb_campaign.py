@@ -24,6 +24,10 @@ stages (5, 6) his x doesn't count, and his y only where he stands or climbs
 ($FFC8D6 = 2) the key (the stage-end object in weapon slot 0, $FF9600) is
 the goal: closing in on it is progress, taking it ($FFCD7A) more.
 
+REVERSE=1 plays Firebrand's Vendetta instead (vendetta.c: the stage from its
+far end back to its start): progress is the camera's and his x and y going
+down in the towers, the towers' lowest standing y, and no boss or key.
+
 Every 250 segments <out>.moves holds the path so far; RESUME=1 replays it
 and searches on from there (TRUNC=n frames dropped from its end first).
 Repeated failures without a new best back up further each time (doubling).
@@ -51,6 +55,7 @@ from fbh import Game, F, U, D, LT, RT, J     # noqa: E402
 rom, stage, out = sys.argv[1], int(sys.argv[2]), sys.argv[3]
 budget = int(sys.argv[4]) if len(sys.argv) > 4 else 400000
 K = 8
+REV = bool(os.environ.get('REVERSE'))
 g = Game(rom, sysdir=os.path.dirname(os.path.abspath(out)),
          options={'genesis_plus_gx_overclock': os.environ.get('OC', '200%')})
 if os.environ.get('START'):
@@ -61,7 +66,7 @@ else:
         # the developer menu stops at stage 6: its stage index poked to 6 while it launches
         g.launch(6, poke=lambda gg: 880 <= gg.frame <= 1300 and gg.w8(0xFF500B, 7))
     else:
-        g.launch(stage)
+        g.launch(stage, 4 if REV else 2)
 launch_frame = g.frame
 stage0 = g.r8(0xFFF400)
 idx0 = g.r8(0xFFC512)
@@ -104,7 +109,7 @@ if os.environ.get('REPLAY'):
 
 
 last_dj = [RT, 'off']
-LADDERS = {4: range(0x74, 0x7A), 5: range(0x74, 0x7A)}    # stages 5 and 6 (by stage index)
+LADDERS = {2: range(0x64, 0x6C), 4: range(0x74, 0x7A), 5: range(0x74, 0x7D)}    # stages 3, 5, 6 (by stage index; 3's are $64-$6B, 6's add $7A-$7C)
 
 
 def ladder_dir():
@@ -114,7 +119,7 @@ def ladder_dir():
         return None
     fx, fy = g.r16(0xFF9001), g.r16(0xFF9004)
     best = None
-    for dy in (8, 24):
+    for dy in ((-8, -24, -40, -56) if REV else (8, 24)):     # Vendetta: ladder tops under him, below the floor
         y = fy + dy
         for dx in range(-192, 193, 16):
             x = fx + dx
@@ -125,7 +130,7 @@ def ladder_dir():
                     best = cx
     if best is None:
         return None
-    return U if abs(best - fx) <= 6 else RT if best > fx else LT
+    return (D if REV else U) if abs(best - fx) <= 6 else RT if best > fx else LT
 
 
 def macro(prev):
@@ -133,15 +138,17 @@ def macro(prev):
     from the last segment 60% of the time (ladders, long walks, hovers)"""
     if random.random() < 0.6:
         d, j = last_dj
-        j = 'hold' if j == 'press' else j
+        j = 'hold' if j == 'press' else j     # (a tap carries on: leap after leap up a wall)
     else:
-        d = random.choices([RT, 0, LT, U, D, 'lad'], [50, 10, 16, 14, 10, 15])[0]
-        j = random.choices(['off', 'hold', 'press'], [50, 32, 18])[0]
+        tower = REV and g.r8(0xFFC512) in (4, 5)    # Vendetta's towers only go down: no climbing
+        d = random.choices([LT if REV else RT, 0, RT if REV else LT, U, D, 'lad'],
+                           [50, 10, 16, 0 if tower else 14, 10, 40 if tower else 15])[0]
+        j = random.choices(['off', 'hold', 'press', 'tap'], [50, 32, 18, 25 if REV and not tower else 0])[0]
     last_dj[:] = [d, j]
     if d == 'lad':                      # to the nearest ladder and up it
         d = ladder_dir()
         if d is None:
-            d = RT
+            d = LT if REV else RT
         else:
             j = 'off'
 
@@ -149,7 +156,7 @@ def macro(prev):
     ms = []
     for k in range(K):
         m = d
-        if j == 'hold' or (j == 'press' and k > 0):
+        if j == 'hold' or (j == 'press' and k > 0) or (j == 'tap' and k < 3):    # tap: a wall leap each segment
             m |= J
         if fire and k < 2:
             m |= F
@@ -241,9 +248,12 @@ seg = 0
 while searched < budget:
     st = snap()
     camx, camy = g.r16(0xFFA200), g.r16(0xFFA202)
-    cam = camx + 2 * camy
+    if REV:     # Vendetta: leftwards, and down only in the towers (5, 6)
+        cam = 20000 - camx - (2 * camy if g.r8(0xFFC512) in (4, 5) else 0)
+    else:
+        cam = camx + 2 * camy
     if g.r16(0xFF9410) == 0 or g.r8(0xFF9459):     # standing or on a ladder
-        gy = max(gy, g.r16(0xFF9004))
+        gy = max(gy, 4000 - g.r16(0xFF9004) if REV else g.r16(0xFF9004))
     new = hp_map()
     dmg += hits(hpm, new)
     hpm = new
@@ -254,16 +264,16 @@ while searched < budget:
     if g.r8(0xFFC512) in (4, 5):        # the climbs
         here = gy / 2
     else:
-        here = (g.r16(0xFF9001) + g.r16(0xFF9004)) / 4
+        here = (8000 - g.r16(0xFF9001) if REV else g.r16(0xFF9001) + g.r16(0xFF9004)) / 4
     prog = cam + here + 10 * g.r16(0xFFCD62) + min((score() - cam_score) / 100, 40) + min(25 * (dmg - cam_dmg), 600)
-    if g.r8(0xFFC8D6) != 2:             # near a boss
+    if g.r8(0xFFC8D6) != 2 and not REV:     # near a boss
         fx, fy, near = g.r16(0xFF9001), g.r16(0xFF9004), 300
         for k in range(40):
             a = 0xFFB800 + 48 * k
             if g.r8(a + 4) and g.r8(a + 10) == 12 and g.r8(a + 11) >= 5:
                 near = min(near, abs(g.r16(a) - fx) + abs(g.r16(a + 2) - fy))
         prog += 300 - near
-    if g.r8(0xFFC8D6) == 2:             # the boss is dead: get the key
+    if g.r8(0xFFC8D6) == 2 and not REV:     # the boss is dead: get the key
         kx, ky = (g.r32(0xFF9600) >> 8) & 0xFFFF, (g.r32(0xFF9604) >> 8) & 0xFFFF
         prog += 1000 - min(abs(kx - g.r16(0xFF9001)) + abs(ky - g.r16(0xFF9004)), 900) + (1000 if g.r16(0xFFCD7A) else 0)
     if prog > best:

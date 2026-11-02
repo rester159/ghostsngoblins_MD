@@ -7,7 +7,7 @@
 
 enum { PAL_TEXT = 1, PAL_SEL = 2, PAL_DIM = 3 };
 enum { MODE_NONE = 0, MODE_ARCADE = 1, MODE_HOME = 2 };
-enum { HOME_1P = 0, HOME_COOP = 1, HOME_FIREBRAND = 2 };
+enum { HOME_1P = 0, HOME_COOP = 1, HOME_FIREBRAND = 2, HOME_VENDETTA = 3 };
 
 /* Arcade DIP switches (indices into the option tables in settings.c) */
 enum { DIP_COIN, DIP_LIVES, DIP_BONUS, DIP_DIFF, DIP_DEMO, DIP_CONT, DIP_N };
@@ -42,7 +42,7 @@ typedef struct {
     u8  home[8];        /* 24 */
     u32 bonus_next;     /* 32 BCD score of the next extra life, 0 = none */
     u8  bonus_step_i;   /* 36 */
-    u8  dev_players;    /* 37 developer launch: 0 = 1P, 1 = co-op, 2 = Firebrand */
+    u8  dev_players;    /* 37 developer launch: 0 = 1P, 1 = co-op, 2 = Firebrand, 3 = Plus, 4 = Vendetta */
     u8  fb_unlocked;    /* 38 Firebrand's Quest has been cleared (saved): PLUS in the menu */
     u8  fb_plus;        /* 39 this game is Firebrand's Quest Plus */
     HiScore hs[2][10];  /* 40  [0] arcade, [1] home */

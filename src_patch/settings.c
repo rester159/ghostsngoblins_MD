@@ -138,6 +138,9 @@ void stage_jump(int stage);         /* glue.s: what the game does at a stage end
 void p2_frame(void);
 void fb_frame(void);
 int  fb_plus_on(void);
+int  vd_on(void);                   /* vendetta.c */
+int  vd_first_stage(void);
+void vd_frame(void);
 void p2_reset(void);
 
 /* $61A2: player block initialised at game start */
@@ -158,6 +161,7 @@ void player_init(void)
     RAM8(0xFFC561) = RANK;          /* floor for the per-death rank decrease */
     /* debug launch to a later stage: entered on the first frame of play */
     stage_pending = PERSIST->dev_on && PERSIST->dev_stage > 1 ? PERSIST->dev_stage : 0;
+    if (vd_on() && !PERSIST->dev_on) stage_pending = vd_first_stage();   /* Vendetta starts at the end */
 }
 
 /* $6348: continue. As the arcade's ($7882 -> $6C33): lives from the setting,
@@ -247,6 +251,7 @@ void play_tick(void)
     if (p->dev_on && p->dev_inf && LIVES < 3) LIVES = 3;
     p2_frame();
     fb_frame();
+    vd_frame();
 }
 
 /* coin inserted (arcade) */

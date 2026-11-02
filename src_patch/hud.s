@@ -119,15 +119,18 @@ vb_isr:
 | a byte nothing writes, so its camera followed every jump up (stage 5,
 | Arthur 158 px above the camera at the jump's top: the camera rose 1153 ->
 | 1192 and back; the arcade's stayed at 1153). $104392: `jsr cam_air` + nop.
+| Firebrand's Vendetta lets it climb while he clings or hovers (vendetta.c).
     .global cam_air
 cam_air:
+    tst.b   vd_climb                    | Vendetta: climbing on a wall or hovering
+    bne.s   2f
     tst.w   0xFF9410                    | jump phase: 1 rising, 2 falling
     bne.s   1f
     tst.b   0xFFC343                    | KB_ARMOR (arthur.s): an armored knockback
     bne.s   1f
     tst.b   0xFFC571                    | dying
     bne.s   1f
-    clr.b   1(%a3)
+2:  clr.b   1(%a3)
     rts
 1:  move.b  #1,1(%a3)
     rts
