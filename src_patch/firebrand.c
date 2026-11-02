@@ -11,7 +11,9 @@
  *    for as long as he likes; he fires away from it. Jump leaps straight up
  *    and he grabs the wall again at the top of the leap if still pushing into
  *    it; pushing away lets go. A grab refills the hover. In Firebrand's
- *    Vendetta he also grabs solid scenery's faces (below).
+ *    Vendetta he also grabs solid scenery's faces (below), and jump pressed
+ *    again in the air flaps him up (FLAPS a jump, refilled by landing or a
+ *    grab).
  *  - solid scenery: the insides of rocks and stage 3's tower are only
  *    background to the engine (attribute $C0, no wall or floor): Arthur can't
  *    get there, but Firebrand flies. A move that puts his body in one is
@@ -78,6 +80,9 @@ static u8  hover_t, hovering, flap, walk_t;
 static u8  cling;                       /* the side of the wall he holds, 0 = none */
 static u8  wall_jump;                   /* rising from a wall: no grab until the top */
 static u8  jump_was;                    /* jump held last frame */
+static u8  flaps, flapping;             /* Vendetta: flaps left in this jump; risen by one, not landed */
+#define FLAPS       3
+#define FLAP_SPEED  0x3C000             /* 3.75 px a frame up: ~30 px (Arthur's jump: 4.25, ~40 px) */
 static u8  shots_was, cling_fire;       /* shots out last frame; frames of the cling-fire pose left */
 #define CLING_FIRE  15                  /* Demon's Crest holds it about as long */
 static s16 shown;                       /* bank frame in VRAM + 1, 0 = unknown */
@@ -110,7 +115,7 @@ void fb_cleared(void)
 /* clinging to a wall or hovering: climbing on purpose (vendetta.c) */
 int fb_lifting(void)
 {
-    return cling || hovering;
+    return cling || hovering || flapping;
 }
 
 /* 2 s, 1 s in Firebrand's Quest Plus */
@@ -254,7 +259,7 @@ static void scenery_block(void)
 /* every gameplay frame, from the pad routine (before Arthur's update) */
 void fb_frame(void)
 {
-    u8 in, jump, toward;
+    u8 in, jump, toward, leapt = 0;
     if (!fb_on()) return;
     WEAPON = 1;
     ARMOR_SET = 1;
@@ -264,6 +269,8 @@ void fb_frame(void)
         hovering = 0;
         cling = wall_jump = 0;
         hover_t = hover_max();
+        flaps = FLAPS;
+        flapping = 0;
         prev_ok = 0;
         return;
     }
@@ -282,7 +289,11 @@ void fb_frame(void)
     if (JUMP_PHASE == 0 || RAM8(0xFFC342)) {
         hovering = 0;
         cling = wall_jump = 0;
-        if (JUMP_PHASE == 0) hover_t = hover_max();
+        flapping = 0;
+        if (JUMP_PHASE == 0) {
+            hover_t = hover_max();
+            flaps = FLAPS;
+        }
         jump_was = jump;
         return;
     }
@@ -290,6 +301,7 @@ void fb_frame(void)
         if (toward && toward != cling) {
             cling = 0;                  /* pushed away: let go */
         } else if (jump && !jump_was) {
+            leapt = 1;
             cling = 0;                  /* leap straight up */
             wall_jump = 1;
             JUMP_PHASE = 1;
@@ -310,7 +322,24 @@ void fb_frame(void)
         cling = toward;
         hovering = 0;
         hover_t = hover_max();
+        flaps = FLAPS;
+        flapping = 0;
         hold_wall();
+    }
+    /* Vendetta: jump pressed again in the air is a flap, a smaller jump up
+     * (FLAPS of them until he lands or grabs a wall): going back the way
+     * Arthur came, his drops are climbs, and not all of them have a wall */
+    if (!cling && !leapt && jump && !jump_was && flaps && vd_on()) {
+        flaps--;
+        flapping = 1;
+        hovering = 0;
+        JUMP_PHASE = 1;
+        ON_GROUND = 0;
+        JUMP_SPEED = FLAP_SPEED;
+        JUMP_DIR = 0;
+        JUMP_DX = 0;
+        JUMP_POSE = 8;
+        jump_sfx();
     }
     jump_was = jump;
     if (cling) return;

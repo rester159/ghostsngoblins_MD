@@ -90,7 +90,12 @@ floors). In Vendetta Firebrand also clings to solid scenery's faces (stage
 3's cave stone, the towers' rock), not only the engine's wall cells, and leaps
 up them; the camera climbs while he clings or hovers. Stage 2's ice towers are
 background, so there is nothing to cling to there, and nothing that blocks him.
-Each life has a minute more than the game's stage time. The towers go down by
+Where there is no wall (stage 2's ice towers, open drops), he **flaps**: jump
+pressed again in the air is a smaller jump up, three a jump, refilled by
+landing or grabbing a wall. A jump rises 40 px, with one flap 71, two 100,
+three 130 (measured); the ice towers' ledges are at most 112 px apart. The
+camera climbs while he flaps. Each life has a minute more than the game's
+stage time. The towers go down by
 their ladders (stage 3's are tiles $64-$6B, the towers' $74-$7C).
 
 ### Route checks (headless, tools/headless/fb_campaign.py REVERSE=1)
@@ -98,9 +103,9 @@ their ladders (stage 3's are tiles $64-$6B, the towers' $74-$7C).
 |---|---|
 | 6 | route down to its start and into stage 5, scripted and invincible (2,952 frames) |
 | 5 | the same into stage 4 (12,896 frames); starts by the first ladder down, left of a brick block |
-| 4 | search bot, no invincibility: cleared (4,600-6,200 frames) |
-| 3 | search bot, no invincibility: cleared (11,108 frames, inside the 3:28 timer) |
-| 2 | search bot, no invincibility: cleared (9,200 frames) |
+| 4 | search bot, no invincibility: cleared (4,600-11,200 frames, with and without flaps) |
+| 3 | search bot, no invincibility: cleared before flaps (11,108 frames, inside the 3:28 timer); flaps only add moves. Five more seeds on the flap build stalled at the same dead-end pocket above the ladder down (x 1960): a search problem, not the map |
+| 2 | search bot, no invincibility: cleared (9,200 frames; with flaps 10,572, found in a seventh of the search) |
 | 1 | the bot reaches the left end; nothing happens there yet (Arthur goes there) |
 
 Not checked yet: stages 5 and 6 against their enemies (the scripted runs were
