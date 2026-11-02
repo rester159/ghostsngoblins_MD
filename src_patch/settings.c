@@ -141,6 +141,7 @@ int  fb_plus_on(void);
 int  vd_on(void);                   /* vendetta.c */
 int  vd_first_stage(void);
 void vd_frame(void);
+void vd_new_game(void);
 void p2_reset(void);
 
 /* $61A2: player block initialised at game start */
@@ -164,6 +165,7 @@ void player_init(void)
     /* debug launch to a later stage: entered on the first frame of play */
     stage_pending = PERSIST->dev_on && PERSIST->dev_stage > 1 ? PERSIST->dev_stage : 0;
     if (vd_on() && !PERSIST->dev_on) stage_pending = vd_first_stage();   /* Vendetta starts at the end */
+    vd_new_game();
 }
 
 /* $6348: continue. As the arcade's ($7882 -> $6C33): lives from the setting,

@@ -14,8 +14,8 @@ gates and gave him a road paved with Arremers. The Red clan was the price Satan
 paid to keep his throne and his head. Every brother Firebrand ever lost was
 traded away.
 
-**The regicide.** Firebrand kills Satan in his own hall. *(Told in the
-opening's text; a playable Satan fight is not built.)*
+**The regicide.** Firebrand kills Satan in his own hall. *(The opening:
+stage 6's throne room, one Satan.)*
 
 **The vendetta.** In the Demon Realm, killing the king is the one crime
 nobody forgives. The zombies, the ogres, the Big Men and the flying knights
@@ -42,7 +42,7 @@ THE RED ARREMER.
 | Order | Stage              | Notes                                            |
 |-------|--------------------|--------------------------------------------------|
 | 0     | the story          | three text pages (the pact, the regicide, the vendetta) |
-| 1     | stage 6            | Satan already dead; the climb out of the realm   |
+| 1     | stage 6, top room  | the Satan fight, then the climb out of the realm |
 | 2     | stage 5            |                                                  |
 | 3     | stage 4            |                                                  |
 | 4     | stage 3            |                                                  |
@@ -80,9 +80,9 @@ a frame, so a long drop outruns it. In Vendetta:
 
 ### Bosses
 **No double bosses in this mode.** Where the game has two (stage 6's two
-Satans, the Big Men pairs), Vendetta has one. Today's starts sit outside the
-boss rooms, so no boss is fought yet. When bosses come back, each stage gets
-one at most.
+Satans, the Big Men pairs), Vendetta has one. The bosses fought are stage 6's
+one Satan (the opening), stage 3's dragon on the route, and Arthur; the other
+stages start outside their boss rooms.
 
 ### Climbing and time
 Backwards, Arthur's drops are climbs (stage 3's pit and shaft, the towers'
@@ -101,7 +101,7 @@ their ladders (stage 3's are tiles $64-$6B, the towers' $74-$7C).
 ### Route checks (headless, tools/headless/fb_campaign.py REVERSE=1)
 | Stage | Result |
 |---|---|
-| 6 | route down to its start and into stage 5, scripted and invincible (2,952 frames) |
+| 6 | route down from Satan's room into stage 5, scripted and invincible (19,624 frames; from the old start two floors down, 2,952) |
 | 5 | the same into stage 4 (12,896 frames); starts by the first ladder down, left of a brick block |
 | 4 | search bot, no invincibility: cleared (4,600-11,200 frames, with and without flaps) |
 | 3 | search bot, no invincibility: cleared before flaps (11,108 frames, inside the 3:28 timer); flaps only add moves. Five more seeds on the flap build stalled at the same dead-end pocket above the ladder down (x 1960): a search problem, not the map |
@@ -144,6 +144,27 @@ Headless (`arena.state` from a checkpoint walk, a random duel bot): without
 invincibility the bot lasts 5-52 s and takes his armour off in half the runs;
 an invincible bot kills him in about 1.5 min.
 
+### The opening: Satan (vendetta.c, vendetta_glue.s)
+A game starts in stage 6's top room (x 7560, floor y 2638, `vd_satan_start`,
+the checkpoint-0 entry while `vd_satan_done` is 0), facing right. Stage 6 has
+two Satans; the farther one is freed while still asleep (it never raised the
+boss count), so it is one Satan, the game's own (satan.c), at the top rank.
+His removal normally counts the stage's bosses down ($10EA0C, $FFDB09) and at
+0 starts the stage-end sequence and the key ($FFDB08), which would lead to
+the final room; in Vendetta it only sets `vd_satan_done` ($110558,
+vd_satan_gone). Then the ladders down: a death before the regicide restarts
+in his room, one after it at the old start two floors below. New games
+clear the flag (settings.c player_init).
+
+The checkpoint is passed with the camera 16 px left of the mark: stage 6's
+mark is its left limit, which the camera can touch by a pixel, and that sent
+a death to the tower's foot, which is Vendetta's end of the stage.
+
+Headless: Satan's kill leaves $FFDB08 at 0 and play going on; both restart
+points as above; a random bot dies in about 45 s a life having hit him 2-3
+times (10 hit points); the scripted descent from his room to stage 5 takes
+19,624 frames (invincible).
+
 ### Story, ending, rank
 - Choosing FIREBRAND'S VENDETTA shows the story in three pages (a button each,
   Start skips); practice launches skip it.
@@ -161,5 +182,5 @@ an invincible bot kills him in about 1.5 min.
 | Start | launch at stage 6 (the debug-launch path in settings.c already does this) | small |
 | "Everyone wants him dead" | built: the top starting rank (as Quest Plus) | small |
 | Opening text / ending text | built: the menu screens' font (common.c), vendetta.c vd_story / vd_ending | small |
-| Satan opening fight | not built: stage 6's Satan room with one Satan needs the boss count ($10E9B6), the key and the stage-end sequence kept from sending him to the final room | medium, needs research |
+| Satan opening fight | built: stage 6's top room, one Satan, no key (below) | medium |
 | **Arthur boss** | built (vd_arthur.c): his own small engine on the flat floor of the graveyard's left end, not the player-2 engine (whose weapons share Firebrand's slots and never hit a player), drawn with the game's own frames of him | large |

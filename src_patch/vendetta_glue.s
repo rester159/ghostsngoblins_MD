@@ -2,7 +2,7 @@
 | home_sub 3: the word at $FF5004 (Persist mode, home_sub) is $0203.
 
     .section .text,"ax"
-    .global vd_sound, vd_start_entry, vd_cp_cmp, vd_cam_xgap, vd_cam_ygap, vd_cam_speed, vd_cam_init, vd_cam_s6, vd_cam_lead
+    .global vd_sound, vd_satan_gone, vd_start_entry, vd_cp_cmp, vd_cam_xgap, vd_cam_ygap, vd_cam_speed, vd_cam_init, vd_cam_s6, vd_cam_lead
 
 | $103E72: `jsr vd_start_entry` over `lea $1040CC(pc),a1` / `adda.w d0,a1`
 | (d0 = (checkpoint * 7 + stage index) * 4): Vendetta's checkpoint-0 entries
@@ -14,12 +14,32 @@ vd_start_entry:
     cmpi.w  #7*4,%d0
     bcc.s   1f
     lea     vd_starts,%a1
+    cmpi.w  #5*4,%d0                | stage 6 before its Satan is dead: his room
+    bne.s   1f
+    tst.b   vd_satan_done
+    bne.s   1f
+    lea     vd_satan_start-5*4,%a1
 1:  adda.w  %d0,%a1
+    rts
+
+| $110558: `jsr vd_satan_gone` + nop over `jsr $10EA0C` (the port's boss
+| count down: at 0 the stage-end sequence and the key) / `clr.w 4(a4)` at a
+| Satan's removal. Vendetta's opening Satan only marks the regicide done:
+| no key, the way down stays open.
+vd_satan_gone:
+    cmpi.w  #0x0203,0xFF5004
+    beq.s   1f
+    jsr     0x10EA0C
+    bra.s   2f
+1:  move.b  #1,vd_satan_done
+2:  clr.w   4(%a4)
     rts
 
 | $103CB0: `jsr vd_cp_cmp` + `bls.s` over `cmp.w (a0,d0.w),d1` / `bls.w`
 | (d1 = the camera x, (a0,d0.w) = the stage's checkpoint mark): ls = not
-| passed. Vendetta passes it with the camera left of the mark instead.
+| passed. Vendetta passes it with the camera 16 px left of the mark instead
+| (stage 6's mark is its left limit, which the camera touches by a pixel:
+| that sent a death to the tower's foot, Vendetta's end of the stage).
 vd_cp_cmp:
     cmpi.w  #0x0203,0xFF5004
     beq.s   1f
@@ -27,6 +47,7 @@ vd_cp_cmp:
     rts
 1:  movem.l %d2,-(%sp)
     move.w  (%a0,%d0.w),%d2
+    subi.w  #16,%d2
     cmp.w   %d1,%d2
     movem.l (%sp)+,%d2
     rts

@@ -56,6 +56,38 @@ const u8 vd_starts[7][4] = {
     E(8024, 2624),
 };
 
+/* the opening (stage 6's top room, one Satan): the game's start there, and
+ * the regicide done (vendetta_glue.s vd_satan_gone; until then a death
+ * restarts in his room) */
+const u8 vd_satan_start[4] = E(7560, 2624);
+u8 vd_satan_done;
+
+/* a new game (settings.c player_init) */
+void vd_new_game(void)
+{
+    vd_satan_done = 0;
+}
+
+/* Stage 6 has two Satans; Vendetta has one, the nearer. The other is freed
+ * while asleep (it never raised the boss count). After the regicide both
+ * stay away. Enemy slots: $FFB800, 40 x 48 (+4 live, +7 state, +10 type,
+ * +17 x). */
+static void one_satan(void)
+{
+    volatile u8 *keep = 0;
+    for (int k = 0; k < 40; k++) {
+        volatile u8 *p = (volatile u8 *)(0xFFB800 + 48 * k);
+        if (!p[4] || p[10] != 6) continue;
+        /* x at +17 is at an odd address: read it a byte at a time */
+        if (!vd_satan_done && (!keep || (p[17] << 8 | p[18]) < (keep[17] << 8 | keep[18]))) {
+            if (keep && !keep[7]) keep[4] = 0;
+            keep = p;
+        } else if (!p[7]) {
+            p[4] = 0;
+        }
+    }
+}
+
 #define VD_XREST    176                 /* his place on screen (vendetta_glue.s XBIAS) */
 #define VD_YREST    142                 /* the game's */
 #define LEAD_MAX    48
@@ -131,8 +163,10 @@ void vd_frame(void)
         was_in_play = 1;
         RAM8(0xFF9006) = 2;
         FACING = 0x800;
+        if (s == 5 && !vd_satan_done) { RAM8(0xFF9006) = 1; FACING = 0; }   /* Satan is to the right */
         TIME += EXTRA_TIME;             /* backwards, Arthur's drops are climbs */
     }
+    if (s == 5) one_satan();
     if (s == 0) {                       /* the graveyard: Arthur */
         int on = vd_boss_on();
         vd_boss(RAM16(0xFF9100) <= CAM_LIMITS[0]);
@@ -192,11 +226,11 @@ void vd_story(void)
           "PAID TO THE KNIGHT SO THE",
           "KING COULD KEEP HIS THRONE." },
         { "THE REGICIDE", "",
-          "IN THE THRONE ROOM",
-          "FIREBRAND TORE THE",
-          "DEMON KING DOWN.",
+          "FIREBRAND FLIES TO",
+          "THE THRONE ROOM.",
           "",
-          "SATAN IS DEAD.",
+          "THE DEMON KING",
+          "MUST DIE.",
           "", "" },
         { "THE VENDETTA", "",
           "NO ONE FORGIVES A KINGSLAYER.",

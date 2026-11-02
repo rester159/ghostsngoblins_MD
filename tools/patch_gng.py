@@ -514,6 +514,11 @@ def install_features(rom, build_dir):
         expect(rom, a, bytes.fromhex('33fc1d0000ff910033fc060000ff910223fc001d000000fff42823fc0006000000fff42c'),
                'stage 6 camera start')
         put(rom, a, jsr(sym['vd_cam_s6']) + b'\x60\x1c' + b'\x4e\x71' * 14)
+    # ... and its opening: the Satan of stage 6's top room leaves no key
+    # (vendetta_glue.s vd_satan_gone, over the removal's `jsr $10EA0C` /
+    # `clr.w 4(a4)`)
+    expect(rom, 0x110558, bytes.fromhex('4ebae4b2426c0004'), 'Satan removal')
+    put(rom, 0x110558, jsr(sym['vd_satan_gone']) + b'\x4e\x71')
     # co-op death handling (Arthur respawns instead of restarting the stage)
     expect(rom, 0x61DC, b'\x4a\x79' + be32(0xFFC570), 'death handling tst')
     put(rom, 0x61DC, jsr(sym['hook_p1_death']))
