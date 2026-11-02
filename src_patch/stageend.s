@@ -260,21 +260,34 @@ se_pace:
 
 | $8A550 (`jsr door_art`, over `lea 0xA0700,a0`): the stage-end door's
 | opening art for kind 1 (stages 2 on; kind 0, stage 1's, is $A0000). It is
-| stage 1's art with its colours moved for another palette line, which in
-| stage 2 drew the opening door teal with orange edges and specks beside its
-| grey closed door. Stage 2 takes door2_art, the same tiles in the closed
-| door's colours of line 1 (filled by tools/patch_gng.py).
-    .global door_art, door2_art
+| stage 1's art with its colours moved for another palette line, which drew
+| the opening door in other colours than the closed one beside it: teal with
+| orange edges in stage 2, red in stage 5, ochre in stage 6. Those stages
+| take copies in the closed door's greys of their line 1 (filled by
+| tools/patch_gng.py).
+    .global door_art, door2_art, door5_art, door6_art
 door_art:
     lea     0xA0700,%a0
     cmpi.b  #1,0xFFC512
     bne.s   1f
     lea     door2_art,%a0
-1:  rts
+1:  cmpi.b  #4,0xFFC512
+    bne.s   2f
+    lea     door5_art,%a0
+2:  cmpi.b  #5,0xFFC512
+    bne.s   3f
+    lea     door6_art,%a0
+3:  rts
 
     .section .rodata
     .even
 door2_art:
+    .byte   1
+    .space  0x6FF
+door5_art:
+    .byte   1
+    .space  0x6FF
+door6_art:
     .byte   1
     .space  0x6FF
     .section .text,"ax"

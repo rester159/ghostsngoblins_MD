@@ -1004,8 +1004,25 @@ hook_satan:
     addq.l  #4,%sp
     tst.l   %d0
     beq.s   1f
+    cmpi.b  #5,0xFFC512
+    beq.s   2f
     jsr     0x10E9B6                | the port's boss count (+1)
 1:  rts
+| Stage 6: the arcade's stage end waits for two boss removals there
+| (<$B6 from $6EC9 by stage: 1 2 1 1 1 2 1), whether or not the second Satan
+| ever woke; the port counted each Satan as it woke, so killing the first
+| before the second came on screen ended the stage with one Satan. The first
+| wake of a stage 6 life counts both (as $11740E does for a first boss, with
+| 2); later wakes count nothing. $FFDB0C counts the deaths (cleared with
+| the rest at each stage and life start).
+2:  tst.b   0xFFDB09
+    bne.s   1b
+    tst.w   0xFFDB0C
+    bne.s   1b
+    clr.b   0xFFDB08
+    clr.w   0xFFDB0A
+    move.b  #2,0xFFDB09
+    rts
 
 | $11080E (the Satan's death, state 2): `jsr hook_satan_die` over `tst.b 8(a4)`
 | + `bne.s $110834`. The arcade first plays the generic enemy burst ($E8A7:
@@ -1164,8 +1181,10 @@ tomb_walk:
     cmp.w   %d3,%d5
     beq.w   9f                      | not moving
     bgt.s   4f
-    subq.b  #2,%d2                  | moving left: old x - 1
-4:  addq.b  #1,%d2                  | moving right: old x + 1
+    subq.w  #2,%d2                  | moving left: old x - 1
+4:  addq.w  #1,%d2                  | moving right: old x + 1 (a word: as bytes,
+                                    | x 1023 + 1 was 768 and the stone there,
+                                    | 255 px back on stage 1's ledge, stopped him)
     move.l  0xFF922A,%d6            | y at the update's start (the arcade's walk
     lsr.l   #8,%d6                  | tests before its floor step; on a moving
     addq.b  #1,%d6                  | platform that's the y the carry left): + 1

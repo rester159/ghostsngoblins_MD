@@ -632,6 +632,18 @@ def install_astaroth(rom, sym):
     put(rom, 0x32EE, jsr(sym['hook_pool10']))
     expect(rom, 0xAE9C, bytes.fromhex('0c2c0003000a6720'), 'shot pool builder type chain')
     put(rom, 0xAE9C, jsr(sym['hook_pool_draw']))
+    # the final room's init loads Astaroth's art ($11192E -> $111F2E, tiles
+    # $500-$54B, his 10000 score included) and then, as the stage inits it
+    # was copied from, the fire wall ($10F97A) and the Satans' ($1104FC) over
+    # it, so Astaroth was drawn from the Satans' tiles: neither load there
+    # the display on at the end of the room's init, not in its plane loader (~30 frames of the last
+    # stage's tiles under the room's planes before)
+    expect(rom, 0x1119E0, bytes.fromhex('33fc816400c00004'), 'final room loader display on')
+    put(rom, 0x1119E0, b'\x4e\x71' * 4)
+    expect(rom, 0x111582, bytes.fromhex('4eb900103d104e75'), 'final room init end')
+    put(rom, 0x111582, b'\x4e\xf9' + be32(sym['room_init_end']) + b'\x4e\x71')
+    expect(rom, 0x111526, bytes.fromhex('4ebae4524ebaefd0'), "final room's fire wall and Satan art loads")
+    put(rom, 0x111526, b'\x4e\x71' * 2 + bytes.fromhex('4eba0a02'))   # jsr $111F2E: Astaroth's again
 
 
 def install_ending(rom, sym):
@@ -830,19 +842,24 @@ def install_stage_end(rom, sym):
 
 
 def install_door2(rom, sym):
-    """Stage 2's stage-end door opening in its closed door's colours (stageend.s door_art): the kind-1 art at
-    $A0700 is stage 1's ($A0000) with its colours moved for another line; in stage 2's line 1 it drew teal panels
-    with orange edges and specks beside the grey closed door (7 dark grey, 12 frame, 14 rivets). Mapped: the
-    fill 6 -> 7, the edges and frames 4, 10 -> 12, the rivets and specks 2, 3, 5 -> 14."""
+    """The stage-end door opening in its closed door's colours (stageend.s door_art): the kind-1 art at
+    $A0700 is stage 1's ($A0000) with its colours moved for another line, which drew the opening door in other
+    colours than the closed door beside it. Stage 2 (line 1: teal panels with orange edges and specks beside
+    the grey closed door; 7 dark grey, 12 frame, 14 rivets): the fill 6 -> 7, the edges and frames 4, 10 -> 12,
+    the rivets and specks 2, 3, 5 -> 14. Stage 5 (red; the closed door (1,1,1) with a (3,3,2) frame): 6 -> 4,
+    4, 10 -> 10, 2, 3, 5 -> 13. Stage 6 (ochre): the same greys of its line, 6 -> 2, 4, 10 -> 10, 2, 3, 5 -> 13."""
     expect(rom, 0x8A550, bytes.fromhex('41f9000a0700'), 'door kind 1 art')
     put(rom, 0x8A550, jsr(sym['door_art']))
-    cmap = list(range(16))
-    for a, b in ((6, 7), (4, 12), (10, 12), (2, 14), (3, 14), (5, 14)):
-        cmap[a] = b
     src = rom[0xA0700:0xA0E00]
-    a = sym['door2_art']
-    expect(rom, a, b'\x01' + bytes(0x6FF), 'door2_art (reserved)')
-    put(rom, a, bytes(cmap[b >> 4] << 4 | cmap[b & 15] for b in src))
+    for name, pairs in (('door2_art', ((6, 7), (4, 12), (10, 12), (2, 14), (3, 14), (5, 14))),
+                        ('door5_art', ((6, 4), (4, 10), (10, 10), (2, 13), (3, 13), (5, 13))),
+                        ('door6_art', ((6, 2), (4, 10), (10, 10), (2, 13), (3, 13), (5, 13)))):
+        cmap = list(range(16))
+        for a, b in pairs:
+            cmap[a] = b
+        a = sym[name]
+        expect(rom, a, b'\x01' + bytes(0x6FF), name + ' (reserved)')
+        put(rom, a, bytes(cmap[b >> 4] << 4 | cmap[b & 15] for b in src))
 
 
 def install_crow_tdevil(rom, sym):

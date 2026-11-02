@@ -1283,6 +1283,44 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     it isn't ticked until play goes on; the music then goes on where it was (a held note silent until its next).
     Recorded: the level falls from ~2,400 to the release tails at once and comes back on unpausing.
 
+104. **Astaroth in his own art** (`patch_gng.py` `install_astaroth`, `$111526`). Reported on V0.7.3: Astaroth drawn as
+    garbage (hittable). The final room's init (`$1114A0`) loads his art (`$11192E` -> `$111F2E`: `$112150`, tiles
+    `$500-$54B`, the 64x64 body and his 10000) and then, as the stage inits it was copied from, the fire wall
+    (`$10F97A`, `$248E44`) and the Satans' art (`$1104FC`, `$2552F4`) over the same tiles; later loaders of the init
+    write there too. So every version (V0.6.1-V0.7.4 checked) drew him from the Satans' pieces. The two loads are now
+    one `jsr $111F2E`, his art again at the end of the init: VRAM `$A000` equals `$112150` through the fight, and his
+    death shows his 10000. His colours are the port's line 0 (lilac hair where the arcade's is purple).
+
+105. **No garbage before the final room** (`astaroth_glue.s` `room_init_end`, `room_lit`; `ending_glue.s` `hook_end`).
+    Reported on V0.7.3: the whole screen garbage for a moment before Astaroth, both loops. The room's plane loader
+    (`$1119E0`) turned the display on, but the room's tiles only arrive with its first updates, ~30 frames on (its
+    picture lands over three): those frames showed the last stage's tiles under the room's planes. Now the colours
+    the init loaded are kept aside and CRAM is black until the room's fourth update, then put back (nothing writes
+    CRAM in between); the display stays on, since the waits there read the VBlank flag, which stays set with it
+    off. Checked frame by frame from the launch: black, then the room whole on the frame after the update.
+
+106. **Stage 6 has its two Satans** (`glue.s` `hook_satan`). Reported on V0.7.3: one Satan instead of two, both loops (both
+    seen once). Both are in stage 6's slot image (x 7840 and 7696), asleep until on screen. The arcade's stage end
+    waits for `<$B6` boss removals, set per stage from `$6EC9` (1 2 1 1 1 2 1: two in stages 2 and 6) whether or not
+    a boss ever woke; the port counted each Satan as it woke (`$FFDB09`), so the first one killed before the second came
+    on screen ended the stage and removed the other (the stage 6 proof on V0.7.2: the x 7840 Satan never woke, gone
+    on the first one's death, frame 2946). Now the first wake of a stage 6 life counts both. Not seen headless: a
+    life start can't put Arthur on that floor (he falls to y 2494), so the fight itself wasn't replayed.
+
+107. **The invisible stone on stage 1's ledge** (`glue.s` `tomb_walk`). Reported on V0.7.2 and V0.7.3: an invisible stone
+    by the grey rock past the tall tombstone of the upper ledge. Arthur walking right on the ledge (y 142) stopped at x
+    1023 in the port; the arcade walked on to 1116 and off its end. The walk test stepped the probe x with
+    `addq.b`/`subq.b`, so x 1023 + 1 became 768, which passed the word "within 128" test against the tombstone at x 768
+    on the same ledge (live the whole stage in the port; the arcade's objects live near the screen only). Now a word
+    step: 1112+ as the arcade; the normal side stop is the same (243 against the stone at 256, both builds).
+
+108. **Stages 5 and 6 open their doors in their own colours** (`stageend.s` `door_art`, `patch_gng.py` `install_door2`).
+    Reported on V0.7.3: the door has other colours while it opens (red in stage 5, ochre in stage 6). The opening art
+    (`$A0700`) is drawn on line 1, where stage 5's fill pen 6 is red and stage 6's ochre; the closed doors are grey.
+    Stage 5 (closed door (1,1,1) with a (3,3,2) frame, read from the picture): fill 6 -> 4, edges 4, 10 -> 10, rivets
+    2, 3, 5 -> 13; stage 6 the same greys of its line (6 -> 2). Previewed in each line: the old copies match the
+    screenshots' colours; the opening itself wasn't played (the boss fights).
+
 ## Matching (audited)
 
 - **Tombstone boxes against their art** (reported on V0.7: drawn in one place, solid slightly to the right).
@@ -1419,6 +1457,38 @@ They stay as they are; each note says why.
   picture is shown (no free VRAM to hold both) and a refill under a frame, for a case only a teleport reaches.
 
 ## Open
+
+- **V0.7.3 reports** (metalcandyman, itch.io, 1P, Genesis Plus GX, both loops; 12 screenshots):
+  1. Loop 2: before Astaroth the whole screen shows garbage for a moment, then Arthur is stuck, Astaroth never
+     appears and only the music runs (softlock; the screenshot: the room drawn, TIME 2:00, no Astaroth). Not
+     reproduced: a developer launch of the room with `$FF7FC0` = 1 has Astaroth and the fight (before and after
+     Fixed 104-105); stage 6's end wasn't reached headless on this build (its proof desyncs from V0.7.3 on, and
+     forcing `$FFC8D6`/`$FFDB08` doesn't take the stage loop there). The garbage frame is Fixed 105; with the
+     second Satan never woken the stage used to end on the first one's death (Fixed 106), a path that may be the
+     one that got stuck.
+  2. Loop 1: the garbage frame and Astaroth drawn as garbage: Fixed 104, 105.
+  3. Stage 6: one Satan instead of two: Fixed 106.
+  4. Stage 6's start: three skulls on the floor where the arcade has five. Not reproduced: developer launches of
+     V0.7.3 and now show five (x as the screenshot's three plus one each side); the report's came after stage 5.
+  5. Stage 6's first floor: no armor above the Red Arremer before the first skull when Arthur has lost his armor
+     (the arcade puts one there), and that first skull missing. Not reproduced: Arthur can't be put on that floor by
+     a life start (he falls through), and Firebrand's route search (`fb_campaign.py` on this build) stayed at the
+     stage's first screen for 11 minutes; the stage 6 proof (`fb_proofs/stage6.moves`) only replays on V0.7.2.
+  6. Stage 2: the large black block at the end of the building (still); sprite garbage at the bottom before the
+     Unicorns (screenshots: black bands of stage 1/3 tiles over the floor at x ~5900-6200); smaller in loop 2. Not
+     reproduced: a life started at x 5700 walks to the olive building and drowns before the spot; Firebrand's route
+     search reached the Unicorns but its straight replay died at frame 2226 and the repair ran out of budget.
+     The same kind of band shows on stage 6's floors after a life start there (V0.7.2 too), from the restart.
+  7. Stage 1's upper ledge: an invisible stone: Fixed 107.
+  8. Stages 5 and 6: the door's colours while it opens: Fixed 108.
+  9. The Woody Pigs' entrance looks unlike the arcade's in every stage, and the item they drop (a torch) can show
+     before it's over. Compared on stage 1's forest (both games started at x 2200, `arc_restart.py`/`restart_entry.py`
+     entry `40089840`/`00089840`, stage index 0): they are type 0 (subtypes 0 and 1, x 2634-2832), set up off the
+     screen in both and coming on screen on the same frames give or take 2 (arcade 1298/1313, port 1315/1318), each
+     state change in the same order. The arcade's has no entrance of its own: it slides in from the screen's edge as
+     two 16 px pieces (`$62/$63` and `$64/$65` every 4 frames, colour 1), clipped by the edge; the port's flies the
+     same way with its own frames (11/12, ~every 4-5 frames), a darker pink where the arcade's is pale. What the
+     report calls the entrance wasn't identified; it needs the spot (or a recording).
 
 - **V0.7.1 reports not reproduced or not settled** (metalcandyman): sprite glitches just before the stage 3 dragon and
   at the bottom at the end of stage 2: none seen headless (Arthur from x 2940 to the dragon, 1,500 frames; stage 2's

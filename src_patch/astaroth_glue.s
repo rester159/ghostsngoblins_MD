@@ -193,3 +193,48 @@ ast_probe:
     .even
 ast_a5: .space 4
 ast_a6: .space 4
+
+| The final room's init ($1114A0) turned the display on in its plane loader
+| ($1119E0); the room's tiles only arrive with its first updates ~30 frames
+| later (its picture lands over three), so those frames showed the last
+| stage's tiles under the room's planes. Now the colours the init loaded
+| are kept aside and CRAM is black until the room's fourth update (hook_end,
+| room_lit), then put back (nothing else writes CRAM in between). The
+| display itself stays on: the waits read the VBlank flag, which stays set
+| with it off. $111582: `jmp room_init_end` + nop over `jsr $103D10` /
+| `rts`; $1119E0's `move.w #$8164,$C00004` is nops.
+    .text
+    .global room_init_end, room_lit
+room_init_end:
+    jsr     0x103D10
+    movem.l %d0/%a0,-(%sp)
+    lea     room_pal,%a0
+    move.l  #0x00000020,0xC00004    | CRAM read 0
+    moveq   #63,%d0
+0:  move.w  0xC00000,(%a0)+
+    dbf     %d0,0b
+    move.l  #0xC0000000,0xC00004    | CRAM write 0
+    moveq   #31,%d0
+1:  move.l  #0,0xC00000
+    dbf     %d0,1b
+    move.w  #0x8164,0xC00004
+    move.b  #4,room_dark
+    movem.l (%sp)+,%d0/%a0
+    rts
+
+| hook_end, each update of the final room
+room_lit:
+    tst.b   room_dark
+    beq.s   1f
+    subq.b  #1,room_dark
+    bne.s   1f
+    lea     room_pal,%a0
+    move.l  #0xC0000000,0xC00004
+    moveq   #63,%d0
+0:  move.w  (%a0)+,0xC00000
+    dbf     %d0,0b
+1:  rts
+
+    .bss
+room_dark: .space 2
+room_pal:  .space 128

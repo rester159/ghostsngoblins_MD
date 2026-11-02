@@ -32,6 +32,7 @@ hook_room_end:
 | hook_end`. The whole routine is ending.c's.
 hook_end:
     movem.l %d1-%d7/%a0-%a6,-(%sp)
+    jsr     room_lit
     jsr     end_update
     movem.l (%sp)+,%d1-%d7/%a0-%a6
     tst.w   %d0

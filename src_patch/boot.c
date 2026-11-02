@@ -263,12 +263,40 @@ static int arcade_menu(void)
     }
 }
 
+/* ---- community credits ------------------------------------------- */
+
+/* The people from the itch.io page's comments: art, then the playtesters in
+ * the order of how much they reported. Any button goes back. */
+static void credits_screen(void)
+{
+    static const char *const art[] = { "ROBOT-RANDOM" };
+    static const char *const testers[] = {
+        "METALCANDYMAN", "ROBOT-RANDOM", "DARKFALZX", "DANGLYLINGHAM",
+    };
+    u16 p;
+    int i;
+    frame_screen("COMMUNITY CREDITS");
+    text_center(12, "ADDITIONAL ART", PAL_SEL);
+    for (i = 0; i < (int)(sizeof(art) / sizeof(art[0])); i++) text_center(14 + i, art[i], PAL_TEXT);
+    text_center(16, "PLAYTESTING", PAL_SEL);
+    for (i = 0; i < (int)(sizeof(testers) / sizeof(testers[0])); i++) text_center(18 + 2 * i, testers[i], PAL_TEXT);
+    display_on();
+    pad_prev = 0xFF;                    /* ignore buttons still held */
+    for (;;) {
+        vsync();
+        game_sound_tick();
+        p = pad_read(0);
+        if (p & ~pad_prev & (BTN_A | BTN_B | BTN_C | BTN_START)) return;
+        pad_prev = p;
+    }
+}
+
 /* ---- boot ---------------------------------------------------------- */
 
 static int boot_menu(void)
 {
-    static const char *const items[] = { "ARCADE", "HOME" };
-    static const Menu m = { items, 2, 11, 0, 0, 0, 0 };
+    static const char *const items[] = { "ARCADE", "HOME", "COMMUNITY CREDITS" };
+    static const Menu m = { items, 3, 8, 0, 0, 0, 0 };
     int sel = PERSIST->mode == MODE_HOME ? 1 : 0;
     for (;;) {
         frame_screen(0);
@@ -282,6 +310,7 @@ static int boot_menu(void)
             PERSIST->mode = MODE_HOME;
             if (home_menu()) return FLOW_HOME_START;
         }
+        if (sel == 2) credits_screen();
         if (sel < 0) sel = 0;
     }
 }
