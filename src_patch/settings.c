@@ -157,7 +157,9 @@ void player_init(void)
      * creeps up the same way), so on Home it stays at 0 all game. Arcade
      * keeps the board's four settings as they are. */
     rank_easy = !is_arcade() && difficulty() == DIFF_EASY;
-    if (fb_plus_on()) { RANK = FB_PLUS_RANK; rank_easy = 0; }  /* Firebrand's Quest Plus: the top starting rank */
+    /* Firebrand's Quest Plus, and Vendetta (every monster wants him dead):
+     * the top starting rank */
+    if (fb_plus_on() || vd_on()) { RANK = FB_PLUS_RANK; rank_easy = 0; }
     RAM8(0xFFC561) = RANK;          /* floor for the per-death rank decrease */
     /* debug launch to a later stage: entered on the first frame of play */
     stage_pending = PERSIST->dev_on && PERSIST->dev_stage > 1 ? PERSIST->dev_stage : 0;

@@ -10,6 +10,7 @@ void draw_jp_logo(int row, int pal);
 void hiscore_defaults(void);
 void vsync_reset_display(void);
 void boot_intros(void);        /* intro.c: SEGA and CAPCOM logos */
+void vd_story(void);           /* vendetta.c: Firebrand's Vendetta's story */
 
 enum { FLOW_TITLE = 1, FLOW_HOME_START = 2 };   /* hook_title: 0 and 1 both start the title */
 #define MENU_BACK  (-1)
@@ -231,7 +232,7 @@ static int home_menu(void)
         if (id == I_COOP) { p->home_sub = HOME_COOP; return 1; }
         if (id == I_FB) { p->home_sub = HOME_FIREBRAND; return 1; }
         if (id == I_FBPLUS) { p->home_sub = HOME_FIREBRAND; p->fb_plus = 1; return 1; }
-        if (id == I_VD) { p->home_sub = HOME_VENDETTA; return 1; }
+        if (id == I_VD) { p->home_sub = HOME_VENDETTA; vd_story(); return 1; }
         if (id == I_HISCORE) { hiscore_show(1, 60 * 30); continue; }
         if (id == I_OPTIONS) { options_menu(); continue; }
         if (id == I_DEV) {

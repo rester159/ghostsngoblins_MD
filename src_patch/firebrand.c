@@ -45,6 +45,7 @@ long wall_probe(u32 addr, u32 x, u32 y, u32 table);    /* glue.s: px into the wa
 void jump_sfx(void);                    /* glue.s */
 void score_event(u16 idx);              /* glue.s: score table entry idx */
 int  vd_on(void);                       /* vendetta.c */
+u16  vd_sat(volatile u16 *buf, u16 n);  /* vd_arthur.c: Arthur's sprites in Vendetta */
 
 #define FB_BANK     0x3A0000UL          /* placed by tools/patch_gng.py from art/firebrand */
 #define FB_FLAGS    ((const u8 *)0x3B6000UL)
@@ -481,7 +482,7 @@ u16 fb_sat(u16 len)
         }
     }
     buf[2] = (buf[2] & ~0x6000) | (f & F_PAL2 ? 0x4000 : 0);
-    if (!(f & (F_LEFT | F_RIGHT)) || !buf[0]) return len;
+    if (!(f & (F_LEFT | F_RIGHT)) || !buf[0]) return vd_sat(buf, n) * 8;
     hf = buf[2] & 0x0800;
     link = buf[1] & 0x7F;
     if (f & F_LEFT) {                   /* tile COL_TILE: the column left of the frame */
@@ -499,7 +500,7 @@ u16 fb_sat(u16 len)
         link = n++;
     }
     buf[1] = (buf[1] & 0xFF00) | link;
-    return n * 8;
+    return vd_sat(buf, n) * 8;
 }
 
 /* $11711E: a shot slot's art upload (a0 = source). The lance is art frame 8

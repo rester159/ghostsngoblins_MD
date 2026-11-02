@@ -2,7 +2,7 @@
 | home_sub 3: the word at $FF5004 (Persist mode, home_sub) is $0203.
 
     .section .text,"ax"
-    .global vd_start_entry, vd_cp_cmp, vd_cam_xgap, vd_cam_ygap, vd_cam_speed, vd_cam_init, vd_cam_s6, vd_cam_lead
+    .global vd_sound, vd_start_entry, vd_cp_cmp, vd_cam_xgap, vd_cam_ygap, vd_cam_speed, vd_cam_init, vd_cam_s6, vd_cam_lead
 
 | $103E72: `jsr vd_start_entry` over `lea $1040CC(pc),a1` / `adda.w d0,a1`
 | (d0 = (checkpoint * 7 + stage index) * 4): Vendetta's checkpoint-0 entries
@@ -40,6 +40,7 @@ vd_cp_cmp:
 | His standing height on screen stays the game's: the screen's top is
 | Firebrand's ceiling, and a camera held lower stopped his jumps.
     .set    XBIAS, 176 - 128
+    .set    ARENA_BIAS, 240 - 176
 
 | $10415C: `jsr vd_cam_xgap` over `sub.w d1,d0` / `tst.w d0` / `bmi.s $104198`
 | (d0 his x, d1 the camera's): the gap, and the bmi's branch taken by
@@ -49,6 +50,9 @@ vd_cam_xgap:
     cmpi.w  #0x0203,0xFF5004
     bne.s   1f
     subi.w  #XBIAS,%d0
+    tst.b   vd_arena                | Arthur's fight: no scroll until 240 px
+    beq.s   1f
+    subi.w  #ARENA_BIAS,%d0
 1:  tst.w   %d0
     bpl.s   2f
     move.l  #0x104198,(%sp)
@@ -123,3 +127,12 @@ vd_cam_s6:
     jsr     vd_cam_place
     movem.l (%sp)+,%d0-%d1/%a0-%a1
 1:  rts
+
+| C: void vd_sound(int id): a sound on the player's queue ($8846, a6 = $FF9500)
+vd_sound:
+    move.l  4(%sp),%d0
+    movem.l %d1/%a1/%a6,-(%sp)
+    lea     0xFF9500,%a6
+    jsr     0x8846
+    movem.l (%sp)+,%d1/%a1/%a6
+    rts

@@ -18,6 +18,14 @@
 
 void stage_jump(int stage);             /* glue.s */
 int  fb_lifting(void);                  /* firebrand.c */
+void vd_boss(int left);                 /* vd_arthur.c */
+void vd_boss_reset(void);
+int  vd_boss_on(void);
+void sound_stop(void);                  /* glue.s */
+void game_sound_tick(void);
+void game_sound_play(int id);
+void game_over(void);                   /* hiscore.c */
+void warm_restart_sp(void);             /* glue.s */
 
 #define STAGE       RAM8(0xFFC512)
 #define IN_PLAY     RAM8(0xFFC305)      /* 0 while a stage (re)starts */
@@ -54,6 +62,7 @@ const u8 vd_starts[7][4] = {
 #define CAM_LIMITS  ((const u16 *)0x1043E6UL)   /* per stage: x min, x max, y max, y min */
 
 static u8 was_in_play;
+static u16 fight_time;                  /* the stage time when Arthur came */
 static u16 takeoff_y;                   /* his y when he last left the ground */
 u16 vd_lead;                            /* the camera's lead below him (vendetta_glue.s vd_cam_ygap) */
 u8  vd_climb;                           /* the camera climbs with him in the air (hud.s cam_air) */
@@ -104,6 +113,7 @@ void vd_frame(void)
     if (!IN_PLAY) {
         was_in_play = 0;
         vd_lead = 0;
+        vd_boss_reset();
         return;
     }
     /* clinging or hovering, the camera climbs with him: going back the way
@@ -123,7 +133,96 @@ void vd_frame(void)
         FACING = 0x800;
         TIME += EXTRA_TIME;             /* backwards, Arthur's drops are climbs */
     }
-    if (HIT || DYING || JUMP_PHASE || s == 0 || s > 5) return;
+    if (s == 0) {                       /* the graveyard: Arthur */
+        int on = vd_boss_on();
+        vd_boss(RAM16(0xFF9100) <= CAM_LIMITS[0]);
+        if (!on && vd_boss_on()) fight_time = TIME;
+        if (vd_boss_on()) TIME = fight_time;    /* no clock in the duel */
+        return;
+    }
+    if (HIT || DYING || JUMP_PHASE || s > 5) return;
     if (POS_X <= start_x(s) + 16 && (u16)(POS_Y - start_y(s) + 32) <= 64)
         stage_jump(s - 1);
+}
+
+/* Arthur is dead (vd_arthur.c): the ending text, then the high-score entry
+ * and the Home menu (as after a game over). No return. */
+void vd_ending(void)
+{
+    static const char *const lines[] = {
+        "THE KNIGHT HAS FALLEN.",
+        "",
+        "THE PACT IS ASHES.",
+        "NO KING. NO MASTER.",
+        "",
+        "THE DEMON REALM BELONGS",
+        "TO THE RED ARREMER.",
+    };
+    u16 n, prev = 0xFF;
+    sound_stop();
+    screen_init();
+    text_center(5, "FIREBRAND'S VENDETTA", PAL_SEL);
+    for (n = 0; n < sizeof lines / sizeof lines[0]; n++) text_center(9 + 2 * n, lines[n], PAL_TEXT);
+    text_center(25, "THE END", PAL_SEL);
+    display_on();
+    game_sound_play(26);
+    for (n = 0; n < 60 * 20; n++) {
+        u16 p;
+        vsync();
+        game_sound_tick();
+        p = pad_read(0);
+        if (n > 120 && (p & ~prev & (BTN_A | BTN_B | BTN_C | BTN_START))) break;
+        prev = p;
+    }
+    game_over();
+    warm_restart_sp();
+}
+
+/* The story, before a game of Vendetta (boot.c home_menu): a page a button,
+ * Start skips the rest */
+void vd_story(void)
+{
+    static const char *const pages[3][9] = {
+        { "THE PACT", "",
+          "FOR AGES ARTHUR'S LANCE",
+          "CUT DOWN THE RED ARREMERS.",
+          "THEN FIREBRAND FOUND",
+          "SATAN'S SEALED TABLET:",
+          "EACH ARREMER WAS A PRICE",
+          "PAID TO THE KNIGHT SO THE",
+          "KING COULD KEEP HIS THRONE." },
+        { "THE REGICIDE", "",
+          "IN THE THRONE ROOM",
+          "FIREBRAND TORE THE",
+          "DEMON KING DOWN.",
+          "",
+          "SATAN IS DEAD.",
+          "", "" },
+        { "THE VENDETTA", "",
+          "NO ONE FORGIVES A KINGSLAYER.",
+          "EVERY MONSTER OF THE REALM",
+          "NOW HUNTS FIREBRAND.",
+          "",
+          "ONE NAME IS LEFT: ARTHUR.",
+          "HE WAITS IN THE GRAVEYARD",
+          "WHERE HIS ROAD BEGAN." },
+    };
+    u16 prev = 0xFF;
+    for (int k = 0; k < 3; k++) {
+        screen_init();
+        text_center(5, "FIREBRAND'S VENDETTA", PAL_DIM);
+        text_center(8, pages[k][0], PAL_SEL);
+        for (int i = 2; i < 9; i++) text_center(8 + 2 * i, pages[k][i], PAL_TEXT);
+        text_center(26, "PRESS A BUTTON", PAL_DIM);
+        display_on();
+        for (u16 n = 0;; n++) {
+            u16 p;
+            vsync();
+            game_sound_tick();
+            p = pad_read(0);
+            if (n > 20 && (p & ~prev & BTN_START)) return;
+            if (n > 20 && (p & ~prev & (BTN_A | BTN_B | BTN_C))) { prev = p; break; }
+            prev = p;
+        }
+    }
 }

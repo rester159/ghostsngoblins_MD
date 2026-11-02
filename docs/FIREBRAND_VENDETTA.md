@@ -14,8 +14,8 @@ gates and gave him a road paved with Arremers. The Red clan was the price Satan
 paid to keep his throne and his head. Every brother Firebrand ever lost was
 traded away.
 
-**The regicide.** Firebrand kills Satan in his own hall. *(Opening: the
-Satan fight.)*
+**The regicide.** Firebrand kills Satan in his own hall. *(Told in the
+opening's text; a playable Satan fight is not built.)*
 
 **The vendetta.** In the Demon Realm, killing the king is the one crime
 nobody forgives. The zombies, the ogres, the Big Men and the flying knights
@@ -41,7 +41,7 @@ THE RED ARREMER.
 
 | Order | Stage              | Notes                                            |
 |-------|--------------------|--------------------------------------------------|
-| 0     | Satan's hall       | opening text, then the Satan fight               |
+| 0     | the story          | three text pages (the pact, the regicide, the vendetta) |
 | 1     | stage 6            | Satan already dead; the climb out of the realm   |
 | 2     | stage 5            |                                                  |
 | 3     | stage 4            |                                                  |
@@ -106,10 +106,51 @@ their ladders (stage 3's are tiles $64-$6B, the towers' $74-$7C).
 | 4 | search bot, no invincibility: cleared (4,600-11,200 frames, with and without flaps) |
 | 3 | search bot, no invincibility: cleared before flaps (11,108 frames, inside the 3:28 timer); flaps only add moves. Five more seeds on the flap build stalled at the same dead-end pocket above the ladder down (x 1960): a search problem, not the map |
 | 2 | search bot, no invincibility: cleared (9,200 frames; with flaps 10,572, found in a seventh of the search) |
-| 1 | the bot reaches the left end; nothing happens there yet (Arthur goes there) |
+| 1 | the bot reaches the left end; Arthur's duel there (below) |
 
 Not checked yet: stages 5 and 6 against their enemies (the scripted runs were
 invincible), and the whole run on real hardware.
+
+### Arthur (src_patch/vd_arthur.c)
+When the camera reaches stage 1's left limit with Firebrand in play, Arthur
+leaps in from the side Firebrand is away from, and the screen locks: the
+camera only follows past 240 px in (`vd_arena`, vendetta_glue.s
+vd_cam_xgap) and Firebrand is kept at x 232 or less. The stage time stands
+still and the graveyard's monsters on screen are removed (state 3) for as long
+as the duel lasts.
+
+Arthur is his own small engine, not the player's: the floor at y 62 (the
+graveyard's left end is flat), a walk, the player's jump (4.25 px a frame,
+gravity $3A), a crouch, and thrown lances, drawn with the game's own frames
+($40000 bank: armour 0-11 facing right, their mirrors 16 and 39-48 facing
+left; boxers 49-58 and 63-71; skeleton 24-33) uploaded to tile $7A0, and the
+lance's art ($295000) at $7B0.
+- **Two suits:** 14 fireballs take the armour off (knocked back, 60 frames
+  untouchable), 14 more kill him; 40 / 30 frames of blinking after a hit.
+- **Armoured:** keeps ~96 px away; throws a straight lance (5 px a frame, two
+  out at most) standing, crouching, or from the top of a jump when Firebrand
+  is at that height; jumps or ducks fireballs coming at him (5 in 8).
+- **Boxers:** faster, comes within ~56 px, throws daggers aimed at Firebrand
+  (6 px a frame, three out at most), dodges 7 in 8.
+- His body or a lance kills Firebrand ($5A48's hit: physics block +4/+5);
+  a fireball and a lance that meet both go. Crouching, he is under a standing
+  Firebrand's fireballs (they fly at head height).
+- Firebrand's death restarts the stage at its checkpoint, as anywhere;
+  Arthur is back in his armour when he returns.
+- Death: the skeleton falls apart (150 frames), then the ending text
+  (vendetta.c vd_ending), the high-score entry, and the Home menu.
+
+Headless (`arena.state` from a checkpoint walk, a random duel bot): without
+invincibility the bot lasts 5-52 s and takes his armour off in half the runs;
+an invincible bot kills him in about 1.5 min.
+
+### Story, ending, rank
+- Choosing FIREBRAND'S VENDETTA shows the story in three pages (a button each,
+  Start skips); practice launches skip it.
+- The ending text: THE KNIGHT HAS FALLEN. / THE PACT IS ASHES. / NO KING.
+  NO MASTER. / THE DEMON REALM BELONGS TO THE RED ARREMER. / THE END.
+- Everyone wants him dead: Vendetta starts at the top rank ($20, as Quest
+  Plus), and the per-death decrease never goes below it.
 
 ## How each piece maps onto the existing code
 
@@ -118,17 +159,7 @@ invincible), and the whole run on real hardware.
 | Home menu entry | new `HOME_VENDETTA` sub beside `HOME_FIREBRAND` (boot.c), `fb_on()` true for both so all Firebrand rules apply | small |
 | Reverse order | at each stage end call `stage_jump(stage - 1)` instead of the game's next stage (glue.s `stage_jump` already exists) | small |
 | Start | launch at stage 6 (the debug-launch path in settings.c already does this) | small |
-| "Everyone wants him dead" | top starting rank from the start (as Quest Plus), more aggressive spawns. These are tuning knobs. | small to medium |
-| Opening text / ending text | reuse ending.c's text screen (`fb_texts`) | small |
-| Satan opening fight | stage 6's own Satan room, or a cut-down boss room | medium, needs research |
-| **Arthur boss** | an AI Arthur on the player-2 engine (p2.c already runs a second player on Arthur's routines with a context swap). Feed it AI "pad" input in place of pad 2, draw Arthur's own frames (ARTHUR_A/B), and make the fireball and the lance hit across the two players | **large: the core of the project** |
-
-### Arthur boss: open questions
-- p2.c leaves the weapon table alone and the two players never hurt each other.
-  Arthur's lances need to hit Firebrand, and Firebrand's fireballs need to hit
-  Arthur, which needs new collision between player 2's body and the shot slots.
-- Arthur's armour: lose it on the first hit, then the boxers, then he dies, as
-  in the game. Maybe several suits for the "really tough" feel.
-- AI: keep spacing, jump the fireball, throw at Firebrand's height, crouch-throw
-  when he's low, change weapons (lance, dagger, torch) between phases.
-- Arena: stage 1's boss area (Unicorn) with the Unicorn not spawned.
+| "Everyone wants him dead" | built: the top starting rank (as Quest Plus) | small |
+| Opening text / ending text | built: the menu screens' font (common.c), vendetta.c vd_story / vd_ending | small |
+| Satan opening fight | not built: stage 6's Satan room with one Satan needs the boss count ($10E9B6), the key and the stage-end sequence kept from sending him to the final room | medium, needs research |
+| **Arthur boss** | built (vd_arthur.c): his own small engine on the flat floor of the graveyard's left end, not the player-2 engine (whose weapons share Firebrand's slots and never hit a player), drawn with the game's own frames of him | large |
