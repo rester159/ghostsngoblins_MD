@@ -25,8 +25,8 @@
  *    has no ceiling cells, and above a stage's map he walked on the terrain
  *    ring's wrapped copies of floors 512 px further down, off screen.
  *  - one attack: the lance's mechanics, drawn as the fireball (uploaded where
- *    the game uploads the lance art for each shot slot, $11711E); the game's
- *    fire icon is in the HUD weapon box.
+ *    the game uploads the lance art for each shot slot, $11711E); the HUD's
+ *    weapon box shows the fireball, and its lives icons his head.
  *  - one hit: never armored, so the first hit kills.
  *  - boxes: weapon and armor pickups give 1000 points instead.
  *  - the end: stage 6 needs no cross (the game's check at $119D2E sees one),
@@ -52,7 +52,6 @@ u16  vd_sat(volatile u16 *buf, u16 n);  /* vd_arthur.c: Arthur's sprites in Vend
 #define FB_FIRE     0x3B6100UL
 #define FB_MAPICON  0x3B6200UL          /* stage-map marker, 4 tiles */
 #define MAP_TILE    0x69C               /* stage-map marker tiles (glue.s hook_map_marker) */
-#define FIRE_ICON   0x1037D4UL          /* the game's fire weapon-box icon, 4 tiles */
 #define FB_FRAME    0x300
 #define FB_WALK     84                  /* 6-frame walk cycle, facing right then left */
 #define FB_FLY      96                  /* 6-frame flight cycle, the same */
@@ -390,16 +389,30 @@ void fb_item(u8 *ctx)
     ctx[9] = ARMOR_SET;
 }
 
-/* the weapon box (plane A rows 25-26, columns 15-16) shows the game's fire
- * icon (from its icon table at $1037D4, next to the lance's) instead of the
- * lance; the game redraws the box when the weapon changes */
+/* A 16x16 sprite picture (4 tiles, a column at a time) as the HUD's 2x2
+ * plane tiles (a row at a time: top left, top right, bottom left, bottom
+ * right), uploaded again whenever the game has put its own back */
+static void hud_tiles(u32 src, const u16 *dst)
+{
+    static const u8 order[4] = { 0, 2, 1, 3 };
+    for (int i = 0; i < 4; i++) {
+        const u32 *t = (const u32 *)(src + 32 * order[i]);
+        VDP_CTRLL = VRAM_R(dst[i] * 32 + 16);
+        if (VDP_DATAL != t[4]) dma_vram((u32)t, 32, dst[i] * 32);
+    }
+}
+
+/* The HUD as Firebrand's: the weapon box (plane A rows 25-26, columns 15-16)
+ * shows the fireball he spits (its leading 16x16 piece, FB_FIRE) instead of
+ * the lance, in tiles of its own (the game redraws the box when the weapon
+ * changes); the lives icons (the game's tiles $74F $752 / $753 $756, shown
+ * nowhere else) show his head (the stage map's, FB_MAPICON). */
 static void draw_icon(void)
 {
-    static const u16 *const icon = (const u16 *)FIRE_ICON;
-    u16 w;
-    VDP_CTRLL = VRAM_R(ICON_TILE * 32 + 0x1A);   /* a row through the flame */
-    w = VDP_DATA;
-    if (w != icon[0x1A / 2]) dma_vram(FIRE_ICON, 128, ICON_TILE * 32);
+    static const u16 box[4] = { ICON_TILE, ICON_TILE + 1, ICON_TILE + 2, ICON_TILE + 3 };
+    static const u16 life[4] = { 0x74F, 0x752, 0x753, 0x756 };
+    hud_tiles(FB_FIRE, box);
+    hud_tiles(FB_MAPICON, life);
     VDP_CTRLL = VRAM_W(0xE000 + (25 * 64 + 15) * 2);
     VDP_DATAL = 0x80000000UL | (u32)ICON_TILE << 16 | 0x8000 | (ICON_TILE + 1);
     VDP_CTRLL = VRAM_W(0xE000 + (26 * 64 + 15) * 2);
