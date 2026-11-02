@@ -402,16 +402,37 @@ static void hud_tiles(u32 src, const u16 *dst)
     }
 }
 
+/* The fireball's ball (the left 13 x 8 px of its leading 16x16 piece,
+ * FB_FIRE) in the middle of a 16x16 box picture: 2 px (a byte) right, 4 px
+ * down; byte bx (0-7) of row y of the picture */
+static u8 fire_byte(int y, int bx)
+{
+    const u8 *src = (const u8 *)FB_FIRE;
+    int sy = y - 4, sbx = bx - 1;
+    if (sy < 0 || sy > 15 || sbx < 0) return 0;
+    return src[((sbx >> 2) * 2 + (sy >> 3)) * 32 + (sy & 7) * 4 + (sbx & 3)];   /* a column at a time */
+}
+
+static u32 fire_long(int y, int tx)     /* a tile row: 4 bytes */
+{
+    return (u32)fire_byte(y, tx * 4) << 24 | (u32)fire_byte(y, tx * 4 + 1) << 16 |
+           (u16)(fire_byte(y, tx * 4 + 2) << 8 | fire_byte(y, tx * 4 + 3));
+}
+
 /* The HUD as Firebrand's: the weapon box (plane A rows 25-26, columns 15-16)
- * shows the fireball he spits (its leading 16x16 piece, FB_FIRE) instead of
- * the lance, in tiles of its own (the game redraws the box when the weapon
- * changes); the lives icons (the game's tiles $74F $752 / $753 $756, shown
- * nowhere else) show his head (the stage map's, FB_MAPICON). */
+ * shows the fireball he spits instead of the lance, in tiles of its own (the
+ * game redraws the box when the weapon changes); the lives icons (the game's
+ * tiles $74F $752 / $753 $756, shown nowhere else) show his head (the stage
+ * map's, FB_MAPICON, in his sprite's colours). */
 static void draw_icon(void)
 {
-    static const u16 box[4] = { ICON_TILE, ICON_TILE + 1, ICON_TILE + 2, ICON_TILE + 3 };
     static const u16 life[4] = { 0x74F, 0x752, 0x753, 0x756 };
-    hud_tiles(FB_FIRE, box);
+    VDP_CTRLL = VRAM_R(ICON_TILE * 32 + 16);            /* row 4 of the top left tile */
+    if (VDP_DATAL != fire_long(4, 0)) {
+        VDP_CTRLL = VRAM_W(ICON_TILE * 32);
+        for (int t = 0; t < 4; t++)                     /* top left, top right, bottom left, bottom right */
+            for (int r = 0; r < 8; r++) VDP_DATAL = fire_long((t >> 1) * 8 + r, t & 1);
+    }
     hud_tiles(FB_MAPICON, life);
     VDP_CTRLL = VRAM_W(0xE000 + (25 * 64 + 15) * 2);
     VDP_DATAL = 0x80000000UL | (u32)ICON_TILE << 16 | 0x8000 | (ICON_TILE + 1);
