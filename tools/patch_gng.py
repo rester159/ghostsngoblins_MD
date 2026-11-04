@@ -576,6 +576,34 @@ def install_parallax(rom, sym):
               0x11A7EA, 0x11AA4E, 0x11D186):
         expect(rom, a, bytes.fromhex('33fc810400c00004'), 'display off')
         put(rom, a, jsr(sym['par_dispoff']) + b'\x4e\x71')
+    # stage 3's back wall (two 16x16 rock blocks) at half speed: each block's pixels
+    # pre-rolled right by 0-15 px, for par_9600's tile upload (parallax.s w3_wall)
+    TILES = 0x218B30                    # stage 3's background tile art, tile 0 (raw 4bpp)
+    expect(rom, TILES + 0x44 * 32, bytes.fromhex('1222222211211222'), 'stage 3 wall tile $44')
+    order = (0x44, 0x4B, 0x50, 0x72, 0x74, 0x7A, 0x81, 0x83)
+    blocks = ((0x81, 0x50), (0x4B, 0x44), (0x83, 0x7A), (0x72, 0x74))   # (left, right) tile pairs
+    tile = lambda t: rom[TILES + t * 32:TILES + t * 32 + 32]
+    table = bytearray()
+    for s in range(16):
+        rolled = {}
+        for left, right in blocks:
+            L, R = bytearray(32), bytearray(32)
+            for y in range(8):
+                row = tile(left)[y * 4:y * 4 + 4] + tile(right)[y * 4:y * 4 + 4]
+                n = [(row[i // 2] >> (4 if i % 2 == 0 else 0)) & 15 for i in range(16)]
+                n = [n[(i - s) % 16] for i in range(16)]
+                b = bytes(n[i] << 4 | n[i + 1] for i in range(0, 16, 2))
+                L[y * 4:y * 4 + 4], R[y * 4:y * 4 + 4] = b[:4], b[4:]
+            rolled[left], rolled[right] = L, R
+        for t in order:
+            table += rolled[t]
+    # a word that differs in all 16 phases: the upload's "already there" check
+    at = next(o for o in range(0, 256, 2) if len({bytes(table[p * 256 + o:p * 256 + o + 2]) for p in range(16)}) == 16)
+    vaddr = order[at // 32] * 32 + at % 32
+    chk = b''.join(table[p * 256 + at:p * 256 + at + 2] for p in range(16))
+    put(rom, sym['wall3'], bytes(table))
+    put(rom, sym['wall3_chk'], chk)
+    put(rom, sym['wall3_cmd'], be32(((vaddr & 0x3FFF) << 16) | (vaddr >> 14)))
 
 
 def install_speed(rom, sym):
