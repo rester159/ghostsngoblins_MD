@@ -115,17 +115,24 @@ def stand_body_y():
 AIR_Y = None
 
 
-def pose_image(set_name, i, air):
-    g, idx = source(set_name, i)
-    h, w = len(g), len(g[0])
+def placement(idx, air):
+    """(scale, canvas x, canvas y) of a source picture."""
+    h, w = len(idx), len(idx[0])
     s = min(SCALE, H / h, W / w)
-    small = downscale(g, s)
     cx, cy, bottom = anchor(idx)
-    sh, sw = len(small), len(small[0])
+    sh, sw = max(1, round(h * s)), max(1, round(w * s))
     ox = round(CX - cx * s)
     oy = round(AIR_Y - cy * s) if air else (H - 1) - round(bottom * s)
     ox = max(0, min(W - sw, ox))           # keep the wings on the canvas
     oy = max(0, min(H - sh, oy))
+    return s, ox, oy
+
+
+def pose_image(set_name, i, air):
+    g, idx = source(set_name, i)
+    s, ox, oy = placement(idx, air)
+    small = downscale(g, s)
+    sh, sw = len(small), len(small[0])
     canvas = [[0] * W for _ in range(H)]
     for y in range(sh):
         for x in range(sw):

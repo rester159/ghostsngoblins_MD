@@ -27,6 +27,10 @@
   #work { flex:1; display:flex; gap:16px; padding:14px; overflow:auto; min-height:0; }
   #center { flex:none; display:flex; flex-direction:column; gap:8px; min-width:0; }
   #ed { image-rendering:pixelated; cursor:crosshair; display:block; }
+  #edRow { display:flex; gap:12px; align-items:flex-start; }
+  #bigRefs { display:flex; flex-direction:column; gap:10px; }
+  .bref .lbl { font-size:11px; color:var(--dim); margin-bottom:3px; display:flex; justify-content:space-between; align-items:center; gap:6px; }
+  .bref canvas { image-rendering:pixelated; background:#352d3a; border-radius:4px; display:block; }
   #frameTools { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
   #info { color:var(--dim); font-variant-numeric:tabular-nums; }
   #arrBox { max-width:100%; }
@@ -47,7 +51,7 @@
   .ref { flex:1; text-align:center; min-width:0; }
   .ref canvas { width:100%; image-rendering:pixelated; background:#352d3a; border-radius:4px; display:block; margin-bottom:4px; }
   .ref .lbl { font-size:11px; color:var(--dim); margin-bottom:4px; }
-  #stage { display:flex; gap:8px; justify-content:center; background:#2a2233; border-radius:4px; padding:8px; }
+  #stage { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; background:#2a2233; border-radius:4px; padding:8px; }
   #stage .col { text-align:center; font-size:11px; color:var(--dim); }
   #stage canvas { image-rendering:pixelated; display:block; cursor:pointer; }
   #animInfo { color:var(--dim); font-size:12px; margin-top:6px; font-variant-numeric:tabular-nums; }
@@ -79,6 +83,7 @@
     <button id="tileBtn" class="on">8×8 tiles</button>
     <select id="overlaySel" title="Show a faint reference under your pixels (hold O to see it fully)">
       <option value="">Overlay: off</option>
+      <option value="snes">Overlay: SNES Firebrand</option>
       <option value="game">Overlay: in-game Firebrand</option>
       <option value="arthur">Overlay: Arthur</option>
       <option value="arremer">Overlay: Red Arremer (picked)</option>
@@ -87,11 +92,18 @@
     <label class="btn">Load .bin…<input id="loadBin" type="file" accept=".bin" multiple></label>
     <button id="exportBtn" class="on">Export</button>
     <button id="pngBtn">Export PNG sheet</button>
+    <label class="btn" title="Load an exported PNG sheet (all frames), or a 48×32 picture (any whole zoom) into the selected frame">Load PNG…<input id="loadPng" type="file" accept="image/png,image/*"></label>
     <span id="progress"></span>
   </div>
   <div id="work">
     <div id="center">
-      <canvas id="ed"></canvas>
+      <div id="edRow">
+        <canvas id="ed"></canvas>
+        <div id="bigRefs" title="References for this slot (not part of your sheet)">
+          <div class="bref"><div class="lbl">Original (in game) <button class="small" id="useOrig" title="Copy into this slot (undoable)">Use</button></div><canvas id="refO"></canvas></div>
+          <div class="bref"><div class="lbl">Arcade <button class="small" id="useArc" title="Copy into this slot (undoable)">Use</button></div><canvas id="refR"></canvas></div>
+        </div>
+      </div>
       <div id="frameTools">
         <button class="small" id="impGame">Import in-game frame</button>
         <button class="small" id="impArremer">Import picked Red Arremer</button>
@@ -127,6 +139,7 @@
         <div id="stage">
           <div class="col"><canvas id="animY"></canvas>Yours</div>
           <div class="col" id="colG"><canvas id="animG"></canvas>In game</div>
+          <div class="col" id="colR"><canvas id="animR"></canvas>Arcade</div>
         </div>
         <div id="animInfo">—</div>
       </div>

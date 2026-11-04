@@ -26,7 +26,12 @@ the goal: closing in on it is progress, taking it ($FFCD7A) more.
 
 REVERSE=1 plays Firebrand's Vendetta instead (vendetta.c: the stage from its
 far end back to its start): progress is the camera's and his x and y going
-down in the towers, the towers' lowest standing y, and no boss or key.
+down in the towers, the towers' lowest standing y, and no key; in stage 6
+first Satan's hit points taken (the opening); moves aimed at Satan or the
+nearest awake enemy with hit points (a Big Man at stage 5's drop).
+
+NOCLOCK=1 holds the stage timer at 3:00 (a route check apart from the clock;
+the path's length is what it took).
 
 Every 250 segments <out>.moves holds the path so far; RESUME=1 replays it
 and searches on from there (TRUNC=n frames dropped from its end first).
@@ -68,6 +73,17 @@ else:
     else:
         g.launch(stage, 4 if REV else 2)
 launch_frame = g.frame
+NOCLOCK = bool(os.environ.get('NOCLOCK'))
+if NOCLOCK:
+    # route checks apart from the clock: the stage timer ($FFCD62, seconds)
+    # held at 3:00 before every frame; the path's own length says what time
+    # it needed
+    _run = g.run
+    def _held(n=1, mask=None, each=None):
+        for _ in range(n):
+            g.w8(0xFFCD62, 0); g.w8(0xFFCD63, 180)
+            _run(1, mask, each)
+    g.run = _held
 stage0 = g.r8(0xFFF400)
 idx0 = g.r8(0xFFC512)
 
@@ -133,6 +149,47 @@ def ladder_dir():
     return (D if REV else U) if abs(best - fx) <= 6 else RT if best > fx else LT
 
 
+def satan():
+    """Vendetta's opening (stage index 5): Satan's (x, y) while he is there
+    (both of stage 6's are freed once he is dead), else None"""
+    if not REV or g.r8(0xFFC512) != 5:
+        return None
+    for k in range(40):
+        a = 0xFFB800 + 48 * k
+        if g.r8(a + 4) and g.r8(a + 10) == 6:
+            return g.r8(a + 17) << 8 | g.r8(a + 18), g.r8(a + 21) << 8 | g.r8(a + 22)
+    return None
+
+
+def target():
+    """Vendetta: what to aim at: Satan in the opening, else the nearest awake
+    enemy with hit points left on screen (a Big Man at a drop, ...)"""
+    t = satan()
+    if t or not REV:
+        return t
+    cx, cy = g.r16(0xFFA200), g.r16(0xFFA202)
+    fx = g.r16(0xFF9001)
+    best = None
+    for k in range(40):
+        a = 0xFFB800 + 48 * k
+        if not (g.r8(a + 4) & 1) or not g.r8(a + 5) or g.r8(a + 7) != 1 or g.r8(a + 11) < 2:
+            continue
+        x, y = g.r8(a + 17) << 8 | g.r8(a + 18), g.r8(a + 21) << 8 | g.r8(a + 22)
+        if not (cx <= x <= cx + 256 and cy <= y <= cy + 240):
+            continue
+        if best is None or abs(x - fx) < abs(best[0] - fx):
+            best = (x, y)
+    return best
+
+
+def satan_hp():
+    for k in range(40):
+        a = 0xFFB800 + 48 * k
+        if g.r8(a + 4) and g.r8(a + 10) == 6 and g.r8(a + 7):
+            return g.r8(a + 11)
+    return 10
+
+
 def macro(prev):
     """(direction, jump, fire) -> 8 masks; the direction and jump carry on
     from the last segment 60% of the time (ladders, long walks, hovers)"""
@@ -141,10 +198,18 @@ def macro(prev):
         j = 'hold' if j == 'press' else j     # (a tap carries on: leap after leap up a wall)
     else:
         tower = REV and g.r8(0xFFC512) in (4, 5)    # Vendetta's towers only go down: no climbing
-        d = random.choices([LT if REV else RT, 0, RT if REV else LT, U, D, 'lad'],
-                           [50, 10, 16, 0 if tower else 14, 10, 40 if tower else 15])[0]
+        d = random.choices([LT if REV else RT, 0, RT if REV else LT, U, D, 'lad', 'aim'],
+                           [50, 10, 16, 0 if tower else 14, 10, 40 if tower else 15, 60 if target() else 0])[0]
         j = random.choices(['off', 'hold', 'press', 'tap'], [50, 32, 18, 25 if REV and not tower else 0])[0]
     last_dj[:] = [d, j]
+    if d == 'aim':                      # Vendetta: face the target, at its height (hover), fire
+        sx, sy = target() or (0, 0)
+        fx, fy = g.r16(0xFF9001), g.r16(0xFF9004)
+        d = RT if sx > fx else LT
+        j = 'hold' if sy > fy + 8 else 'off'
+        ms = [(d if k == 0 else 0) | (J if j == 'hold' else 0) | (F if k in (1, 2, 5, 6) else 0) for k in range(K)]
+        last_dj[:] = [0, j]
+        return ms
     if d == 'lad':                      # to the nearest ladder and up it
         d = ladder_dir()
         if d is None:
@@ -265,7 +330,9 @@ while searched < budget:
         here = gy / 2
     else:
         here = (8000 - g.r16(0xFF9001) if REV else g.r16(0xFF9001) + g.r16(0xFF9004)) / 4
-    prog = cam + here + 10 * g.r16(0xFFCD62) + min((score() - cam_score) / 100, 40) + min(25 * (dmg - cam_dmg), 600)
+    prog = cam + here + (0 if NOCLOCK else 10 * g.r16(0xFFCD62)) + min((score() - cam_score) / 100, 40) + min(25 * (dmg - cam_dmg), 600)
+    if REV and idx0 == 5:               # Vendetta's opening: Satan first, then the way down
+        prog += 3000 if satan() is None else 250 * (10 - satan_hp())
     if g.r8(0xFFC8D6) != 2 and not REV:     # near a boss
         fx, fy, near = g.r16(0xFF9001), g.r16(0xFF9004), 300
         for k in range(40):

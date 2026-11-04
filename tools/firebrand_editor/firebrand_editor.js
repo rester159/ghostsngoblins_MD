@@ -52,6 +52,9 @@
   const colUsed = (g, x0) => { for (let y = 0; y < H; y++) for (let x = x0; x < x0 + 8; x++) if (g[y * W + x]) return true; return false; };
 
   const GAME = Array.from({ length: COUNT }, (_, s) => decodeFrame(BANK, s * FRAME_BYTES));
+  // the arcade-style sheet (art/firebrand/firebrand_arcade_bank.bin, the bank's format):
+  // shown beside the in-game frame as a second reference, never part of the sheet
+  const ARC = D.arcade ? Array.from({ length: COUNT }, (_, s) => decodeFrame(b64(D.arcade), s * FRAME_BYTES)) : null;
   // Arthur's frame for slots 0..83, placed in the body columns
   const ARTHUR_F = Array.from({ length: COUNT }, (_, s) => {
     if (s >= 84) return null;
@@ -221,11 +224,35 @@
   // ---------- editor canvas ----------
   function fitZoom() {
     const w = $('work');
-    const availW = w.clientWidth - 340 - 16 - 28, availH = w.clientHeight - 28 - 250;
-    zoom = Math.max(5, Math.floor(Math.min(availW / (W + 2 * MARGIN), availH / (H + 2 * MARGIN))));
+    // room beside the canvas for the two reference views (stacked, at half its zoom)
+    const availW = w.clientWidth - 340 - 16 - 28 - 12, availH = w.clientHeight - 28 - 250;
+    zoom = Math.max(4, Math.floor(Math.min(availW / (W + 2 * MARGIN + W / 2), availH / (H + 2 * MARGIN))));
     ed.width = (W + 2 * MARGIN) * zoom; ed.height = (H + 2 * MARGIN) * zoom;
   }
+  const BLANK = new Uint8Array(W * H);
+  // Demon's Crest pictures at full detail: they scale into the slot's canvas box
+  const SNES_PICS = D.snes.pics.map(rows => {
+    const c = document.createElement('canvas');
+    c.width = rows[0].length; c.height = rows.length;
+    const x = c.getContext('2d');
+    rows.forEach((r, py) => { for (let px = 0; px < r.length; px++) {
+      const v = parseInt(r[px], 16);
+      if (v) { x.fillStyle = `rgb(${D.snes.pal[v]})`; x.fillRect(px, py, 1, 1); }
+    } });
+    return c;
+  });
+  function drawSnes(slot, alpha) {
+    const [pic, x, y, w, h, mirrored] = slot, Z = zoom, O = MARGIN * Z;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false; ctx.globalAlpha = alpha;
+    ctx.beginPath(); ctx.rect(O, O, W * Z, H * Z); ctx.clip();
+    ctx.translate(O + (x + (mirrored ? w : 0)) * Z, O + y * Z);
+    ctx.scale(mirrored ? -1 : 1, 1);
+    ctx.drawImage(SNES_PICS[pic], 0, 0, w * Z, h * Z);
+    ctx.restore();
+  }
   function overlayFrame() {
+    if (overlay === 'snes') return D.snes.slots[sel] ? { g: BLANK, line: 0, snes: D.snes.slots[sel] } : null;
     if (overlay === 'game') return { g: GAME[sel], line: lineOf(sel) };
     if (overlay === 'arthur') return ARTHUR_F[sel] ? { g: ARTHUR_F[sel], line: 0 } : null;
     if (overlay === 'arremer') return { g: ARREMER[arrPick].g, line: ARREMER[arrPick].line };
@@ -247,6 +274,13 @@
         ctx.fillStyle = `rgb(${(r * .35 + 52 * .65) | 0},${(gg * .35 + 46 * .65) | 0},${(b * .35 + 58 * .65) | 0})`;
       } else ctx.fillStyle = wing ? ((x + y) & 1 ? '#2c3442' : '#27303c') : ((x + y) & 1 ? '#3d3544' : '#352e3b');
       ctx.fillRect(O + x * Z, O + y * Z, Z, Z);
+    }
+    if (ref && ref.snes) {
+      drawSnes(ref.snes, full ? 1 : .6);
+      if (!full) for (let p = 0; p < W * H; p++) if (g[p]) {   // your pixels stay on top
+        ctx.fillStyle = `rgb(${gp[g[p]]})`;
+        ctx.fillRect(O + (p % W) * Z, O + ((p / W) | 0) * Z, Z, Z);
+      }
     }
     if (grid && Z >= 7) {
       ctx.strokeStyle = '#00000040'; ctx.beginPath();
@@ -272,6 +306,9 @@
     drawSmall($('refG'), GAME[sel], line, 2);
     drawSmall($('refA'), ARTHUR_F[sel], 0, 2);
     drawSmall($('refY'), f.cur, line, 2);
+    const rz = Math.max(2, zoom >> 1);           // the reference views: the slot's original and arcade frames
+    drawSmall($('refO'), GAME[sel], line, rz);
+    drawSmall($('refR'), ARC && ARC[sel], line, rz);
   }
 
   function select(s) {
@@ -353,6 +390,10 @@
   $('revert').onclick = () => setFrame(frames[sel].base);
   $('refG').onclick = () => setFrame(GAME[sel]);
   $('refG').title = 'Click to import into your sheet';
+  // copy a reference view into the slot: one undoable step
+  $('useOrig').onclick = () => setFrame(GAME[sel]);
+  $('useArc').onclick = () => { if (ARC) setFrame(ARC[sel]); };
+  if (!ARC) $('useArc').disabled = true;
 
   // ---------- new sheet ----------
   const dlg = $('newDlg');
@@ -385,7 +426,7 @@
     const used = new Set(ANIMS[anim].f.map(e => e[0]));
     thumbs.forEach((t, k) => t.classList.toggle('inanim', used.has(k)));
     const { lo, hi } = animRange(ANIMS[anim]);
-    for (const c of [$('animY'), $('animG')]) { c.width = W * AS + 12; c.height = (H + hi - lo) * AS + 18; }
+    for (const c of [$('animY'), $('animG'), $('animR')]) { c.width = W * AS + 12; c.height = (H + hi - lo) * AS + 18; }
     drawAnim();
   }
   function drawAnimOn(c, sheet) {
@@ -404,7 +445,7 @@
   function drawAnim() {
     const a = ANIMS[anim], s = a.f[tick][0];
     drawAnimOn($('animY'), frames.map((_, k) => frames[src(k)].cur));
-    if (compare) drawAnimOn($('animG'), GAME);
+    if (compare) { drawAnimOn($('animG'), GAME); if (ARC) drawAnimOn($('animR'), ARC); }
     $('animInfo').textContent = `tick ${tick + 1}/${a.f.length} (60 fps) · slot ${s < 0 ? '— (flash)' : `${s} ${NAMES[s]}`}${a.loop ? ' · loops' : ''}`;
   }
   function loop(t) {
@@ -422,10 +463,10 @@
   $('stepBack').onclick = () => step(-1);
   $('stepFwd').onclick = () => step(1);
   $('speedSel').onchange = e => { speed = +e.target.value; e.target.blur(); };
-  $('sideBtn').onclick = () => { compare = !compare; $('sideBtn').classList.toggle('on', compare); $('colG').style.display = compare ? '' : 'none'; drawAnim(); };
+  $('sideBtn').onclick = () => { compare = !compare; $('sideBtn').classList.toggle('on', compare); $('colG').style.display = $('colR').style.display = compare ? '' : 'none'; drawAnim(); };
   const editCurrent = () => { const s = ANIMS[anim].f[tick][0]; if (s >= 0) { setPlaying(false); select(s); } };
-  $('animY').onclick = editCurrent; $('animG').onclick = editCurrent;
-  $('animY').title = $('animG').title = 'Click to edit the frame shown';
+  $('animY').onclick = editCurrent; $('animG').onclick = editCurrent; $('animR').onclick = editCurrent;
+  $('animY').title = $('animG').title = $('animR').title = 'Click to edit the frame shown';
 
   // ---------- keyboard ----------
   window.addEventListener('keydown', e => {
@@ -486,6 +527,52 @@
       }
     });
     c.toBlob(b => download('firebrand_edited_frames.png', b));
+  };
+  // A PNG is either a sheet from Export PNG sheet (12 frames a row, 6 px gaps, any
+  // whole zoom; older 108-frame sheets too) or one 48x32 frame at any whole zoom,
+  // which goes into the selected slot. Each pixel is read at the centre of its
+  // block and snapped to the slot's palette line; clear or sheet-background pixels
+  // are index 0.
+  const SHEET_BG = [44, 40, 50];
+  function pngFrame(px, iw, ox, oy, S, line) {
+    const pal = LINES[line], g = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = ((oy + y * S + (S >> 1)) * iw + ox + x * S + (S >> 1)) * 4;
+      const r = px[i], gr = px[i + 1], b = px[i + 2];
+      if (px[i + 3] < 128 || (r === SHEET_BG[0] && gr === SHEET_BG[1] && b === SHEET_BG[2])) continue;
+      let best = 1, bd = Infinity;
+      for (let j = 1; j < 16; j++) {
+        const d = (r - pal[j][0]) ** 2 * 2 + (gr - pal[j][1]) ** 2 * 4 + (b - pal[j][2]) ** 2 * 3;
+        if (d < bd) { bd = d; best = j; }
+      }
+      g[y * W + x] = best;
+    }
+    return g;
+  }
+  $('loadPng').onchange = async e => {
+    const file = e.target.files[0]; e.target.value = '';
+    if (!file) return;
+    let img;
+    try { img = await createImageBitmap(file); } catch (err) { alert(`${file.name}: not a picture I can read`); return; }
+    const iw = img.width, ih = img.height, c = document.createElement('canvas');
+    c.width = iw; c.height = ih;
+    const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+    const px = x.getImageData(0, 0, iw, ih).data;
+    const S = (iw / 12 - 6) / W, rows = ih / (H * S + 6);
+    if (Number.isInteger(S) && S > 0 && Number.isInteger(rows) && rows * 12 >= OLD_COUNT) {
+      const cw = W * S + 6, ch = H * S + 6, n = Math.min(COUNT, rows * 12);
+      for (let s = 0; s < n; s++) {
+        if (ALIAS[s] !== undefined) continue;          // the game shows another slot
+        const g = pngFrame(px, iw, (s % 12) * cw, Math.floor(s / 12) * ch, S, lineOf(s));
+        const f = frames[s];
+        if (g.some((v, p) => v !== f.cur[p])) { pushUndo(f); f.cur = g; }
+      }
+      save(); refreshAll(); select(sel);
+      return;
+    }
+    const Z = iw / W;
+    if (Number.isInteger(Z) && Z > 0 && ih === H * Z) { setFrame(pngFrame(px, iw, 0, 0, Z, lineOf(sel))); return; }
+    alert(`${file.name} is ${iw}×${ih}. Load a sheet from "Export PNG sheet", or one frame of 48×32 pixels (or 96×64, 144×96…).`);
   };
   // A bank file replaces the sheet's pixels (undoable per frame); the flags file
   // is rebuilt on export, so loading one is not needed.

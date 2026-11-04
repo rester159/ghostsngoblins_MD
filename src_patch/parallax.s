@@ -42,7 +42,7 @@ par_9600:
     beq.w   w3_wall
     move.w  #0x8B00,0xC00004        | one scroll for the whole screen
     jmp     copy9600
-1:  movem.l %d0-%d2/%a0-%a1,-(%sp)
+1:  movem.l %d0-%d3/%a0-%a1,-(%sp)
     lea     0xC00004,%a0
     lea     0xC00000,%a1
     move.l  #0x00020010,(%a0)       | VSRAM read 2: plane B's v scroll
@@ -56,7 +56,33 @@ par_9600:
     mulu    #PAR_K,%d1
     lsr.l   #8,%d1                  | d
     move.w  %d0,%d2
-    sub.w   %d1,%d2                 | -(cam + d)
+    sub.w   %d1,%d2                 | -(cam + d): where the mountains should be
+    | The camera moves 1, 1, 1, 2 px a frame walking, so the target moves
+    | 0, 1, 0, 2, 0 px: a 2 next to a 0 reads as a lost frame. The scroll
+    | shown follows it one pixel a frame and never trails by more than one:
+    | 0, 1, 0, 1, 1.
+    tst.b   par_ok
+    beq.s   3f
+    move.w  par_s,%d1
+    cmp.w   %d1,%d2
+    beq.s   3f
+    blt.s   2f
+    addq.w  #1,%d1                  | target ahead: one step toward it,
+    move.w  %d2,%d3
+    sub.w   %d1,%d3
+    subq.w  #1,%d3
+    ble.s   4f
+    add.w   %d3,%d1                 | no more than one behind
+    bra.s   4f
+2:  subq.w  #1,%d1
+    move.w  %d1,%d3
+    sub.w   %d2,%d3
+    subq.w  #1,%d3
+    ble.s   4f
+    sub.w   %d3,%d1
+4:  move.w  %d1,%d2
+3:  move.w  %d2,par_s
+    st      par_ok
     moveq   #0,%d1
     move.w  #0x8B02,(%a0)           | h scroll per 8-line row
     move.w  #0x8F20,(%a0)           | auto-increment 32: one row's entry to the next
@@ -77,7 +103,8 @@ par_9600:
     move.w  #0x8F02,(%a0)
     bra.s   9f
 8:  move.w  #0x8B00,(%a0)           | one scroll for the whole screen
-9:  movem.l (%sp)+,%d0-%d2/%a0-%a1
+    sf      par_ok                  | the next time in starts at its target
+9:  movem.l (%sp)+,%d0-%d3/%a0-%a1
     jmp     copy9600
 
 | Every `move.w #$8104,$C00004` (display off: a new screen is being drawn;
@@ -89,6 +116,7 @@ par_9600:
 par_dispoff:
     move.w  #0x8104,0xC00004
     move.w  #0x8B00,0xC00004
+    sf      par_ok
     rts
 
 | Stage 3's green back wall at half the camera's speed, by tile animation.
@@ -136,6 +164,9 @@ w3_wall:
     .endr
 9:  movem.l (%sp)+,%d0-%d1/%a0-%a2
     jmp     copy9600
+
+    .lcomm  par_s, 2                | stage 1: the mountain rows' scroll shown
+    .lcomm  par_ok, 1               | par_s is valid
 
 | filled by install_parallax (tools/patch_gng.py); in the intro bank, which has room
     .section .intro.wall3,"a"

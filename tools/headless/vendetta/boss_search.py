@@ -36,12 +36,33 @@ def hits():
     if st == 0: return -1
     return (14 - g.r8(sym['hp'])) if g.r8(sym['armor']) else 14 + (14 - g.r8(sym['hp']))
 
-MOVES = [0, LT, RT, J, LT | J, RT | J, D, 0]
+def boss_xy():
+    if boss == 'satan':
+        a = satan_slot()
+        return (g.r8(a + 17) << 8 | g.r8(a + 18), g.r8(a + 21) << 8 | g.r8(a + 22)) if a else (0, 0)
+    sx = lambda v: v - (1 << 32) if v >= 1 << 31 else v
+    return sx(g.r32(sym['ax'])) >> 8, sx(g.r32(sym['ay'])) >> 8
+
+# moves, each 8 frames: plain ones, and ones aimed at the boss (turn to face
+# him on the first frame, then fire)
+KINDS = ['still', 'left', 'right', 'jump', 'jumpL', 'jumpR', 'face_fire', 'face_fire', 'hover_fire',
+         'crouch_fire', 'away', 'away_jump', 'toward', 'flap']
 def segment():
-    m = random.choice(MOVES)
+    kind = random.choice(KINDS)
+    bx, by = boss_xy()
+    fx, fy = g.r32(0xFF9000) >> 8 & 0xFFFF, g.r16(0xFF9004)
+    tow = RT if bx > fx else LT
+    away = LT if tow == RT else RT
     for i in range(8):
-        f = F if i < 3 and random.random() < 0.8 else 0
-        g.run(1, m | f if not (m & J and i > 4 and random.random() < 0.5) else (m & ~J) | f)
+        m = {'still': 0, 'left': LT, 'right': RT, 'jump': J, 'jumpL': LT | J, 'jumpR': RT | J,
+             'face_fire': tow if i == 0 else 0, 'hover_fire': J | (tow if i == 0 else 0),
+             'crouch_fire': D | (tow if i == 0 else 0), 'away': away, 'away_jump': away | J,
+             'toward': tow, 'flap': J if i in (0, 1, 4, 5) else 0}[kind]
+        if kind in ('face_fire', 'hover_fire', 'crouch_fire'):
+            m |= F if i in (1, 2, 5, 6) else 0
+        elif i < 3 and random.random() < 0.6:
+            m |= F
+        g.run(1, m)
         if g.r8(0xFFC342): return False
     return True
 
@@ -56,15 +77,18 @@ while best < 99 and rewinds < 60000:
     ok = segment()
     if not ok:
         rewinds += 1; fails += 1
-        if fails > 50 * (backs + 1) and len(hist) > 1:
-            hist.pop(); backs += 1; fails = 0      # a dead end: back up, further each time
+        if fails > 30 and len(hist) > 1:          # a dead end: back up 1, 2, 4 ... states
+            del hist[max(1, len(hist) - (1 << backs)):]
+            backs = min(backs + 1, 10); fails = 0
         g.load(hist[-1][0])
         continue
     h = hits()
     if h > best:
         print('hits', h, 'frame', g.frame - t0, 'rewinds', rewinds, flush=True)
         best = h; hist.append((g.save(), h)); fails = 0; backs = 0
-    elif fails > 20 and random.random() < 0.25:
+    elif backs and random.random() < 0.05:
+        hist.append((g.save(), h)); fails = 0; backs -= 1   # past the trouble: a little forward again
+    elif not backs and fails > 20 and random.random() < 0.25:
         hist.append((g.save(), h)); fails = 0     # drift on, to get out of a stalemate
     if len(hist) > 400: del hist[1:100]
 print('RESULT', boss, 'beaten' if best >= 99 else 'not beaten (%d hits)' % best, 'frames', g.frame - t0, 'rewinds', rewinds)
