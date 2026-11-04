@@ -52,7 +52,11 @@ u16  vd_sat(volatile u16 *buf, u16 n);  /* vd_arthur.c: Arthur's sprites in Vend
 #define FB_FLAGS    ((const u8 *)0x3B6000UL)
 #define FB_FIRE     0x3B6100UL
 #define FB_MAPICON  0x3B6200UL          /* stage-map marker, 4 tiles */
-#define FB_FIRE_ANIM 0x3B6300UL         /* the flying fireball's 4 shapes, 0x100 bytes each */
+#define FB_FIRE_ANIM 0x3B6300UL         /* the flying fireball's 4 shapes, then its 3 impact
+                                           pictures, 0x100 bytes each */
+#define SPARK       0x298000UL          /* the game's hit spark, art frames 32-34 */
+#define FROG        0x49200UL           /* the game's frog, 8 frames */
+#define FB_FROG     0x3B6A00UL          /* the same, red like him (art/firebrand/src/frog.py) */
 #define FIRE_HOLD   3                   /* frames a shape is shown (Demon's Crest's) */
 #define MAP_TILE    0x69C               /* stage-map marker tiles (glue.s hook_map_marker) */
 #define FB_FRAME    0x300
@@ -466,11 +470,19 @@ static void draw_icon(void)
  * left the game mirrors each piece in place; flying right it draws them as
  * stored. The fireball is one 32-wide picture stored for the flying-left case,
  * so for right-moving shots the two pieces trade places. The game starts a
- * left shot 15 px further back than a right one (over his body), so left
- * shots are drawn 14 px ahead to leave from his mouth too. The arcade Red
- * Arremer's mouth is SHOT_DY px below the lance's line: shots are drawn lower. */
+ * left shot 15 px further back than a right one (over his body), so a new
+ * left shot (+10 = 2) is moved SHOT_DX ahead to leave from his mouth too. The
+ * arcade Red Arremer's mouth is SHOT_DY px below the lance's line: each new
+ * shot is moved that much lower (its y, +6, counts up the screen). Moved, not
+ * drawn elsewhere: what it hits is where it is drawn, and it stops at a
+ * tombstone's face, where its impact shows. */
 #define SHOT_DY 8
+#define SHOT_DX 14
+#define HIT_DX  12                     /* the game tests a shot's hits this far behind its head:
+                                           shots move this much further ahead, drawn this much back */
+#define IMPACT_DX (-4)
 static u8 fire_t;                       /* the fireball's animation clock */
+static u8 shot_was[3];                  /* each weapon slot's active flag last frame */
 
 static u32 fire_src(void) { return FB_FIRE_ANIM + (fire_t / FIRE_HOLD) * 0x100; }
 
@@ -480,16 +492,37 @@ static void fix_shots(volatile u16 *buf, u16 n)
      * frames, uploaded to each shot slot's tiles drawn this frame */
     int next = fire_t % FIRE_HOLD == FIRE_HOLD - 1;
     if (++fire_t == 4 * FIRE_HOLD) fire_t = 0;
+    u8 fresh = 0;                       /* slots that started this frame: drawn where they were */
+    for (int k = 0; k < 3; k++) {
+        u8 on = RAM8(0xFF9608 + 0x20 * k);
+        if (on && !shot_was[k]) {
+            fresh |= 1 << k;
+            RAM8(0xFF9606 + 0x20 * k) -= SHOT_DY;
+            if (RAM8(0xFF960A + 0x20 * k) == 2) RAM32(0xFF9600 + 0x20 * k) -= (SHOT_DX + HIT_DX) << 8;
+            else RAM32(0xFF9600 + 0x20 * k) += HIT_DX << 8;                                /* x 16.8 */
+        }
+        shot_was[k] = on;
+    }
     /* only while shots are out (weapon slots at $FF9600, active flag at +8),
      * and only until all their pieces are found: a busy screen has ~60 sprites */
     u16 left = (RAM8(0xFF9608) ? 2 : 0) + (RAM8(0xFF9628) ? 2 : 0) + (RAM8(0xFF9648) ? 2 : 0);
     volatile u16 *e = buf, *end = buf + n * 4;
     for (; left && e < end; e += 4) {
         u16 a = e[2], t = a & 0x7FB;    /* both pieces of a slot: base and base + 4 */
-        if (t != 0x2A0 && t != 0x2B0 && t != 0x790) continue;
-        if (a & 0x0800) e[3] -= 14;
-        else e[3] += a & 4 ? -16 : 16;
-        e[0] += SHOT_DY;
+        int k = t == 0x2A0 ? 0 : t == 0x2B0 ? 1 : t == 0x790 ? 2 : -1;   /* its weapon slot */
+        if (k < 0) continue;
+        if (RAM8(0xFF9608 + 0x20 * k) != 1) {          /* hit: the impact, on the wall's face */
+            e[3] += a & 0x0800 ? IMPACT_DX : -IMPACT_DX;
+            left--;
+            continue;
+        }
+        if (!(a & 0x0800)) e[3] += a & 4 ? -16 : 16;
+        if (fresh & 1 << k) {           /* this frame's sprites were placed before the move */
+            e[0] += SHOT_DY;
+            if (a & 0x0800) e[3] -= SHOT_DX;
+        } else {
+            e[3] += a & 0x0800 ? HIT_DX : -HIT_DX;
+        }
         if (next && !(a & 4)) dma_vram(fire_src(), 0x100, t * 32);
         left--;
     }
@@ -535,7 +568,11 @@ u16 fb_sat(u16 len)
     }
     if (idx < 0) {                      /* not one of Arthur's frames: the frog */
         u32 src = RAM32(0xFFC380);
-        if (src != shown_src) { dma_vram(src, 512, 0x6000); shown_src = src; }
+        if (src != shown_src) {
+            shown_src = src;
+            if (src >= FROG && src < FROG + 8 * 0x200) src += FB_FROG - FROG;
+            dma_vram(src, 512, 0x6000);
+        }
         shown = 0;
     } else {
         u32 src = FB_BANK + (u32)idx * FB_FRAME;
@@ -573,5 +610,9 @@ u16 fb_sat(u16 len)
  * ($295000, flying right) and 9 ($295200, flying left, drawn flipped). */
 u32 fb_shot_src(u32 src)
 {
-    return fb_on() && (src == 0x295000UL || src == 0x295200UL) ? fire_src() : src;
+    if (!fb_on()) return src;
+    if (src == 0x295000UL || src == 0x295200UL) return fire_src();
+    if (src >= SPARK && src < SPARK + 3 * 0x200 && !(src & 0x1FF))     /* hitting: the impact */
+        return FB_FIRE_ANIM + (4 + ((src - SPARK) >> 9)) * 0x100;
+    return src;
 }

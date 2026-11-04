@@ -181,7 +181,8 @@ def install_features(rom, build_dir):
                            ('firebrand_flags.bin', 0x3B6000, 112),
                            ('firebrand_fire.bin', 0x3B6100, 0x100),
                            ('firebrand_mapicon.bin', 0x3B6200, 0x80),
-                           ('firebrand_fire_anim.bin', 0x3B6300, 0x400)):
+                           ('firebrand_fire_anim.bin', 0x3B6300, 0x700),
+                           ('firebrand_frog.bin', 0x3B6A00, 0x1000)):
         data = open(os.path.join(fb, name), 'rb').read()
         assert len(data) == size, name
         assert (at & 0x1FFFF) + len(data) <= 0x20000      # DMA source boundary
@@ -561,6 +562,20 @@ def install_features(rom, build_dir):
     install_big_man_edge(rom, sym)
     install_win_chan(rom, sym)
     install_speed(rom, sym)
+    install_parallax(rom, sym)
+
+
+def install_parallax(rom, sym):
+    # stage 1's far mountains scroll slower (src_patch/parallax.s): every stage loop's
+    # $FF9600 copy, after its scroll write, goes through par_9600 first
+    for a in (0x698, 0x1048DC, 0x10ED24, 0x10FBFA, 0x110BD2, 0x11164E, 0x1177FA, 0x11886A, 0x118DD4, 0x1198EA):
+        expect(rom, a, jsr(sym['copy9600']) + bytes.fromhex('600c'), 'stage loop $FF9600 copy (speed)')
+        put(rom, a, jsr(sym['par_9600']))
+    # every display off (a new screen) puts the whole-screen scroll back
+    for a in (0xCBE, 0xD52, 0xE1E, 0x95A4, 0x104BB8, 0x10F00C, 0x10FEBC, 0x110EC0, 0x111932, 0x113BA6, 0x11545E,
+              0x11A7EA, 0x11AA4E, 0x11D186):
+        expect(rom, a, bytes.fromhex('33fc810400c00004'), 'display off')
+        put(rom, a, jsr(sym['par_dispoff']) + b'\x4e\x71')
 
 
 def install_speed(rom, sym):
