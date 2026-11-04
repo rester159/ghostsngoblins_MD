@@ -477,6 +477,7 @@ static void draw_icon(void)
  * drawn elsewhere: what it hits is where it is drawn, and it stops at a
  * tombstone's face, where its impact shows. */
 #define SHOT_DY 8
+#define CROUCHED RAM8(0xFF944B)         /* crouched, the game's shot is already at his mouth */
 #define SHOT_DX 14
 #define HIT_DX  12                     /* the game tests a shot's hits this far behind its head:
                                            shots move this much further ahead, drawn this much back */
@@ -493,11 +494,12 @@ static void fix_shots(volatile u16 *buf, u16 n)
     int next = fire_t % FIRE_HOLD == FIRE_HOLD - 1;
     if (++fire_t == 4 * FIRE_HOLD) fire_t = 0;
     u8 fresh = 0;                       /* slots that started this frame: drawn where they were */
+    u8 dy = CROUCHED ? 0 : SHOT_DY;     /* this frame's new shots are lowered by this */
     for (int k = 0; k < 3; k++) {
         u8 on = RAM8(0xFF9608 + 0x20 * k);
         if (on && !shot_was[k]) {
             fresh |= 1 << k;
-            RAM8(0xFF9606 + 0x20 * k) -= SHOT_DY;
+            RAM8(0xFF9606 + 0x20 * k) -= dy;
             if (RAM8(0xFF960A + 0x20 * k) == 2) RAM32(0xFF9600 + 0x20 * k) -= (SHOT_DX + HIT_DX) << 8;
             else RAM32(0xFF9600 + 0x20 * k) += HIT_DX << 8;                                /* x 16.8 */
         }
@@ -518,7 +520,7 @@ static void fix_shots(volatile u16 *buf, u16 n)
         }
         if (!(a & 0x0800)) e[3] += a & 4 ? -16 : 16;
         if (fresh & 1 << k) {           /* this frame's sprites were placed before the move */
-            e[0] += SHOT_DY;
+            e[0] += dy;
             if (a & 0x0800) e[3] -= SHOT_DX;
         } else {
             e[3] += a & 0x0800 ? HIT_DX : -HIT_DX;
