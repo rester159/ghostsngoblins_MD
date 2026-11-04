@@ -180,7 +180,8 @@ def install_features(rom, build_dir):
     for name, at, size in (('firebrand_bank.bin', 0x3A0000, 112 * 0x300),
                            ('firebrand_flags.bin', 0x3B6000, 112),
                            ('firebrand_fire.bin', 0x3B6100, 0x100),
-                           ('firebrand_mapicon.bin', 0x3B6200, 0x80)):
+                           ('firebrand_mapicon.bin', 0x3B6200, 0x80),
+                           ('firebrand_fire_anim.bin', 0x3B6300, 0x400)):
         data = open(os.path.join(fb, name), 'rb').read()
         assert len(data) == size, name
         assert (at & 0x1FFFF) + len(data) <= 0x20000      # DMA source boundary

@@ -52,6 +52,8 @@ u16  vd_sat(volatile u16 *buf, u16 n);  /* vd_arthur.c: Arthur's sprites in Vend
 #define FB_FLAGS    ((const u8 *)0x3B6000UL)
 #define FB_FIRE     0x3B6100UL
 #define FB_MAPICON  0x3B6200UL          /* stage-map marker, 4 tiles */
+#define FB_FIRE_ANIM 0x3B6300UL         /* the flying fireball's 4 shapes, 0x100 bytes each */
+#define FIRE_HOLD   3                   /* frames a shape is shown (Demon's Crest's) */
 #define MAP_TILE    0x69C               /* stage-map marker tiles (glue.s hook_map_marker) */
 #define FB_FRAME    0x300
 #define FB_WALK     84                  /* 6-frame walk cycle, facing right then left */
@@ -465,9 +467,19 @@ static void draw_icon(void)
  * stored. The fireball is one 32-wide picture stored for the flying-left case,
  * so for right-moving shots the two pieces trade places. The game starts a
  * left shot 15 px further back than a right one (over his body), so left
- * shots are drawn 14 px ahead to leave from his mouth too. */
+ * shots are drawn 14 px ahead to leave from his mouth too. The arcade Red
+ * Arremer's mouth is SHOT_DY px below the lance's line: shots are drawn lower. */
+#define SHOT_DY 8
+static u8 fire_t;                       /* the fireball's animation clock */
+
+static u32 fire_src(void) { return FB_FIRE_ANIM + (fire_t / FIRE_HOLD) * 0x100; }
+
 static void fix_shots(volatile u16 *buf, u16 n)
 {
+    /* the fireball animates as in Demon's Crest: a new shape every FIRE_HOLD
+     * frames, uploaded to each shot slot's tiles drawn this frame */
+    int next = fire_t % FIRE_HOLD == FIRE_HOLD - 1;
+    if (++fire_t == 4 * FIRE_HOLD) fire_t = 0;
     /* only while shots are out (weapon slots at $FF9600, active flag at +8),
      * and only until all their pieces are found: a busy screen has ~60 sprites */
     u16 left = (RAM8(0xFF9608) ? 2 : 0) + (RAM8(0xFF9628) ? 2 : 0) + (RAM8(0xFF9648) ? 2 : 0);
@@ -477,6 +489,8 @@ static void fix_shots(volatile u16 *buf, u16 n)
         if (t != 0x2A0 && t != 0x2B0 && t != 0x790) continue;
         if (a & 0x0800) e[3] -= 14;
         else e[3] += a & 4 ? -16 : 16;
+        e[0] += SHOT_DY;
+        if (next && !(a & 4)) dma_vram(fire_src(), 0x100, t * 32);
         left--;
     }
 }
@@ -559,5 +573,5 @@ u16 fb_sat(u16 len)
  * ($295000, flying right) and 9 ($295200, flying left, drawn flipped). */
 u32 fb_shot_src(u32 src)
 {
-    return fb_on() && (src == 0x295000UL || src == 0x295200UL) ? FB_FIRE : src;
+    return fb_on() && (src == 0x295000UL || src == 0x295200UL) ? fire_src() : src;
 }
