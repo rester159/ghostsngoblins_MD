@@ -4,8 +4,12 @@
  *  - art: every frame Arthur can show has a Firebrand pose of the same meaning
  *    and facing (art/firebrand, built from the game's own Arremer frames).
  *    Wide frames (wings out) add two 8x32 columns beside Arthur's 32x32 sprite.
- *  - hover: holding jump after the top of a jump holds the altitude for up to
- *    2 s, steering left/right at walking speed; landing refills it.
+ *  - flight: jump, then jump again in the air locks it on; from the top of the
+ *    jump he holds his altitude, steering left/right at walking speed, until
+ *    his flight runs out (DOWN drops him). Its length is his flight level
+ *    (1-FLY_MAX, a second a level), shown as wings on the HUD (FLY); landing
+ *    or grabbing a wall refills it. Wing pickups raise the level, a death
+ *    takes one away.
  *  - walls: in the air, pushing into a wall (a map cell the engine's wall
  *    probe stops him at, never an object) makes him cling to it, facing out,
  *    for as long as he likes; he fires away from it. Jump leaps straight up
@@ -35,10 +39,11 @@
  *    hook_weapon_mask),
  *    and beating the final room shows Firebrand's ending (ending.c), then
  *    Firebrand's Quest Plus from stage 1 with the score and lives kept: the
- *    top starting rank and half the hover. Plus is in the Home menu once
+ *    top starting rank and half the flight. Plus is in the Home menu once
  *    the quest has been cleared (saved in SRAM). */
 #include "md.h"
 #include "common.h"
+#include "fly_art.h"
 
 void dma_vram(u32 src, u16 bytes, u16 vram);
 u32  gcall(u32 addr, u32 d0, u32 a3);   /* glue.s: jsr addr, a0=$FF0000 a4=$FF9000 a5=$FF9100 */
@@ -54,6 +59,9 @@ u16  vd_sat(volatile u16 *buf, u16 n);  /* vd_arthur.c: Arthur's sprites in Vend
 #define FB_MAPICON  0x3B6200UL          /* stage-map marker, 4 tiles */
 #define FB_FIRE_ANIM 0x3B6300UL         /* the flying fireball's 4 shapes, then its 3 impact
                                            pictures, 0x100 bytes each */
+#define FB_WING     0x3B7A00UL          /* the wing pickup: one 16x16 piece, 0x100 bytes */
+#define ITEM_ART    0x29CA00UL          /* the game's item frames, 0x100 bytes each */
+#define TORCH_F     0x0A                /* the torch pickup's 4 frames: drawn as the wing */
 #define SPARK       0x298000UL          /* the game's hit spark, art frames 32-34 */
 #define FROG        0x49200UL           /* the game's frog, 8 frames */
 #define FB_FROG     0x3B6A00UL          /* the same, red like him (art/firebrand/src/frog.py) */
@@ -78,12 +86,15 @@ u16  vd_sat(volatile u16 *buf, u16 n);  /* vd_arthur.c: Arthur's sprites in Vend
 #define FACING      RAM16(0xFF920A)     /* 0 right, $800 left */
 #define POS_X       RAM32(0xFF9000)     /* 16.8 */
 #define POS_Y       RAM16(0xFF9004)
-#define SCORE_1000  8
+#define SCORE_1000  9                   /* the score table's entry 9 ($28F2E): 1000 */
 
 enum { F_LEFT = 1, F_RIGHT = 2, F_PAL2 = 4, F_RUN = 8, F_FACES_LEFT = 16 };
 enum { WALL_RIGHT = 1, WALL_LEFT = 2 };
 
 static u8  hover_t, hovering, flap, walk_t;
+static u8  flying;                      /* flight locked on: held up until hover_t runs out */
+static u8  died;                        /* this life's death has taken its level */
+static u8  item_made[2];                /* the item slot's weapon has been decided */
 static u8  cling;                       /* the side of the wall he holds, 0 = none */
 static u8  wall_jump;                   /* rising from a wall: no grab until the top */
 static u8  jump_was;                    /* jump held last frame */
@@ -125,12 +136,30 @@ int fb_lifting(void)
     return cling || hovering || flapping;
 }
 
-/* 2 s, 1 s in Firebrand's Quest Plus */
-static u8 hover_max(void)
+/* Flight: jump, then jump again in the air locks it on: he stays up (and
+ * steers) until his flight runs out, DOWN drops him. Its length is the
+ * flight level, FLY_MAX levels of a second each (half that in Firebrand's
+ * Quest Plus), shown on the HUD as one wing a second, emptying as he flies;
+ * landing or grabbing a wall fills it. A wing pickup raises the level,
+ * a death takes one away, a new game or a continue starts at 1. */
+#define FLY_MAX     4
+static u8 fly_unit(void)                /* frames of flight one wing holds */
 {
-    u8 n = (RAM8(0xA10001) & 0x40) ? 100 : 120;
+    u8 n = (RAM8(0xA10001) & 0x40) ? 50 : 60;
     return fb_plus_on() ? n / 2 : n;
 }
+
+static u8 fly_level(void)
+{
+    u8 l = PERSIST->fly_lv;
+    return l < 1 ? 1 : l > FLY_MAX ? FLY_MAX : l;
+}
+
+static u8 hover_max(void) { return fly_unit() * fly_level(); }
+
+/* Vendetta's flaps a jump: three at levels 1-2 (its routes need three),
+ * then one more a level */
+static u8 flaps_max(void) { u8 l = fly_level(); return l < 3 ? 3 : l + 1; }
 
 /* The stage-end sequence uses its own copies of Arthur's frames ($8AAD4 table);
  * each is identical to one of his frames above, except $C0200 (fist raised),
@@ -280,13 +309,21 @@ void fb_frame(void)
     if (!fb_on()) return;
     WEAPON = 1;
     ARMOR_SET = 1;
+    if (RAM8(0xFF9787)) item_made[0] = 0;   /* the items past state 0 */
+    if (RAM8(0xFFCEA7)) item_made[1] = 0;
+    if (RAM16(0xFFC570) && !died) {     /* dying: the flight level drops one */
+        died = 1;
+        if (PERSIST->fly_lv > 1) PERSIST->fly_lv--;
+    }
     if (!RAM8(0xFFC305)) {              /* stage (re)start: VRAM is reloaded */
         shown = 0;
         shown_src = 0;
         hovering = 0;
+        flying = 0;
+        died = 0;
         cling = wall_jump = 0;
         hover_t = hover_max();
-        flaps = FLAPS;
+        flaps = flaps_max();
         flapping = 0;
         prev_ok = 0;
         return;
@@ -305,11 +342,12 @@ void fb_frame(void)
     }
     if (JUMP_PHASE == 0 || RAM8(0xFFC342)) {
         hovering = 0;
+        flying = 0;
         cling = wall_jump = 0;
         flapping = 0;
         if (JUMP_PHASE == 0) {
             hover_t = hover_max();
-            flaps = FLAPS;
+            flaps = flaps_max();
         }
         jump_was = jump;
         return;
@@ -338,8 +376,9 @@ void fb_frame(void)
     if (!cling && toward && !wall_jump && touch_wall(toward)) {
         cling = toward;
         hovering = 0;
+        flying = 0;
         hover_t = hover_max();
-        flaps = FLAPS;
+        flaps = flaps_max();
         flapping = 0;
         hold_wall();
     }
@@ -350,6 +389,7 @@ void fb_frame(void)
         flaps--;
         flapping = 1;
         hovering = 0;
+        if (hover_t) flying = 1;        /* and flight locks on: held up at the flap's top */
         JUMP_PHASE = 1;
         ON_GROUND = 0;
         JUMP_SPEED = FLAP_SPEED;
@@ -358,11 +398,15 @@ void fb_frame(void)
         JUMP_POSE = 8;
         jump_sfx();
     }
+    /* jump again in the air: flight locks on (a press, not a hold) */
+    if (!cling && !leapt && jump && !jump_was && hover_t) flying = 1;
+    if (!(in & 4)) flying = 0;          /* DOWN: drop */
+    if (!hover_t) flying = 0;           /* run out: he falls */
     jump_was = jump;
     if (cling) return;
     if (perched) perched--;
-    if ((JUMP_PHASE == 2 && jump && hover_t) || (perched && JUMP_PHASE == 2)) {
-        if (jump && hover_t) {
+    if ((JUMP_PHASE == 2 && flying) || (perched && JUMP_PHASE == 2)) {
+        if (flying) {
             hover_t--;
             hovering = 1;
         } else {
@@ -403,12 +447,64 @@ void fb_key_y(u16 *ctx)
     if (fb_on() && JUMP_PHASE) ctx[1] += 0x2000;
 }
 
+/* Wings: the pickups that raise Firebrand's flight level. Weapons make no
+ * sense for him, so the game's weapon items (types 1-5: torch, lance, axe,
+ * cross, knife) become wings as they are made, up to WINGS[stage] a stage,
+ * and the stage's point item (type 6 + stage) after that. A wing is the
+ * torch (type 1), drawn as the wing. Taken, it raises his level and fills his
+ * flight; at FLY_MAX it is 1000 points. The game makes a weapon item about
+ * every 21 enemies (an item every 6th, 2 of its 7-step cycle weapons):
+ * a run through stage 1 meets about 3. With 4 levels, a wing a stage
+ * through stage 4 and two in 5 and 6 build him up as the stages get harder,
+ * and leave something to win back a level lost in the last two. */
+static const u8 WINGS[6] = { 1, 1, 1, 1, 2, 2 };
+
+/* $116A7E (glue.s hook_item_new): item state 0, an item being made, in
+ * either slot ($FF9780, $FFCEA0); runs again while its carrier gets ready,
+ * so a slot's decision is kept until its state moves on (fb_frame) */
+void fb_item_new(u8 *it)
+{
+    Persist *p = PERSIST;
+    u8 t = it[6], k = it != (u8 *)0xFF9780, st = RAM8(0xFFC512);
+    if (!fb_on() || t < 1 || t > 5 || st > 5) return;
+    if (item_made[k]) return;
+    item_made[k] = 1;
+    if (p->fly_stage != st + 1) {       /* a new stage: its wings */
+        p->fly_stage = st + 1;
+        p->fly_given = 0;
+    }
+    if (p->fly_given < WINGS[st]) {
+        p->fly_given++;
+        it[6] = 1;                      /* a wing */
+    } else {
+        it[6] = 6 + st;                 /* the stage's point item */
+    }
+}
+
+/* $1169DE (glue.s hook_item_art): the source of item frame `frame`
+ * (off = frame * 256); the torch's frames show the wing for Firebrand */
+u32 fb_item_art(u32 off, u32 frame)
+{
+    frame &= 0xFFFF;
+    if (fb_on() && frame >= TORCH_F && frame < TORCH_F + 4) return FB_WING;
+    return ITEM_ART + off;
+}
+
 /* $116472 / $116884: the item code is about to copy its context's armor and
- * weapon back to the game; a pickup changed them. */
+ * weapon back to the game; a pickup changed them. A weapon taken is a wing. */
 void fb_item(u8 *ctx)
 {
     if (!fb_on()) return;
-    if (ctx[17] != WEAPON || ctx[9] != ARMOR_SET) score_event(SCORE_1000);
+    if (ctx[17] != WEAPON) {
+        if (PERSIST->fly_lv < FLY_MAX) {
+            PERSIST->fly_lv = fly_level() + 1;
+            hover_t = hover_max();
+        } else {
+            score_event(SCORE_1000);
+        }
+    } else if (ctx[9] != ARMOR_SET) {
+        score_event(SCORE_1000);
+    }
     ctx[17] = WEAPON;
     ctx[9] = ARMOR_SET;
 }
@@ -443,6 +539,29 @@ static u32 fire_long(int y, int tx)     /* a tile row: 4 bytes */
            (u16)(fire_byte(y, tx * 4 + 2) << 8 | fire_byte(y, tx * 4 + 3));
 }
 
+/* The FLY gauge, on the right of the HUD across from TIME (plane A rows 2-3,
+ * columns 26-29): FLY, and under it a wing for each second of flight left
+ * and a spent wing for each second of his level used up. Its tiles are in
+ * plane A's table rows 28-31 (tiles $770-$77F), never on screen and never
+ * written in any stage (checked over all six). */
+#define FLY_TILE    0x770               /* F L Y, wing, spent wing */
+static void fly_hud(void)
+{
+    u16 unit = fly_unit(), lv = fly_level();
+    u16 left = (hover_t + unit - 1) / unit;
+    VDP_CTRLL = VRAM_R((FLY_TILE + 3) * 32 + 8);
+    if (VDP_DATAL != fly_art[3 * 8 + 2]) {
+        VDP_CTRLL = VRAM_W(FLY_TILE * 32);
+        for (int i = 0; i < 5 * 8; i++) VDP_DATAL = fly_art[i];
+    }
+    VDP_CTRLL = VRAM_W(0xE000 + (2 * 64 + 26) * 2);
+    VDP_DATAL = (u32)(0x8000 | FLY_TILE) << 16 | (0x8000 | (FLY_TILE + 1));
+    VDP_DATA = 0x8000 | (FLY_TILE + 2);
+    VDP_CTRLL = VRAM_W(0xE000 + (3 * 64 + 26) * 2);
+    for (u16 k = 0; k < FLY_MAX; k++)
+        VDP_DATA = k < left ? 0x8000 | (FLY_TILE + 3) : k < lv ? 0x8000 | (FLY_TILE + 4) : 0;
+}
+
 /* The HUD as Firebrand's: the weapon box (plane A rows 25-26, columns 15-16)
  * shows the fireball he spits instead of the lance, in tiles of its own (the
  * game redraws the box when the weapon changes); the lives icons (the game's
@@ -458,6 +577,7 @@ static void draw_icon(void)
             for (int r = 0; r < 8; r++) VDP_DATAL = fire_long((t >> 1) * 8 + r, t & 1);
     }
     hud_tiles(FB_MAPICON, life);
+    fly_hud();
     VDP_CTRLL = VRAM_W(0xE000 + (25 * 64 + 15) * 2);
     VDP_DATAL = 0x80000000UL | (u32)ICON_TILE << 16 | 0x8000 | (ICON_TILE + 1);
     VDP_CTRLL = VRAM_W(0xE000 + (26 * 64 + 15) * 2);

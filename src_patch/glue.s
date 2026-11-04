@@ -582,6 +582,34 @@ hook_item_copy:
     move.b  17(%a3),0xFFA218
     rts
 
+| $116A7E (8 bytes: `clr.b 24(a4)` `clr.b 25(a4)`, item state 0, both item
+| slots; a4 = the item): an item being made. Firebrand's weapons become wings
+| or point items here (fb_item_new). State 0 can run for a few frames.
+    .global hook_item_new
+hook_item_new:
+    clr.b   24(%a4)
+    clr.b   25(%a4)
+    movem.l %d0-%d1/%a0-%a1,-(%sp)
+    move.l  %a4,-(%sp)
+    jsr     fb_item_new
+    addq.l  #4,%sp
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+    rts
+
+| $1169DE (8 bytes: `lea $29CA00,a0` `adda.l d0,a0`): the item streamer's
+| source for frame d4 (d0 = frame * 256). Firebrand's wing is drawn in the
+| torch's frames (fb_item_art).
+    .global hook_item_art
+hook_item_art:
+    movem.l %d0-%d1/%a1,-(%sp)
+    move.l  %d4,-(%sp)
+    move.l  %d0,-(%sp)
+    jsr     fb_item_art
+    addq.l  #8,%sp
+    movea.l %d0,%a0
+    movem.l (%sp)+,%d0-%d1/%a1
+    rts
+
 | $119E16: `jsr hook_cross_gate` over `move.b $FFA218,d1`, the weapon the
 | stage 6 check ($119D2E: not the cross = back to stage 5) tests. Firebrand
 | passes it. Keeps every register but d1 (the caller saved d1-a6 already).

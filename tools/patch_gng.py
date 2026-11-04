@@ -182,7 +182,8 @@ def install_features(rom, build_dir):
                            ('firebrand_fire.bin', 0x3B6100, 0x100),
                            ('firebrand_mapicon.bin', 0x3B6200, 0x80),
                            ('firebrand_fire_anim.bin', 0x3B6300, 0x700),
-                           ('firebrand_frog.bin', 0x3B6A00, 0x1000)):
+                           ('firebrand_frog.bin', 0x3B6A00, 0x1000),
+                           ('firebrand_wing.bin', 0x3B7A00, 0x100)):
         data = open(os.path.join(fb, name), 'rb').read()
         assert len(data) == size, name
         assert (at & 0x1FFFF) + len(data) <= 0x20000      # DMA source boundary
@@ -473,6 +474,12 @@ def install_features(rom, build_dir):
     for a in (0x116472, 0x116884):
         expect(rom, a, bytes.fromhex('13eb000900ffc32813eb001100ffa218'), 'item copy-back')
         put(rom, a, jsr(sym['hook_item_copy']) + b'\x4e\x71' * 5)
+    # Firebrand's wing pickups: weapons made into wings or point items as they are
+    # made (item state 0, both slots), the wing drawn in the torch's frames
+    expect(rom, 0x116A7E, bytes.fromhex('422c0018422c0019'), 'item state 0')
+    put(rom, 0x116A7E, jsr(sym['hook_item_new']) + b'\x4e\x71')
+    expect(rom, 0x1169DE, bytes.fromhex('41f90029ca00d1c0'), 'item streamer source')
+    put(rom, 0x1169DE, jsr(sym['hook_item_art']) + b'\x4e\x71')
     # Astaroth is hurt by the cross only: Firebrand's fireball hurts him too (glue.s)
     expect(rom, 0xBEAE, bytes.fromhex('102b0008c006'), 'weapon mask test')
     put(rom, 0xBEAE, jsr(sym['hook_weapon_mask']))

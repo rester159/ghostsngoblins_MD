@@ -175,6 +175,7 @@ void continue_lives(void)
 {
     LIVES = start_lives();
     SCORE = 0;
+    PERSIST->fly_lv = 1;                /* Firebrand's flight starts over too */
     PERSIST->bonus_next = bonus_tab[bonus_setting()][0];
     PERSIST->bonus_step_i = 1;
 }

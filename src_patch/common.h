@@ -46,7 +46,10 @@ typedef struct {
     u8  fb_unlocked;    /* 38 Firebrand's Quest has been cleared (saved): PLUS in the menu */
     u8  fb_plus;        /* 39 this game is Firebrand's Quest Plus */
     HiScore hs[2][10];  /* 40  [0] arcade, [1] home */
-} Persist;              /* 200 bytes */
+    u8  fly_lv;         /* 200 Firebrand's flight level, 1-FLY_MAX (firebrand.c) */
+    u8  fly_given;      /* 201 wings given out in fly_stage */
+    u8  fly_stage;      /* 202 the stage fly_given counts for, + 1 (0: none) */
+} Persist;              /* 203 bytes */
 #define PERSIST       ((Persist *)0xFF5000)
 #define PERSIST_MAGIC 0x4D584D50UL   /* 'MXMP' (layout 2) */
 

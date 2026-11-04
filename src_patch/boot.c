@@ -228,6 +228,8 @@ static int home_menu(void)
         sel = menu_run(&m, 11, sel);
         p->dev_on = 0;
         p->fb_plus = 0;
+        p->fly_lv = 1;                  /* a new game: Firebrand's flight from level 1 */
+        p->fly_stage = 0;
         if (sel == MENU_CODE) { p->dev_unlocked = 1; sel = n; continue; }
         id = sel < 0 ? -1 : ids[sel];
         if (id == I_1P) { p->home_sub = HOME_1P; return 1; }
