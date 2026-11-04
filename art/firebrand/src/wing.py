@@ -1,7 +1,8 @@
-"""Firebrand's wing pickup: a 16x16 golden feathered wing, three rows of
-feathers (sprite palette line 0: 1 black, 12 cream, 7 orange, 5 dark
-orange; gold like the game's treasure, so it reads as a prize), drawn where
-the game draws the torch pickup (item frames $0A-$0D, firebrand.c
+"""Firebrand's wing pickup: a pair of small wings spread from a brown centre,
+16x16, in Red Arremer's colours: red wings (sprite palette line 0: 3 red,
+2 dark red) with orange leading edges (7), a dark orange centre (5) and a
+black outline (1), drawn
+where the game draws the torch pickup (item frames $0A-$0D, firebrand.c
 fb_item_art). The item streamer uploads 256 bytes a frame; a single 16x16
 piece uses the first 128, in sprite column order (top left, bottom left,
 top right, bottom right).
@@ -10,22 +11,22 @@ usage: wing.py <art dir>   (writes firebrand_wing.bin, 0x100 bytes)"""
 import os
 import sys
 
-K = {'.': 0, 'k': 1, 'l': 12, 'm': 7, 'd': 5}
+K = {'.': 0, 'H': 7, 'L': 3, 'M': 2, 'D': 1, 'B': 5, 'b': 2}
 WING = """
-...........kkk..
-.........kklllk.
-.......kklllmmk.
-.....kkllllmmmk.
-...kklllllmmmdk.
-..kllllllmmmmdk.
-.kdddddkmmmmmdk.
-..kklllllmmmddk.
-...kdddddkmmmdk.
-....kklllllmmdk.
-.....kdddddkmdk.
-......kklllllk..
-.......kddddk...
-........kkkk....
+................
+................
+................
+D..............D
+DD............DD
+DHD..........DHD
+DHLD........DLHD
+DHLLD..bb..DLLHD
+.DHLLDbBBbDLLHD.
+.DHLLLbBBbLLLHD.
+..DLMLDbbDLMLD..
+..DMDMD..DMDMD..
+...D.D....D.D...
+................
 ................
 ................"""
 
