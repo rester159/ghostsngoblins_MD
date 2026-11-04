@@ -570,6 +570,7 @@ def install_features(rom, build_dir):
     install_win_chan(rom, sym)
     install_speed(rom, sym)
     install_parallax(rom, sym)
+    install_vd_map(rom, sym)
 
 
 def install_parallax(rom, sym):
@@ -611,6 +612,26 @@ def install_parallax(rom, sym):
     put(rom, sym['wall3'], bytes(table))
     put(rom, sym['wall3_chk'], chk)
     put(rom, sym['wall3_cmd'], be32(((vaddr & 0x3FFF) << 16) | (vaddr >> 14)))
+
+
+def install_vd_map(rom, sym):
+    # Firebrand's Vendetta's stage map, mirrored and renumbered (tools/vendetta/vd_map.py,
+    # vendetta_glue.s vd_map_*): the plane B table, its box tiles, the marker table
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'vendetta'))
+    import vd_map
+    table, patches, mark, far = vd_map.build(rom)
+    assert len(patches) <= 16
+    put(rom, sym['vdm_nt'], table)
+    put(rom, sym['vdm_mark'], mark)
+    put(rom, sym['vdm_far'], far)
+    put(rom, sym['vdm_tiles'], len(patches).to_bytes(2, 'big') + b''.join(t.to_bytes(2, 'big') + d for t, d in patches))
+    expect(rom, 0x113BDA, bytes.fromhex('41f900265d54'), 'stage map plane B table')
+    put(rom, 0x113BDA, jsr(sym['vd_map_b']))
+    expect(rom, 0x113CB2, bytes.fromhex('41f900267e2a'), 'stage map marker table')
+    put(rom, 0x113CB2, jsr(sym['vd_map_tab']))
+    for a in (0x113D32, 0x113D74):
+        expect(rom, a, bytes.fromhex('0c39000400ffc512'), 'stage map far-stage test')
+        put(rom, a, jsr(sym['vd_map_far']) + b'\x4e\x71')
 
 
 def install_speed(rom, sym):

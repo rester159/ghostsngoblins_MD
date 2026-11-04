@@ -41,8 +41,8 @@ THE RED ARREMER.
 
 | Order | Stage              | Notes                                            |
 |-------|--------------------|--------------------------------------------------|
-| 0     | the story          | three text pages (the pact, the regicide, the vendetta) |
-| 1     | stage 6, top room  | the Satan fight, then the climb out of the realm |
+| 0     | the story          | one page (the pact), then the game opens on the Satan fight |
+| 1     | stage 6, top room  | the Satan fight; at his death a second page (the vendetta: the realm turns on the kingslayer), then the stage starts again in his empty room and the climb out of the realm begins |
 | 2     | stage 5            |                                                  |
 | 3     | stage 4            |                                                  |
 | 4     | stage 3            |                                                  |
@@ -54,6 +54,16 @@ Firebrand starts at a stage's right end, beside the boss arena, and the stage
 ends when he reaches its left edge, where Arthur's run started.
 
 Built (src_patch/vendetta.c, vendetta_glue.s; hooks in tools/patch_gng.py):
+- **Story:** `vd_story` (one page, from the Home menu) and `regicide` (90 frames
+  after Satan's death, `vd_regicide_due` set by `vd_satan_gone`): the page, then
+  `stage_jump(5)` through the game's stage entry ($113B70: the map, then play),
+  restarting in Satan's room (`vd_regicide_rs` in `vd_start_entry`).
+- **Stage map:** mirrored, Satan's lair on the left and the graveyard on the
+  right, the boxes numbered 1 (the lair) to 6 (the graveyard) in the order he
+  plays them (`tools/vendetta/vd_map.py`, `install_vd_map`): the plane B table
+  ($265D54, columns 0-49) flipped, the digits redrawn in the boxes' tiles, the
+  marker table ($267E2A) mirrored, and which markers wait for the pan's end
+  ($113D32/$113D74) chosen by where they land.
 - **Home menu:** FIREBRAND'S VENDETTA (`home_sub` 3, no new save fields); the
   developer menu's PLAYERS has VENDETTA for practice launches of any stage.
 - **Order:** a game starts on stage 6; reaching a stage's own start

@@ -14,11 +14,13 @@ vd_start_entry:
     cmpi.w  #7*4,%d0
     bcc.s   1f
     lea     vd_starts,%a1
-    cmpi.w  #5*4,%d0                | stage 6 before its Satan is dead: his room
-    bne.s   1f
+    cmpi.w  #5*4,%d0                | stage 6 before its Satan is dead, or right
+    bne.s   1f                      | after his page: his room
+    tst.b   vd_regicide_rs
+    bne.s   2f
     tst.b   vd_satan_done
     bne.s   1f
-    lea     vd_satan_start-5*4,%a1
+2:  lea     vd_satan_start-5*4,%a1
 1:  adda.w  %d0,%a1
     rts
 
@@ -32,6 +34,7 @@ vd_satan_gone:
     jsr     0x10EA0C
     bra.s   2f
 1:  move.b  #1,vd_satan_done
+    move.b  #1,vd_regicide_due      | his page (vendetta.c regicide)
 2:  clr.w   4(%a4)
     rts
 
@@ -157,3 +160,71 @@ vd_sound:
     jsr     0x8846
     movem.l (%sp)+,%d1/%a1/%a6
     rts
+
+| Vendetta's stage map, mirrored: Satan's lair on the left, numbered 1 to 6
+| in the order he plays the stages (tools/vendetta/vd_map.py builds the data,
+| tools/patch_gng.py install_vd_map places it and the hooks).
+    .global vd_map_b, vd_map_tab, vd_map_far
+
+| $113BDA (6 bytes, `lea $265D54,a0`; the VDP is set to write $C000): the
+| map's plane B table. Vendetta: its renumbered box tiles first, then the
+| mirrored table.
+vd_map_b:
+    lea     0x265D54,%a0
+    cmpi.w  #0x0203,0xFF5004
+    bne.s   9f
+    movem.l %d0-%d2/%a1,-(%sp)
+    lea     vdm_tiles,%a1
+    move.w  (%a1)+,%d2              | count
+    bra.s   3f
+2:  moveq   #0,%d0
+    move.w  (%a1)+,%d0              | tile
+    lsl.l   #5,%d0                  | its VRAM address (below $4000)
+    swap    %d0
+    ori.l   #0x40000000,%d0         | VRAM write command
+    move.l  %d0,0xC00004
+    moveq   #7,%d1
+1:  move.l  (%a1)+,0xC00000
+    dbf     %d1,1b
+3:  dbf     %d2,2b
+    move.l  #0x40000003,0xC00004    | back to writing $C000
+    movem.l (%sp)+,%d0-%d2/%a1
+    lea     vdm_nt,%a0
+9:  rts
+
+| $113CB2 (6 bytes, `lea $267E2A,a0`): the marker's (y, x) table
+vd_map_tab:
+    lea     0x267E2A,%a0
+    cmpi.w  #0x0203,0xFF5004
+    bne.s   1f
+    lea     vdm_mark,%a0
+1:  rts
+
+| $113D32 / $113D74 (8 bytes, `cmpi.b #4,$FFC512`): stages 4-6 are placed at
+| the full pan and hidden until it ends. Mirrored, the far ones are others:
+| vdm_far holds 4 (far) or 0 for each (checkpoint, stage). Flags as the cmpi.
+vd_map_far:
+    cmpi.w  #0x0203,0xFF5004
+    beq.s   1f
+    cmpi.b  #4,0xFFC512
+    rts
+1:  movem.l %d0/%a0,-(%sp)
+    moveq   #0,%d0
+    move.b  0xFFC521,%d0
+    andi.w  #1,%d0
+    mulu.w  #7,%d0
+    add.b   0xFFC512,%d0
+    lea     vdm_far,%a0
+    move.b  0(%a0,%d0.w),%d0
+    cmpi.b  #4,%d0
+    movem.l (%sp)+,%d0/%a0          | (flags kept)
+    rts
+
+    .section .intro.vdmap,"a"
+    .balign 2
+    .global vdm_nt, vdm_mark, vdm_far, vdm_tiles
+vdm_nt:     .space  4096            | the mirrored plane B table
+vdm_mark:   .space  28              | (y, x) per stage, two sets
+vdm_far:    .space  14
+    .balign 2
+vdm_tiles:  .space  2 + 16 * 34     | count, then (tile, 32 bytes) each

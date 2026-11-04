@@ -26,6 +26,7 @@ void game_sound_tick(void);
 void game_sound_play(int id);
 void game_over(void);                   /* hiscore.c */
 void warm_restart_sp(void);             /* glue.s */
+void stage_jump(int stage);             /* glue.s: the game's own stage (re)start, no return */
 
 #define STAGE       RAM8(0xFFC512)
 #define IN_PLAY     RAM8(0xFFC305)      /* 0 while a stage (re)starts */
@@ -61,11 +62,19 @@ const u8 vd_starts[7][4] = {
  * restarts in his room) */
 const u8 vd_satan_start[4] = E(7560, 2624);
 u8 vd_satan_done;
+u8 vd_regicide_due;                     /* Satan has died: his page is due (vd_satan_gone) */
+u8 vd_regicide_rs;                      /* the restart after that page: in his room */
+static u8 regicide_t;
+#define REGICIDE_WAIT 90                /* frames of his death before the page */
+static void regicide(void);
 
 /* a new game (settings.c player_init) */
 void vd_new_game(void)
 {
     vd_satan_done = 0;
+    vd_regicide_due = 0;
+    vd_regicide_rs = 0;
+    regicide_t = 0;
 }
 
 /* Stage 6 has two Satans; Vendetta has one, the nearer. The other is freed
@@ -179,12 +188,17 @@ void vd_frame(void)
     }
     if (!was_in_play) {                 /* the first frame of a life: face the way he goes */
         was_in_play = 1;
+        vd_regicide_rs = 0;
         RAM8(0xFF9006) = 2;
         FACING = 0x800;
         if (s == 5 && !vd_satan_done) { RAM8(0xFF9006) = 1; FACING = 0; }   /* Satan is to the right */
         TIME += EXTRA_TIME;             /* backwards, Arthur's drops are climbs */
     }
     if (s == 5) one_satan();
+    if (vd_regicide_due && !DYING && ++regicide_t >= REGICIDE_WAIT) {
+        vd_regicide_due = 0;
+        regicide();                     /* no return */
+    }
     one_bigman();
     if (s == 0) {                       /* the graveyard: Arthur */
         int on = vd_boss_on();
@@ -231,51 +245,57 @@ void vd_ending(void)
     warm_restart_sp();
 }
 
-/* The story, before a game of Vendetta (boot.c home_menu): a page a button,
- * Start skips the rest */
+/* A story page: the title, up to 7 lines, a button (or Start) goes on */
+static void story_page(const char *title, const char *const *lines)
+{
+    u16 prev = 0xFF;
+    screen_init();
+    text_center(5, "FIREBRAND'S VENDETTA", PAL_DIM);
+    text_center(8, title, PAL_SEL);
+    for (int i = 0; i < 7; i++) text_center(12 + 2 * i, lines[i], PAL_TEXT);
+    text_center(26, "PRESS A BUTTON", PAL_DIM);
+    display_on();
+    for (u16 n = 0;; n++) {
+        u16 p;
+        vsync();
+        game_sound_tick();
+        p = pad_read(0);
+        if (n > 20 && (p & ~prev & (BTN_A | BTN_B | BTN_C | BTN_START))) return;
+        prev = p;
+    }
+}
+
+/* The story, before a game of Vendetta (boot.c home_menu): one page, then
+ * the game opens on the fight with Satan */
 void vd_story(void)
 {
-    static const char *const pages[3][9] = {
-        { "THE PACT", "",
-          "FOR AGES ARTHUR'S LANCE",
-          "CUT DOWN THE RED ARREMERS.",
-          "THEN FIREBRAND FOUND",
-          "SATAN'S SEALED TABLET:",
-          "EACH ARREMER WAS A PRICE",
-          "PAID TO THE KNIGHT SO THE",
-          "KING COULD KEEP HIS THRONE." },
-        { "THE REGICIDE", "",
-          "FIREBRAND FLIES TO",
-          "THE THRONE ROOM.",
-          "",
-          "THE DEMON KING",
-          "MUST DIE.",
-          "", "" },
-        { "THE VENDETTA", "",
-          "NO ONE FORGIVES A KINGSLAYER.",
-          "EVERY MONSTER OF THE REALM",
-          "NOW HUNTS FIREBRAND.",
-          "",
-          "ONE NAME IS LEFT: ARTHUR.",
-          "HE WAITS IN THE GRAVEYARD",
-          "WHERE HIS ROAD BEGAN." },
+    static const char *const lines[7] = {
+        "SATAN PAID FOR HIS THRONE",
+        "WITH THE RED ARREMERS:",
+        "EACH ONE A PRICE GIVEN",
+        "TO ARTHUR'S LANCE.",
+        "",
+        "FIREBRAND HAS COME",
+        "FOR THE DEMON KING.",
     };
-    u16 prev = 0xFF;
-    for (int k = 0; k < 3; k++) {
-        screen_init();
-        text_center(5, "FIREBRAND'S VENDETTA", PAL_DIM);
-        text_center(8, pages[k][0], PAL_SEL);
-        for (int i = 2; i < 9; i++) text_center(8 + 2 * i, pages[k][i], PAL_TEXT);
-        text_center(26, "PRESS A BUTTON", PAL_DIM);
-        display_on();
-        for (u16 n = 0;; n++) {
-            u16 p;
-            vsync();
-            game_sound_tick();
-            p = pad_read(0);
-            if (n > 20 && (p & ~prev & BTN_START)) return;
-            if (n > 20 && (p & ~prev & (BTN_A | BTN_B | BTN_C))) { prev = p; break; }
-            prev = p;
-        }
-    }
+    story_page("THE PACT", lines);
+}
+
+/* After Satan's death (REGICIDE_WAIT frames of it): the realm turns on
+ * Firebrand. The page, then the stage starts again through the game's own
+ * stage entry ($113B70: the map, then play) in Satan's room, now empty. */
+static void regicide(void)
+{
+    static const char *const lines[7] = {
+        "THE DEMON KING IS DEAD.",
+        "",
+        "NO ONE FORGIVES A KINGSLAYER:",
+        "EVERY MONSTER OF THE REALM",
+        "NOW HUNTS FIREBRAND.",
+        "",
+        "ONE NAME IS LEFT: ARTHUR.",
+    };
+    story_page("THE VENDETTA", lines);
+    vd_regicide_rs = 1;
+    stage_jump(5);
 }

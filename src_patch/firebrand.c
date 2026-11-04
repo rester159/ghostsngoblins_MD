@@ -143,6 +143,7 @@ int fb_lifting(void)
  * landing or grabbing a wall fills it. A wing pickup raises the level,
  * a death takes one away, a new game or a continue starts at 1. */
 #define FLY_MAX     4
+#define FLY_DX      0x200               /* flight's sideways speed: 2 px a frame, every step the same */
 static u8 fly_unit(void)                /* frames of flight one wing holds */
 {
     u8 n = (RAM8(0xA10001) & 0x40) ? 50 : 60;
@@ -413,17 +414,21 @@ void fb_frame(void)
             hovering = 0;
         }
         JUMP_SPEED = 0;                 /* this frame's fall moves 0 px */
-        /* steer at walking speed, through the engine's walk moves (wall checks
+        /* only the steering below moves him sideways: the jump's own sideways
+         * motion went on too, 1 + 1.125 px a frame in steps of 2 and 3 */
+        JUMP_DIR = 0;
+        JUMP_DX = 0;
+        /* steer at 2 px a frame, through the engine's walk moves (wall checks
          * included; the same calls Maximo's walk uses). Direction bits are
          * active low: 2 = right held, 1 = left held. Resting on top of solid
          * scenery (the engine's floor isn't there: he is held in his fall)
          * he walks along it the same way, and off its edge. */
         if ((G_P1 & 3) == 2) {
             RAM8(0xFF9006) = 1; RAM16(0xFF920A) = 0;
-            gcall(0x11469C, 288, 0x1486E);
+            gcall(0x11469C, flying ? FLY_DX : 288, 0x1486E);
         } else if ((G_P1 & 3) == 1) {
             RAM8(0xFF9006) = 2; RAM16(0xFF920A) = 0x800;
-            gcall(0x1146CE, (u32)(s16)-288, 0x1496E);
+            gcall(0x1146CE, (u32)(s16)(flying ? -FLY_DX : -288), 0x1496E);
         }
     } else {
         hovering = 0;

@@ -1,4 +1,4 @@
-| Stage 1's far mountains in parallax (all modes; install_parallax in
+| Stage 1's far mountains in parallax (Home modes only, not Arcade; install_parallax in
 | tools/patch_gng.py).
 |
 | Stage 1 draws everything on plane B with one horizontal scroll for the
@@ -36,11 +36,15 @@
     .section .text,"ax"
     .global par_9600
 par_9600:
+    cmpi.b  #2,0xFF5004             | Home only (PERSIST->mode == MODE_HOME, all its
+    bne.s   0f                      | modes); Arcade keeps the original's single scroll
+    cmpi.l  #0x4D584D50,0xFF5000    | PERSIST_MAGIC
+    bne.s   0f
     tst.b   0xFFC512                | stage 1
     beq.s   1f
     cmpi.b  #2,0xFFC512             | stage 3
     beq.w   w3_wall
-    move.w  #0x8B00,0xC00004        | one scroll for the whole screen
+0:  move.w  #0x8B00,0xC00004        | one scroll for the whole screen
     jmp     copy9600
 1:  movem.l %d0-%d3/%a0-%a1,-(%sp)
     lea     0xC00004,%a0
