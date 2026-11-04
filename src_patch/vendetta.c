@@ -9,7 +9,7 @@
  *    standing back at the stage's own start (the game's table, $1040CC);
  *  - the camera keeps more of the way ahead on screen, leads down while he
  *    drops, and climbs while he clings or hovers (vendetta_glue.s, hud.s);
- *  - each life has a minute more than the game's stage time;
+ *  - each life has two minutes more than the game's stage time;
  *  - the checkpoint is passed with the camera left of the game's mark
  *    ($103E1A) instead of right of it (vd_cp_cmp); a death after it
  *    restarts at the game's checkpoint, facing left. */
@@ -37,7 +37,7 @@ void warm_restart_sp(void);             /* glue.s */
 #define POS_Y       RAM16(0xFF9004)
 #define START_TAB   ((const u8 *)0x1040CCUL)
 #define TIME        RAM16(0xFFCD62)     /* seconds left on the stage */
-#define EXTRA_TIME  60
+#define EXTRA_TIME  120                 /* the danger is the monsters, not the clock */
 
 /* the game's restart-entry format: y >> 8 in bits 15-5 and x >> 8 in bits 4-0
  * of the first word, then x & $FF and y & $FF */
@@ -85,6 +85,24 @@ static void one_satan(void)
         } else if (!p[7]) {
             p[4] = 0;
         }
+    }
+}
+
+/* No double bosses: the Big Men (type 10) come in pairs in stages 4 and 5
+ * (a pair flanks the drop on stage 5's way down); Vendetta keeps one of
+ * those near the screen, the first found, and frees the others there.
+ * Enemy slots as one_satan's (+17 x, read a byte at a time). */
+static void one_bigman(void)
+{
+    u16 cx = RAM16(0xFF9100);
+    int kept = 0;
+    for (int k = 0; k < 40; k++) {
+        volatile u8 *p = (volatile u8 *)(0xFFB800 + 48 * k);
+        u16 x;
+        if (!p[4] || p[10] != 10) continue;
+        x = p[17] << 8 | p[18];
+        if ((u16)(x - cx + 96) > 256 + 192) continue;      /* not near the screen */
+        if (kept++) p[4] = 0;
     }
 }
 
@@ -167,6 +185,7 @@ void vd_frame(void)
         TIME += EXTRA_TIME;             /* backwards, Arthur's drops are climbs */
     }
     if (s == 5) one_satan();
+    one_bigman();
     if (s == 0) {                       /* the graveyard: Arthur */
         int on = vd_boss_on();
         vd_boss(RAM16(0xFF9100) <= CAM_LIMITS[0]);

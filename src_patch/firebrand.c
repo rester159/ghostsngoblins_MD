@@ -18,7 +18,8 @@
  *    background to the engine (attribute $C0, no wall or floor): Arthur can't
  *    get there, but Firebrand flies. A move that puts his body in one is
  *    undone (scenery_block): sideways he stops at its surface, rising he stops
- *    as under a ceiling, and dropping onto one refills the hover.
+ *    as under a ceiling, and dropping onto one refills the hover; resting
+ *    on top of one, left/right walks him along it (as the hover steers).
  *  - the stage-end key is taken standing (fb_key_y): taken in flight it
  *    left him hanging in the air, the stage end never finishing.
  *  - the top of the screen is a ceiling too (screen_top): stage 6's boss room
@@ -210,6 +211,7 @@ static int body_solid(u32 x16, u32 y16)  /* 16.8 position: his body, 12 x 24 px 
 }
 
 static u32 prev_x, prev_y;              /* his last position outside solid scenery (16.8) */
+static u8 perched;                      /* held on top of solid scenery (frames left) */
 static u8 prev_ok;
 #define POS_Y16 RAM32(0xFF9400)         /* y 16.8; POS_Y is its pixel copy */
 
@@ -231,7 +233,14 @@ static u32 screen_top(u32 y)
 static void scenery_block(void)
 {
     u32 x = POS_X & 0xFFFFFF, y = screen_top(POS_Y16);
-    if (RAM8(0xFF9459) || RAM8(0xFFC342) || !prev_ok || !body_solid(x, y)) {
+    /* It stops his flight only: on the engine's floor he walks where Arthur
+     * walks (the floor can stand him beside an edge stone, stage 3's cave at
+     * x 1960, and every step from there was undone: held for good). Already
+     * inside it where he was, moves are let be too, so he flies out. */
+    if (RAM8(0xFF9459) || RAM8(0xFFC342) || !prev_ok || JUMP_PHASE == 0 || !body_solid(x, y) ||
+        body_solid(prev_x, prev_y)) {
+        /* still resting on top of it (it is just under him): perched */
+        if (JUMP_PHASE == 2 && !RAM8(0xFF9459) && prev_ok && body_solid(x, y - (2 << 8))) perched = 2;
         prev_x = x; prev_y = y; prev_ok = 1;
         return;
     }
@@ -242,8 +251,10 @@ static void scenery_block(void)
     } else {
         if (body_solid(x, prev_y))
             x = prev_x;                 /* into it both ways: back where he was */
-        if (y < prev_y)                 /* dropping onto it: can fly off again */
+        if (y < prev_y) {               /* dropping onto it: can fly off again, */
             hover_t = hover_max();
+            perched = 2;                /* and walk along its top (fb_frame) */
+        }
         y = prev_y;
         /* no rise left (a ceiling): falling from 0, as at the top of a jump
          * (the rise subtracts gravity from the speed, which would wrap) */
@@ -343,13 +354,20 @@ void fb_frame(void)
     }
     jump_was = jump;
     if (cling) return;
-    if (JUMP_PHASE == 2 && jump && hover_t) {
-        hover_t--;
-        hovering = 1;
+    if (perched) perched--;
+    if ((JUMP_PHASE == 2 && jump && hover_t) || (perched && JUMP_PHASE == 2)) {
+        if (jump && hover_t) {
+            hover_t--;
+            hovering = 1;
+        } else {
+            hovering = 0;
+        }
         JUMP_SPEED = 0;                 /* this frame's fall moves 0 px */
         /* steer at walking speed, through the engine's walk moves (wall checks
          * included; the same calls Maximo's walk uses). Direction bits are
-         * active low: 2 = right held, 1 = left held. */
+         * active low: 2 = right held, 1 = left held. Resting on top of solid
+         * scenery (the engine's floor isn't there: he is held in his fall)
+         * he walks along it the same way, and off its edge. */
         if ((G_P1 & 3) == 2) {
             RAM8(0xFF9006) = 1; RAM16(0xFF920A) = 0;
             gcall(0x11469C, 288, 0x1486E);

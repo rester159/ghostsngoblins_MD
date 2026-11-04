@@ -81,7 +81,6 @@ static void frame_screen(const char *title)
     if (title_jp()) draw_jp_logo(3, PAL_TEXT);
     else draw_logo(5);
     if (title) text_center(10, title, PAL_TEXT);
-    text_center(26, "rester159, 2026", PAL_TEXT);
 }
 
 static void redraw_logo(void)
@@ -202,38 +201,40 @@ static int dev_menu(void)
 
 /* ---- home ---------------------------------------------------------- */
 
-/* FIREBRAND'S QUEST PLUS is listed once Firebrand's Quest has been cleared */
+/* FIREBRAND'S QUEST PLUS is listed once Firebrand's Quest has been cleared,
+ * DEVELOPER once its code has been entered. No title, no BACK: B goes back. */
 static int home_menu(void)
 {
-    enum { I_1P, I_COOP, I_FB, I_FBPLUS, I_VD, I_HISCORE, I_OPTIONS, I_BACK, I_DEV };
-    static const char *const items[] = {
+    enum { I_1P, I_COOP, I_FB, I_FBPLUS, I_VD, I_OPTIONS, I_DEV };
+    static const char *const names[] = {
         "1 PLAYER", "2 PLAYERS", "FIREBRAND'S QUEST", "FIREBRAND'S QUEST PLUS", "FIREBRAND'S VENDETTA",
-        "HIGH SCORES", "OPTIONS", "BACK", "DEVELOPER",
-    };
-    static const char *const items_short[] = {
-        "1 PLAYER", "2 PLAYERS", "FIREBRAND'S QUEST", "FIREBRAND'S VENDETTA", "HIGH SCORES", "OPTIONS", "BACK",
-        "DEVELOPER",
+        "OPTIONS", "DEVELOPER",
     };
     static const u8 dev_sub[5] = { HOME_1P, HOME_COOP, HOME_FIREBRAND, HOME_FIREBRAND, HOME_VENDETTA };
     Persist *p = PERSIST;
     int sel = 0;
     for (;;) {
-        int plus = p->fb_unlocked, id;
-        Menu m = { plus ? items : items_short, (p->dev_unlocked ? 8 : 7) + plus, plus ? 9 : 10, 0, 0, 0,
-                   !p->dev_unlocked };
-        frame_screen("HOME");
+        const char *items[7];
+        u8 ids[7];
+        int n = 0, id, k;
+        for (k = I_1P; k <= I_DEV; k++) {
+            if (k == I_FBPLUS && !p->fb_unlocked) continue;
+            if (k == I_DEV && !p->dev_unlocked) continue;
+            ids[n] = k; items[n++] = names[k];
+        }
+        Menu m = { items, n, 9, 0, 0, 0, !p->dev_unlocked };
+        frame_screen(0);
         display_on();
-        sel = menu_run(&m, plus ? 10 : 11, sel);
+        sel = menu_run(&m, 11, sel);
         p->dev_on = 0;
         p->fb_plus = 0;
-        if (sel == MENU_CODE) { p->dev_unlocked = 1; sel = 7 + plus; continue; }
-        id = sel < 0 || plus || sel < I_FBPLUS ? sel : sel + 1;
+        if (sel == MENU_CODE) { p->dev_unlocked = 1; sel = n; continue; }
+        id = sel < 0 ? -1 : ids[sel];
         if (id == I_1P) { p->home_sub = HOME_1P; return 1; }
         if (id == I_COOP) { p->home_sub = HOME_COOP; return 1; }
         if (id == I_FB) { p->home_sub = HOME_FIREBRAND; return 1; }
         if (id == I_FBPLUS) { p->home_sub = HOME_FIREBRAND; p->fb_plus = 1; return 1; }
         if (id == I_VD) { p->home_sub = HOME_VENDETTA; vd_story(); return 1; }
-        if (id == I_HISCORE) { hiscore_show(1, 60 * 30); continue; }
         if (id == I_OPTIONS) { options_menu(); continue; }
         if (id == I_DEV) {
             if (dev_menu()) {
@@ -303,6 +304,7 @@ static int boot_menu(void)
     int sel = PERSIST->mode == MODE_HOME ? 1 : 0;
     for (;;) {
         frame_screen(0);
+        text_center(26, "RESTER159, 2026", PAL_TEXT);     /* the opening menu only */
         display_on();
         sel = menu_run(&m, 14, sel);
         if (sel == 0) {
