@@ -2,6 +2,7 @@
 #include "md.h"
 #include "common.h"
 #include "build/jp.inc"
+#include "mega_logo.h"
 
 #define JP_TILE 0x200               /* free VRAM on the menu and title screens ($200-$286) */
 #define TITLE_PAL ((const u16 *)0x2045E8)
@@ -31,6 +32,28 @@ void draw_jp_logo(int row, int pal)
         for (c = 0; c < JP_W; c++, m++)
             VDP_DATA = *m == 0xFFFF ? 0 : (u16)((pal << 13) | (*m + JP_TILE));
     }
+}
+
+/* Mega Ghosts'n Goblins' logo (Home's screens) on plane B from row 0, palette
+ * line 1 (its pens 7-15 set here): whole, or (sub) the 10 rows from MEGA_SUB
+ * above a screen title. Returns the rows drawn. */
+#define MEGA_TILE 0x300             /* free on the menu screens ($300-$3FF) */
+int draw_mega_logo(int sub)
+{
+    int r, c, first = sub ? MEGA_SUB : 0, n = sub ? 10 : MEGA_H;
+    const u32 *t = mega_tiles;
+    const u16 *m;
+    VDP_CTRLL = VRAM_W(MEGA_TILE * 32);
+    for (r = 0; r < MEGA_NT * 8; r++) VDP_DATAL = *t++;
+    VDP_CTRLL = CRAM_W((16 + 7) * 2);
+    for (r = 0; r < 9; r++) VDP_DATA = mega_colours[r];
+    for (r = 0; r < n; r++) {
+        m = mega_map + (first + r) * MEGA_W;
+        VDP_CTRLL = VRAM_W(0xC000 + r * 128);
+        for (c = 0; c < MEGA_W; c++, m++)
+            VDP_DATA = *m ? (u16)(0x2000 | (*m & 0x1800) | (MEGA_TILE + (*m & 0x7FF) - 1)) : 0;
+    }
+    return n;
 }
 
 /* Called from the title loader ($BB8, in place of `lea $2045E8,a0`).

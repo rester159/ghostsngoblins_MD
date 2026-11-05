@@ -1190,8 +1190,8 @@ def install_maximo(rom, art_dir):
         sys.exit(f'maximo_bankC.bin is {len(c)} bytes, expected {len(BANK_C) * FRAME}')
     if len(a) != 11 * FRAME:
         sys.exit(f'maximo_bankA.bin is {len(a)} bytes, expected {11 * FRAME}')
-    if len(b) == 72 * FRAME:
-        # the co-op layout (art/maximo_options/src/export.py): 72 frames from
+    if len(b) in (72 * FRAME, 73 * FRAME):
+        # the co-op layout (tools/maximo_editor/sheet_to_bins.py): 72 or 73 frames from
         # $40000; the first 8 repeat bank A (A0-A4, A7-A9), so B0 is frame 8
         b = b[8 * FRAME:]
     if len(b) not in (64 * FRAME, 65 * FRAME):

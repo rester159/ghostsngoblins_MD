@@ -15,7 +15,7 @@ void dma_vram(u32 src, u16 bytes, u16 vram);
 
 #define P2_TILE     0x690               /* free in every stage (VRAM $D200-$D3FF) */
 #define ARTHUR_A    0x109E2UL           /* 11 frames */
-#define ARTHUR_B    0x40000UL           /* 72 frames */
+#define ARTHUR_B    0x40000UL           /* 73 frames (B64 at $49000) */
 #define MAXIMO_A    0x3CA000UL          /* placed by tools/patch_gng.py from art/maximo */
 #define MAXIMO_B    0x3C0000UL
 
@@ -173,7 +173,7 @@ static u32 maximo_frame(u32 a)
 {
     if (a >= ARTHUR_A && a < ARTHUR_A + 11 * 0x200 && !((a - ARTHUR_A) & 0x1FF))
         return MAXIMO_A + (a - ARTHUR_A);
-    if (a >= ARTHUR_B && a < ARTHUR_B + 72 * 0x200 && !((a - ARTHUR_B) & 0x1FF))
+    if (a >= ARTHUR_B && a < ARTHUR_B + 73 * 0x200 && !((a - ARTHUR_B) & 0x1FF))
         return MAXIMO_B + (a - ARTHUR_B);
     return a;                       /* anything else (e.g. the frog) is shared */
 }

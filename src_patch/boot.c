@@ -7,6 +7,7 @@
 void sound_stop(void);
 int  title_jp(void);
 void draw_jp_logo(int row, int pal);
+int  draw_mega_logo(int sub);            /* title.c: returns the rows drawn */
 void hiscore_defaults(void);
 void vsync_reset_display(void);
 void boot_intros(void);        /* intro.c: SEGA and CAPCOM logos */
@@ -75,20 +76,41 @@ static int menu_run(const Menu *m, int y0, int sel)
     }
 }
 
+/* Home's screens (its menu and the ones under it) show Mega Ghosts'n Goblins'
+ * logo with the English title: whole on the Home menu (its items a row under
+ * it), 10 rows of it (MEGA and the title) above a screen title. */
+static u8 in_home, logo_rows;
+
+static int mega(void) { return in_home && !title_jp(); }
+
+static void logo(int sub)
+{
+    if (title_jp()) draw_jp_logo(3, PAL_TEXT);
+    else if (in_home) logo_rows = draw_mega_logo(sub);
+    else draw_logo(5);
+}
+
 static void frame_screen(const char *title)
 {
     screen_init();
-    if (title_jp()) draw_jp_logo(3, PAL_TEXT);
-    else draw_logo(5);
+    logo(title != 0);
     if (title) text_center(10, title, PAL_TEXT);
 }
 
-static void redraw_logo(void)
+/* OPTIONS' logo after TITLE changes. full: its items start under the whole
+ * Mega logo (it was opened with it), so that's shown, with no screen title;
+ * else the logo is kept to rows 0-9 with OPTIONS on row 10. */
+static void redraw_logo(int full)
 {
     int i;
-    VDP_CTRLL = VRAM_W(0xC000 + 3 * 128);
-    for (i = 0; i < 7 * 64; i++) VDP_DATA = 0;     /* rows 3-9: either logo */
-    if (title_jp()) draw_jp_logo(3, PAL_TEXT); else draw_logo(5);
+    VDP_CTRLL = VRAM_W(0xC000);
+    for (i = 0; i < (full ? 14 : 10) * 64; i++) VDP_DATA = 0;   /* any logo */
+    clear_rows(10, 10);
+    if (full && mega()) logo(0);
+    else {
+        logo(1);
+        text_center(10, "OPTIONS", PAL_TEXT);
+    }
 }
 
 static int wrap(int v, int dir, int n) { v += dir; return v < 0 ? n - 1 : v >= n ? 0 : v; }
@@ -120,6 +142,7 @@ static const char *const opt_items[] = {
     "LIVES", "CONTINUES", "BONUS", "DIFFICULTY", "TITLE", "SOUND TEST", "BACK",
 };
 static char snd_buf[3];
+static u8 opt_full;                 /* OPTIONS opened under the whole Mega logo */
 static const char *opt_val(int i)
 {
     if (i < HOP_N) return home_value(i, PERSIST->home[i]);
@@ -130,19 +153,21 @@ static const char *opt_val(int i)
 static void opt_chg(int i, int d)
 {
     if (i < HOP_N) PERSIST->home[i] = wrap(PERSIST->home[i], d, home_count(i));
-    if (i == 4) { PERSIST->title_jp ^= 1; redraw_logo(); }
+    if (i == 4) { PERSIST->title_jp ^= 1; redraw_logo(opt_full); }
     if (i == 5) PERSIST->sound_id = (PERSIST->sound_id + d) & 63;
 }
 
 static void options_menu(void)
 {
     static const Menu m = { opt_items, 7, 3, 14, opt_val, opt_chg, 0 };
-    int sel = 0;
-    frame_screen("OPTIONS");
+    int sel = 0, y0;
+    opt_full = mega();              /* Home's: the whole logo, no screen title */
+    frame_screen(opt_full ? 0 : "OPTIONS");
+    y0 = opt_full ? logo_rows + 1 : 12;
     display_on();
     game_sound_init();
     for (;;) {
-        sel = menu_run(&m, 12, sel);
+        sel = menu_run(&m, y0, sel);
         if (sel == 5) { sound_stop(); game_sound_play(PERSIST->sound_id); continue; }
         if (sel == MENU_BACK || sel == 6) break;
     }
@@ -213,6 +238,7 @@ static int home_menu(void)
     static const u8 dev_sub[5] = { HOME_1P, HOME_COOP, HOME_FIREBRAND, HOME_FIREBRAND, HOME_VENDETTA };
     Persist *p = PERSIST;
     int sel = 0;
+    in_home = 1;
     for (;;) {
         const char *items[7];
         u8 ids[7];
@@ -225,7 +251,7 @@ static int home_menu(void)
         Menu m = { items, n, 9, 0, 0, 0, !p->dev_unlocked };
         frame_screen(0);
         display_on();
-        sel = menu_run(&m, 11, sel);
+        sel = menu_run(&m, mega() ? logo_rows + 1 : 11, sel);
         p->dev_on = 0;
         p->fb_plus = 0;
         p->fly_lv = 1;                  /* a new game: Firebrand's flight from level 1 */
@@ -275,7 +301,7 @@ static int arcade_menu(void)
  * the order of how much they reported. Any button goes back. */
 static void credits_screen(void)
 {
-    static const char *const art[] = { "ROBOT-RANDOM" };
+    static const char *const art[] = { "ROBOT-RANDOM", "HJRODRIGO" };
     static const char *const testers[] = {
         "METALCANDYMAN", "ROBOT-RANDOM", "DARKFALZX", "DANGLYLINGHAM",
     };
@@ -284,8 +310,8 @@ static void credits_screen(void)
     frame_screen("COMMUNITY CREDITS");
     text_center(12, "ADDITIONAL ART", PAL_SEL);
     for (i = 0; i < (int)(sizeof(art) / sizeof(art[0])); i++) text_center(14 + i, art[i], PAL_TEXT);
-    text_center(16, "PLAYTESTING", PAL_SEL);
-    for (i = 0; i < (int)(sizeof(testers) / sizeof(testers[0])); i++) text_center(18 + 2 * i, testers[i], PAL_TEXT);
+    text_center(17, "PLAYTESTING", PAL_SEL);
+    for (i = 0; i < (int)(sizeof(testers) / sizeof(testers[0])); i++) text_center(19 + 2 * i, testers[i], PAL_TEXT);
     display_on();
     pad_prev = 0xFF;                    /* ignore buttons still held */
     for (;;) {
@@ -305,6 +331,7 @@ static int boot_menu(void)
     static const Menu m = { items, 3, 8, 0, 0, 0, 0 };
     int sel = PERSIST->mode == MODE_HOME ? 1 : 0;
     for (;;) {
+        in_home = 0;
         frame_screen(0);
         text_center(26, "RESTER159, 2026", PAL_TEXT);     /* the opening menu only */
         display_on();
