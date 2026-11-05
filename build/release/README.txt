@@ -1,13 +1,26 @@
-GHOSTS'N GOBLINS MD  -  V0.7.1 ALPHA
+MEGA GHOSTS'N GOBLINS  -  V0.8 ALPHA
 rester159, 2026
 ==================================
 
 A reworked version of the Ghosts 'n Goblins Mega Drive / Genesis port: fixed to
 run on real hardware and accurate emulators, faster, with 2-player co-op as
-Maximo and a campaign as Firebrand, the Red Arremer.
+Maximo and two campaigns as Firebrand, the Red Arremer. Formerly Ghosts'n
+Goblins MD.
 
-File: Ghosts'nGoblinsMD_Alpha_0.7.1.bin  (4 MiB, regions J/U/E, NTSC and PAL)
-SHA-1: 76eb1c103708cd4a84c80d28f504ae9ce0faa2c3
+File: MegaGhosts'nGoblins_Alpha_0.8.bin  (4 MiB, regions J/U/E, NTSC and PAL)
+SHA-1: 863021b312fec7920f12ce9b6ccef55cdce6e728
+
+
+NEW IN V0.8
+-----------
+- New name and logo: Home is Mega Ghosts'n Goblins. Arcade mode stays the
+  original, and the Japanese Makaimura title is still in the options.
+- FIREBRAND'S VENDETTA: a new campaign that runs the game backwards, from
+  Satan's throne room to the graveyard.
+- Firebrand flies: jump, then press jump again in the air to fly until the
+  FLY gauge runs out. Red wing pickups raise his flight level.
+- Parallax backgrounds in Home mode.
+- Maximo's sprites redrawn (thanks to the community artists).
 
 
 FIXED IN V0.7.1

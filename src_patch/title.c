@@ -2,7 +2,10 @@
 #include "md.h"
 #include "common.h"
 #include "build/jp.inc"
+#if __has_include("mega_logo.h")    /* art/mega_logo/src/logo.py; not in the repository */
 #include "mega_logo.h"
+#define HAVE_MEGA 1
+#endif
 
 #define JP_TILE 0x200               /* free VRAM on the menu and title screens ($200-$286) */
 #define TITLE_PAL ((const u16 *)0x2045E8)
@@ -40,6 +43,12 @@ void draw_jp_logo(int row, int pal)
 #define MEGA_TILE 0x300             /* free on the menu screens ($300-$3FF) */
 int draw_mega_logo(int sub)
 {
+#ifndef HAVE_MEGA
+    void draw_logo(int row);
+    (void)sub;
+    draw_logo(5);                   /* without the logo's art: the game's own, rows 0-9 */
+    return 10;
+#else
     int r, c, first = sub ? MEGA_SUB : 0, n = sub ? 10 : MEGA_H;
     const u32 *t = mega_tiles;
     const u16 *m;
@@ -54,6 +63,7 @@ int draw_mega_logo(int sub)
             VDP_DATA = *m ? (u16)(0x2000 | (*m & 0x1800) | (MEGA_TILE + (*m & 0x7FF) - 1)) : 0;
     }
     return n;
+#endif
 }
 
 /* Called from the title loader ($BB8, in place of `lea $2045E8,a0`).

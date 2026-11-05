@@ -20,6 +20,7 @@
 /art/*.jpg
 /art/firebrand/dc/
 /tools/*_editor/*_data.js
+/src_patch/mega_logo.h
 /docs/screens/
 
 # Local

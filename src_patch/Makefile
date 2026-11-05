@@ -40,7 +40,7 @@ build/opening.o: build/intro_art.inc build/intro_waits.inc
 # CAPCOM_KIT); without them the stub skips the intros.
 build/intro.inc: mkintro.py
 	python3 -I mkintro.py $@
-build/title.o: build/jp.inc mega_logo.h
+build/title.o: build/jp.inc $(wildcard mega_logo.h)
 
 build/swap.s: mkswap.py p2.c
 	python3 -I mkswap.py p2.c $@

@@ -1123,6 +1123,8 @@ def install_big_man_edge(rom, sym):
     put(rom, 0xAD4C, bytes.fromhex('4e714e714e71'))
 
 
+VERSION = 'V0.8 ALPHA'         # the features build's, in its header (src_patch/common.h)
+
 FRAME = 0x200                  # 32x32 4bpp, 16 tiles column-major
 MAXIMO_A = 0x109E2             # bank A: boot-time copy of A0..A10, loaded to VRAM $6000
 MAXIMO_B = 0x41000             # bank B: B0..B64 = $41000..$491FF
@@ -1302,7 +1304,8 @@ def main(src, dst, features=None, maximo=None):
         install_maximo(rom, maximo)
 
     # --- 6. header ----------------------------------------------------------
-    title = b"GHOSTS'N GOBLINS".ljust(48)
+    # the features build is Mega Ghosts'n Goblins (src_patch/common.h VERSION)
+    title = (b"MEGA GHOSTS'N GOBLINS " + VERSION.encode() if features else b"GHOSTS'N GOBLINS").ljust(48)
     put(rom, 0x120, title)
     put(rom, 0x150, title)
     put(rom, 0x1A0, be32(0) + be32(OUT_SIZE - 1))

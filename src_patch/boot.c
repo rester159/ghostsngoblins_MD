@@ -333,7 +333,7 @@ static int boot_menu(void)
     for (;;) {
         in_home = 0;
         frame_screen(0);
-        text_center(26, "RESTER159, 2026", PAL_TEXT);     /* the opening menu only */
+        text_center(26, "RESTER159, 2026 - " VERSION, PAL_TEXT);   /* the opening menu only */
         display_on();
         sel = menu_run(&m, 14, sel);
         if (sel == 0) {
