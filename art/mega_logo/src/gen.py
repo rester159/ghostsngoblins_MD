@@ -75,15 +75,18 @@ PROMPT_DEMON2 = (
 )
 
 
-def edit(ref, n, prompt=PROMPT, extra=()):
+def edit(ref, n, prompt=PROMPT, extra=(), mask=None, size='1536x1024'):
     b = uuid.uuid4().hex
     parts = []
     for name, val in (('model', os.environ.get('IMAGE_MODEL', 'gpt-image-2')), ('prompt', prompt), ('n', str(n)),
-                      ('size', '1536x1024'), ('quality', 'high'), ('background', 'opaque')):
+                      ('size', size), ('quality', 'high'), ('background', 'opaque')):
         parts.append(f'--{b}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{val}\r\n'.encode())
     for k, path in enumerate((ref,) + tuple(extra)):
         parts.append(f'--{b}\r\nContent-Disposition: form-data; name="image[]"; filename="ref{k}.png"\r\n'
                      'Content-Type: image/png\r\n\r\n'.encode() + open(path, 'rb').read() + b'\r\n')
+    if mask:
+        parts.append(f'--{b}\r\nContent-Disposition: form-data; name="mask"; filename="mask.png"\r\n'
+                     'Content-Type: image/png\r\n\r\n'.encode() + open(mask, 'rb').read() + b'\r\n')
     body = b''.join(parts) + f'--{b}--\r\n'.encode()
     rq = urllib.request.Request('https://api.openai.com/v1/images/edits', body, {
         'Authorization': 'Bearer ' + key(), 'Content-Type': 'multipart/form-data; boundary=' + b})
