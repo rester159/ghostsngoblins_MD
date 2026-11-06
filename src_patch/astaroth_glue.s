@@ -207,6 +207,7 @@ ast_a6: .space 4
     .global room_init_end, room_lit
 room_init_end:
     jsr     0x103D10
+    jsr     end_reset               | ending.c: no ending left over from a first clear
     movem.l %d0/%a0,-(%sp)
     lea     room_pal,%a0
     move.l  #0x00000020,0xC00004    | CRAM read 0

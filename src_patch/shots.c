@@ -58,11 +58,22 @@ void weapon_vs_shots(void)
 static u8 once[16][8];
 static const u8 once_base[7] = { 0, 14, 37, 69, 81, 96, 106 };  /* $EB3C */
 
+extern u8 star_tag[6];                  /* bossart.c */
+void skull_reset(void);
+void satan_reset(void);
+void petite_reset(void);
+void ast_reset(void);
+
 void spawn_reset(void)
 {
     int i, j;
     for (i = 0; i < 16; i++)
         for (j = 0; j < 8; j++) once[i][j] = 0;
+    for (i = 0; i < 6; i++) star_tag[i] = 0;
+    skull_reset();
+    satan_reset();
+    petite_reset();
+    ast_reset();
 }
 
 int spawn_seen(long off, const u8 *rec)

@@ -8,7 +8,7 @@
  * As in satan.c, each Astaroth keeps an image of the arcade's 48-byte enemy
  * slot (`s`, s[n] = X-$10+n for the routines' X), so the code below reads
  * like the 6809 code. The port slot gets x/y, the state and the frame; the
- * port keeps its own drawing (frames 1/3 walking right/left, 2/4 the open
+ * port keeps its own drawing (frames 1/3 walking left/right, 2/4 the open
  * mouth, shown in the rapid-fire mode as the arcade's $5308/$5302 scripts
  * do), hit points, death (+7 = 2, see astaroth_glue.s) and removal (+7 = 3).
  *
@@ -281,6 +281,7 @@ void *ast_alloc(void);                  /* astaroth_glue.s: an enemy slot ($7BD2
 int ast_floor(int x, int y);            /* astaroth_glue.s: $8CA7 for size class 0 */
 void ast_sound(int id);                 /* astaroth_glue.s: $B762 etc. */
 void end_reset(void);                   /* ending.c */
+int  room_scene(void);
 
 /* The arcade's projectile pool (<$A7 free count, <$A8 stack; 6 slots) is the
  * port's shot pool ($FFC220 count, $FFC228 stack, slots at $FFC100), which
@@ -300,6 +301,12 @@ static Ast *bind(u8 *p, int *fresh)
     return &ast[k];
 }
 
+void ast_reset(void)                    /* as skull_reset */
+{
+    int i;
+    for (i = 0; i < NAST; i++) ast[i].slot = 0;
+}
+
 /* $111BB2 (the port's states 0 and 1, from hook_ast with a4). Returns 1 on the
  * frame the arcade's init runs (the port raises its boss count then, as its
  * own init did). */
@@ -317,6 +324,7 @@ int ast_update(u8 *p)
         s[9] = p[21]; s[10] = p[22]; s[11] = p[23];
         X(5) = 13;
     }
+    if (ST0 == 1 && room_scene()) return 0;     /* ending.c: he stands through the opening */
     i.ax = RAM16(0xFFA204);
     i.camx = RAM16(0xFFA200);
     i.camy = RAM16(0xFFA202);
@@ -346,7 +354,7 @@ int ast_update(u8 *p)
     wr16(p + 2, YI);
     p[24] = !X(0x18);                   /* the port's: 1 = facing right */
     p[26] = X(0xD);
-    wr16(p + 30, (X(0x18) ? 3 : 1) + (X(0xD) ? 1 : 0));
+    wr16(p + 30, (X(0x18) ? 1 : 3) + (X(0xD) ? 1 : 0));   /* 1-2 face left, 3-4 right */
     return r >> 3;
 }
 

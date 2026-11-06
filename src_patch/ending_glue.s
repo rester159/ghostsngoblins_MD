@@ -226,6 +226,7 @@ hook_end_vbl:
 1:  jmp     0x63FA
 
     .balign 2
+    .global prin_tiles
 prin_tiles:
     .include "build/princess.inc"
 prin_end:

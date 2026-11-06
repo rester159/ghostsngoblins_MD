@@ -1321,6 +1321,36 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     2, 3, 5 -> 13; stage 6 the same greys of its line (6 -> 2). Previewed in each line: the old copies match the
     screenshots' colours; the opening itself wasn't played (the boss fights).
 
+109. **The second loop's final room is played** (`ending.c` `end_reset`, `astaroth_glue.s` `room_init_end`). Reported on V0.7.3 and V0.8:
+    Arthur stuck in the room, no Astaroth, TIME 2:00, only the music. `phase`, the ending's state, went back to 0 only in
+    Astaroth's own init, which runs inside the game update; left at 1 by the first clear, `end_update` said "the ending is on",
+    the room's loop skipped the update that would have run him, and `--count` from 0 took 65,536 updates. Every second loop
+    (and Firebrand's Quest Plus, with phase 4). Reproduced by a developer launch with phase 1, count 0, the flag 1: room drawn,
+    TIME still, 1 slot, Arthur doesn't move; now he walks and the fight runs. The phase is 0 at the end of the ending and at the room's init.
+110. **Astaroth faces Arthur, and his shots are the arcade's** (`astaroth.c`, `bossart.c` `room_art`, `ending.c` `end_build_sprites`,
+    `mkart.py` `room_art`). Reported on V0.8. Frames 1-2 face left, 3-4 right, and the port gave 3 to the arcade's facing left
+    (hidden until Fixed 104, when he was drawn from the Satans' pieces). The shots drew the 32 x 32 walking flame; now the arcade's
+    sprite `$40`, one 16 x 16 bolt mirrored by direction, in line 0 (the flame's frames at `$320`-`$34F`: their lower pieces
+    hold it, centred on the two columns, the upper are blank).
+111. **The room's opening** (`ending.c` `scene_step`, `room_scene`). Reported on V0.8. The arcade, at each entry after a map (measured,
+    408 frames): "RESOLVE YOUR BATTLE !" (fg, row 13, colour 8) all through, Arthur walking in ~50 frames, Astaroth still, the
+    princess at x 171 in front of him, from frame 350 walking 1 px a frame to x 236, where she stays through the fight (x 235,
+    y 162 arcade). Here the updates run: Arthur's input is scripted, `ast_update` holds him, Firebrand has no scene. Tiles: the
+    letters `$7A0`, the princess `$790` (the gap in VRAM), line 2 hers. Differences: the arcade shows a second, blank
+    transition and has no TIME in the scene; here TIME runs (about 6.8 s of the 2:00), and he starts from where he walked to.
+112. **A new stage's enemies aren't the last stage's** (`skull.c`, `satan.c`, `petite.c`, `astaroth.c` `*_reset`, from `spawn_reset`). Reported on V0.7.3
+    and V0.8: stage 6 opens with 3 skulls, not 5, and the skull over the Red Arremer missing. Each keeps a 48-byte image per
+    slot and `bind` refreshed it only for a new slot; a slot asleep in stage 5 wrote its old x/y over stage 6's skull in it. Only a
+    real stage 5 exit shows it. Measured with `$FFCD78` = 2 in stage 5 (the door done): 5 of stage 6's 11 skulls at stage 5's x
+    6832-7088; now all 11 as the arcade's and a direct launch. The armor reported with them wasn't re-checked.
+113. **The second loop's plants' eyeballs** (`bossart_glue.s` `star_sel`, `shots.c`). Reported on V0.8. `star_tag` (a Satan's shot, drawn as
+    the star) was cleared only by the stages that load the Satans' art and `star_sel` didn't look at the stage: tags left by stage 6
+    drew the same shot slots as stars in later stages, from tiles not there. Tags as stage 6 leaves them, 24 frames after the spit: V0.8.1 no
+    eyeball, now drawn. The test is stages 5, 6 only, the tags cleared each life.
+114. **Building crows stay blue** (`bigman.s` `crow_hook`). Reported on V0.8: a blue crow following Arthur out of the building turned red at
+    the first moving platforms: the colour came from the bank in (`$FFB028`). Now subtype 4 goes through the cache in either bank
+    (no plane cell uses its tiles in bank 1, sampled every 10 frames from x 6020 to 6202).
+
 ## Matching (audited)
 
 - **Tombstone boxes against their art** (reported on V0.7: drawn in one place, solid slightly to the right).
@@ -1459,8 +1489,8 @@ They stay as they are; each note says why.
 ## Open
 
 - **V0.7.3 reports** (metalcandyman, itch.io, 1P, Genesis Plus GX, both loops; 12 screenshots):
-  1. Loop 2: before Astaroth the whole screen shows garbage for a moment, then Arthur is stuck, Astaroth never
-     appears and only the music runs (softlock; the screenshot: the room drawn, TIME 2:00, no Astaroth). Not
+  1. Fixed 109. Loop 2: before Astaroth the whole screen shows garbage for a moment, then Arthur is stuck, Astaroth never
+     appears and only the music runs (softlock; the screenshot: the room drawn, TIME 2:00, no Astaroth). Then not
      reproduced: a developer launch of the room with `$FF7FC0` = 1 has Astaroth and the fight (before and after
      Fixed 104-105); stage 6's end wasn't reached headless on this build (its proof desyncs from V0.7.3 on, and
      forcing `$FFC8D6`/`$FFDB08` doesn't take the stage loop there). The garbage frame is Fixed 105; with the
@@ -1468,13 +1498,15 @@ They stay as they are; each note says why.
      one that got stuck.
   2. Loop 1: the garbage frame and Astaroth drawn as garbage: Fixed 104, 105.
   3. Stage 6: one Satan instead of two: Fixed 106.
-  4. Stage 6's start: three skulls on the floor where the arcade has five. Not reproduced: developer launches of
+  4. Fixed 112. Stage 6's start: three skulls on the floor where the arcade has five. Then not reproduced: developer launches of
      V0.7.3 and now show five (x as the screenshot's three plus one each side); the report's came after stage 5.
   5. Stage 6's first floor: no armor above the Red Arremer before the first skull when Arthur has lost his armor
      (the arcade puts one there), and that first skull missing. Not reproduced: Arthur can't be put on that floor by
      a life start (he falls through), and Firebrand's route search (`fb_campaign.py` on this build) stayed at the
      stage's first screen for 11 minutes; the stage 6 proof (`fb_proofs/stage6.moves`) only replays on V0.7.2.
-  6. Stage 2: the large black block at the end of the building (still); sprite garbage at the bottom before the
+  6. Reported again on V0.8 (the block smaller, in the first loop only; the garbage in both, more in the second). Stage 2's second half can
+     be reached headless now (flag `$FFC521` and `$FFF401`, die: x 4736; lift out of the water, 32 px past walls): a direct launch, sampled
+     every 150 px to x 6240, shows neither, so it's still not reproduced; a real stage 1 exit isn't forced yet. Stage 2: the large black block at the end of the building (still); sprite garbage at the bottom before the
      Unicorns (screenshots: black bands of stage 1/3 tiles over the floor at x ~5900-6200); smaller in loop 2. Not
      reproduced: a life started at x 5700 walks to the olive building and drowns before the spot; Firebrand's route
      search reached the Unicorns but its straight replay died at frame 2226 and the repair ran out of budget.

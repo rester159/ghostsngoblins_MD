@@ -583,6 +583,12 @@ static Rec *bind(u8 *p, int *fresh)
     return k;
 }
 
+void petite_reset(void)                 /* as skull_reset */
+{
+    Rec *r;
+    for (r = rec; r < rec + NREC; r++) r->slot = 0;
+}
+
 /* $10C99A (from petite_entry, states 0 and 1; p = the slot, x = the context) */
 void petite_update(u8 *p, const Ctx *x)
 {

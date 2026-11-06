@@ -54,7 +54,11 @@ star_sel:
     bne.s   0f
     lea     fire_frame,%a2
     jmp     0x117238
-0:  move.l  %a1,%d7
+0:  cmpi.b  #4,0xFFC512            | stages 5 and 6 only: the star's art isn't there
+    bcs.s   8f                      | anywhere else (a tag left by stage 6's last shot
+    cmpi.b  #5,0xFFC512             | drew the second loop's plants' eyeballs as nothing)
+    bhi.s   8f
+    move.l  %a1,%d7
     subi.l  #0xFFC100,%d7
     bcs.s   8f
     divu    #48,%d7

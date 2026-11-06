@@ -519,6 +519,45 @@ const s16 fire_frame[4] = { 1, -8, 8, FIRE_T };
  * stage 2 run and two town walks); bigman.s stone_attr points them there.
  * The port drew them from $7F0, which the start of play fills with art of its
  * own (a pale slab). */
+/* The final room (ending.c room_scene): Astaroth's shot over the flame frames
+ * the room's type 10 draws from ($320-$34F, 3 frames of 4 pieces, 4 tiles each:
+ * lower left, upper left, lower right, upper right), the upper pieces blank;
+ * the scene's letters and the princess at $790, the gap in VRAM. */
+#define BOLT_T   0x320
+#define RES_T    0x7A0
+#define RES_ROW  11
+#define RES_COL  8
+static void vram_zero(u16 addr, u16 words)
+{
+    VDP_CTRLL = VRAM_W(addr);
+    while (words--) VDP_DATA = 0;
+}
+void room_art(const u16 *prin, u16 prin_words)
+{
+    static const char txt[] = "RESOLVE YOUR BATTLE !";
+    int f, k, i;
+    for (f = 0; f < 3; f++) {
+        vram_copy(bolt_art, 64, BOLT_T + f * 16);
+        vram_zero(BOLT_T * 32 + (f * 16 + 4) * 32, 64);
+        vram_copy(bolt_art + 64, 64, BOLT_T + f * 16 + 8);
+        vram_zero(BOLT_T * 32 + (f * 16 + 12) * 32, 64);
+    }
+    if (!prin) return;                  /* Firebrand: the shots only */
+    vram_copy(res_font, sizeof res_font / 2, RES_T);
+    vram_copy(prin, prin_words, 0x790);
+    VDP_CTRLL = VRAM_W(0xE000 + RES_ROW * 128 + RES_COL * 2);
+    for (k = 0; txt[k]; k++) {
+        u16 e = 0;
+        for (i = 0; i < 12; i++)
+            if (RES_LETTERS[i] == txt[k]) e = 0x8000 | (RES_T + i);
+        VDP_DATA = e;
+    }
+}
+void room_art_off(void)
+{
+    vram_zero(0xE000 + RES_ROW * 128 + RES_COL * 2, 21);
+}
+
 #define STONE_T 0x48C
 void stone_load(void)
 {

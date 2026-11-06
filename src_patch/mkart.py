@@ -660,6 +660,40 @@ def stone_tiles():
 
 
 stone_tiles()
+
+
+def room_art():
+    """The final room: Astaroth's shot, the arcade's sprite $40 (colour 0, line 0's reds), 16 x 16, centred over
+    the port's two 16 x 16 columns of its flame frames: bolt_art is their lower row, left then right (8 tiles). And
+    RESOLVE YOUR BATTLE ! in the arcade's chars (colour 8, the nearest in line 0: pen 3 and its shadow, pen 2 of
+    the chars, in grey pen 9): res_font, one tile a letter."""
+    arc = [(0, 102, 187), (0, 0, 0), (204, 170, 136), (170, 136, 102), (119, 85, 0), (85, 68, 0), (136, 136, 170),
+           (102, 102, 136), (68, 68, 102), (153, 153, 0), (136, 68, 0), (102, 0, 0), (170, 170, 204), (204, 0, 0),
+           (204, 119, 0), (0, 0, 0)]
+    pm = penmap(arc, PORT_L0_S56, 15)
+    row = [[0] * 32 for _ in range(16)]
+    for y in range(16):
+        for x in range(16):
+            row[y][8 + x] = pm[spr_pen(0x40, x, y)]
+    words = []
+    for x0 in (0, 16):
+        for tx, ty in ((0, 0), (0, 1), (1, 0), (1, 1)):
+            for y in range(8):
+                r = row[ty * 8 + y][x0 + tx * 8:x0 + tx * 8 + 8]
+                words += [(r[0] << 12) | (r[1] << 8) | (r[2] << 4) | r[3], (r[4] << 12) | (r[5] << 8) | (r[6] << 4) | r[7]]
+    emit_words('bolt_art', words)
+    letters = 'RESOLVYUBAT!'
+    words = []
+    fg = {0: 3, 1: 3, 2: 9, 3: 0}
+    for ch in letters:
+        for y in range(8):
+            r = [fg[chr_pen(ord(ch), x, y)] for x in range(8)]
+            words += [(r[0] << 12) | (r[1] << 8) | (r[2] << 4) | r[3], (r[4] << 12) | (r[5] << 8) | (r[6] << 4) | r[7]]
+    emit_words('res_font', words)
+    out.append('#define RES_LETTERS "%s"' % letters)
+
+
+room_art()
 intro_scene()
 
 # The black part (opening.c): frame n of it is the arcade's frame 999 + n (Start at 800; the graveyard is

@@ -106,6 +106,8 @@ crow_hook:
     bne.s   2f
     tst.w   0xFFB028
     beq.s   1f
+    cmpi.b  #4,6(%a4)               | a building crow (subtype 4) stays blue when it
+    beq.s   1f                      | follows Arthur out to the stepping stones
 2:  move.w  4(%a2),4(%a5)
     rts
 1:  movem.l %d0-%d1/%a0-%a1,-(%sp)

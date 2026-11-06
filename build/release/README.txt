@@ -1,4 +1,4 @@
-MEGA GHOSTS'N GOBLINS  -  V0.8.1 ALPHA
+MEGA GHOSTS'N GOBLINS  -  V0.8.2 ALPHA
 rester159, 2026
 ==================================
 
@@ -7,8 +7,22 @@ run on real hardware and accurate emulators, faster, with 2-player co-op as
 Maximo and two campaigns as Firebrand, the Red Arremer. Formerly Ghosts'n
 Goblins MD.
 
-File: MegaGhosts'nGoblins_Alpha_0.8.1.bin  (4 MiB, regions J/U/E, NTSC and PAL)
-SHA-1: e06e1805bf621bf31c1bd8f27678af5e8340d7af
+File: MegaGhosts'nGoblins_Alpha_0.8.2.bin  (4 MiB, regions J/U/E, NTSC and PAL)
+SHA-1: 1b3c25f59189e48c21826508b03805ccdda3b15a
+
+
+FIXED IN V0.8.2
+---------------
+- The second loop could not be finished: Arthur stood in Astaroth's room
+  with no Astaroth and only the music. Firebrand's Quest Plus had the same
+  problem.
+- Astaroth faces Arthur, and throws the arcade's bolts.
+- The room opens as in the arcade: "RESOLVE YOUR BATTLE !", Arthur walking
+  in, and the princess beside Astaroth, who then waits at the right.
+- Stage 6's skulls are all there after a real stage 5 clear (3 instead of 5
+  at the start).
+- The plants' eyeballs are drawn in the second loop.
+- A blue raven stays blue when it follows you out of stage 2's building.
 
 
 CHANGED IN V0.8.1

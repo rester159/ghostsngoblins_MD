@@ -170,6 +170,14 @@ static u8 phase;                        /* 0 waiting, 1 first clear's text, 2 pr
                                            4 Firebrand's ending */
 static u16 t;                           /* frames since the ending began (1 = the arcade's frame 1) */
 static u16 count;                       /* the arcade's <$09 */
+#define SCENE_LEN 408
+static u16 scene;                       /* the room's opening scene: frames left */
+static u16 prx;                         /* the princess's screen x in the room, 0 = not drawn */
+static u8 room_f;                       /* the room's updates, up to 6 (the art is in) */
+extern const u8 prin_tiles[];           /* ending_glue.s */
+void room_art(const u16 *prin, u16 prin_words);    /* bossart.c */
+void room_art_off(void);
+void prin_cram(void);
 static u8 tx;                           /* which text of the second clear */
 static u8 ast, pst, hearts, hug, black; /* Arthur's -$D,X; the princess's <$0E; ... */
 static u8 stopped;                      /* Arthur's $6,X */
@@ -177,7 +185,42 @@ static u16 target, hx, hy;
 static u32 px;                          /* the princess's x, 16.8 */
 u8 end_upload;                          /* ending_glue.s: the tiles go to VRAM at the next upload */
 
-void end_reset(void) { phase = 0; }
+/* The room's init calls this (astaroth_glue.s room_init_end): phase has to be 0
+ * before the room's first update. Only Astaroth's own init did it, and with
+ * the first clear's phase left over end_update skipped the update that runs
+ * him: the second loop's room stood with no Astaroth for 65,536 updates. */
+void end_reset(void)
+{
+    phase = 0;
+    scene = fb_on() ? 0 : SCENE_LEN;    /* no opening for Firebrand, the bolts only */
+    room_f = 0;
+    prx = 0;
+}
+
+/* The arcade's scene at every entry to the room (measured, 408 frames from the
+ * room's first): "RESOLVE YOUR BATTLE !" all through it, Arthur walking in for
+ * 50 frames, the princess beside Astaroth, who stands, and from frame 350 she
+ * walks 1 px a frame to x 236, where she stays through the fight. The game's
+ * updates run: Arthur's input is the script's and astaroth.c holds Astaroth
+ * while room_scene() (the port's room has no second screen to change to). */
+int room_scene(void) { return scene != 0; }
+
+static void scene_step(void)
+{
+    u16 f;
+    if (STAGE != 6) return;
+    if (room_f < 6 && ++room_f == 6) {  /* CRAM is back (room_lit): her line, the art */
+        if (scene) prin_cram();
+        room_art(scene ? (const u16 *)prin_tiles : 0, 16 * 16);
+        if (scene) prx = 171;
+    }
+    if (!scene) return;
+    f = SCENE_LEN - scene;
+    RAM8(0xFF7001) = f < 55 ? 0xFE : 0xFF;      /* right, then nothing, no fire */
+    if (f >= 350 && prx && prx < 236) prx++;
+    if (--scene == 0) room_art_off();
+}
+
 
 static u8 c21(void) { return RAM8(0xFF7DFF) + menu_frames; }
 
@@ -279,6 +322,7 @@ static void texts_frame(void)
 int end_update(void)
 {
     if (phase == 0) {
+        scene_step();
         if (STAGE != 6 || !end_trigger()) return 0;
         t = 0;
         black = 0; hug = 0; hearts = 0;
@@ -309,6 +353,7 @@ int end_update(void)
     case 1:
         if (--count == 0) {             /* $743E */
             LOOPED = 1;
+            phase = 0;
             end_to_map();
         }
         break;
@@ -322,6 +367,7 @@ int end_update(void)
     case 4:
         if (--count == 0) {
             fb_cleared();
+            phase = 0;
             end_to_map();
         }
         break;
@@ -385,8 +431,28 @@ void end_text_sprites(void)
  * the embrace is drawn. */
 void end_build_sprites(void)
 {
-    int n;
-    if (phase < 2 || STAGE != 6) return;
+    int n, k;
+    if (STAGE != 6) return;
+    n = (SPR_LAST + 1) / 4;
+    for (k = 0; room_f == 6 && k < n; k++) {    /* Astaroth's shots: line 0, as the arcade's colour 0 */
+        u16 t = SPR[4 * k + 2] & 0x7FF;
+        if (t >= 0x320 && t < 0x350) SPR[4 * k + 2] &= 0x9FFF;
+    }
+    if (phase == 0 && prx) {            /* in the fight behind everything: last in the list */
+        u16 a = 0x4000 | 0x790;
+        u16 w = scene && prx > 171 && prx < 236;
+        if (w) a = (a + ((prx >> 2) & 1 ? 8 : 0)) | 0x800;
+        if (scene) {                    /* in front of Astaroth, as the arcade's */
+            for (k = 0; k < 4; k++) SPR[4 * n + k] = SPR[k];
+            n++;
+            put(0, prx, 145, 7, a);
+        } else
+            n = put(n, prx, 145, 7, a);
+        link_all(n);
+        SPR_LAST = 4 * n - 1;
+        return;
+    }
+    if (phase < 2) return;
     n = 1;                              /* Arthur ($5302's first entry) only: */
     if (hug && !fb_on()) SPR[0] = 0;    /* the stage-end mode draws no weapons */
     n = scene_sprites(n);

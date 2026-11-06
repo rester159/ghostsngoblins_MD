@@ -431,6 +431,12 @@ static Satan *bind(u8 *p, int *fresh)
     return k;
 }
 
+void satan_reset(void)                  /* as skull_reset */
+{
+    Satan *r;
+    for (r = sat; r < sat + NSAT; r++) r->slot = 0;
+}
+
 /* $110578 / $1105C6 (port states 0 and 1, from hook_satan with a4).
  * Returns 1 when the port's boss count ($10E9B6, which the port's own init
  * raised) is to be raised: where the arcade raises its <$B5, on waking. */

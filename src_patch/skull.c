@@ -358,6 +358,15 @@ static Rec *bind(u8 *p, int *fresh)
     return k;
 }
 
+/* each life and stage start (shots.c spawn_reset): a slot's image belongs to the
+ * enemy that was in it. Kept, stage 6's skulls took stage 5's x and y from the
+ * images of the slots they were given (3 at the start instead of 5). */
+void skull_reset(void)
+{
+    Rec *r;
+    for (r = rec; r < rec + NREC; r++) r->slot = 0;
+}
+
 /* from skull_entry (stage 5, type 9, states 0 and 1): p = the slot, a = the
  * object pass context ($FFA200: camera +0/+2, Arthur x +4, y +48, frame +6,
  * slot counter +7, rank +8) */
