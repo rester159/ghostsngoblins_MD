@@ -19,8 +19,8 @@
 |
 | Every stage loop's $FF9600 copy (patch_gng.py, ten places) comes here
 | first. It runs after the loop's scroll write on every path (a held frame,
-| glue.s hook_sat_dma, returns there too), so the scroll read back from the
-| VDP is the one on screen this frame. Outside the parallax the register is
+| glue.s hook_sat_dma, returns there too), so $FF9100/$FF9102 are the scrolls
+| on screen this frame. Outside the parallax the register is
 | put back to 0 (one word): the other stages, and stage 1 past PAR_END, scroll
 | as they always did.
 |
@@ -49,11 +49,10 @@ par_9600:
 1:  movem.l %d0-%d3/%a0-%a1,-(%sp)
     lea     0xC00004,%a0
     lea     0xC00000,%a1
-    move.l  #0x00020010,(%a0)       | VSRAM read 2: plane B's v scroll
-    cmpi.w  #16,(%a1)
+    tst.w   0xFF9102                | plane B's v scroll is 16 - this (the loop just wrote it)
     bne.w   8f
-    move.l  #0x3C020003,(%a0)       | VRAM read $FC02: plane B's h scroll
-    move.w  (%a1),%d0               | -cam
+    move.w  0xFF9100,%d0            | the h scroll the loop just wrote: -cam
+    neg.w   %d0
     move.w  #PAR_END,%d1
     add.w   %d0,%d1                 | PAR_END - cam
     ble.w   8f                      | (signed) at or past the hand-over
@@ -121,6 +120,7 @@ par_dispoff:
     move.w  #0x8104,0xC00004
     move.w  #0x8B00,0xC00004
     sf      par_ok
+    st      w3_phase                | the tiles may be reloaded: draw the wall again
     rts
 
 | Stage 3's green back wall at half the camera's speed, by tile animation.
@@ -131,10 +131,11 @@ par_dispoff:
 | rolled right by s = (cam / 2) mod 16: the plane moves left 2 px for every
 | 1 px the rock moves right in it. Pre-rolled copies (16 phases x 8 tiles)
 | are built by tools/patch_gng.py from the stage's tile art in the ROM.
-| One VRAM word of them differs in every phase (wall3_cmd reads it,
-| wall3_chk holds its 16 values), so the 256-byte upload happens only when
-| the phase changed and still happens after anything reloads the stage's
-| tiles (a death, the stage map). Where a block meets stalactites or the
+| The 256-byte upload happens only when the phase changed (w3_phase) and again
+| after anything reloads the stage's tiles: a death and the stage map turn
+| the display off (par_dispoff). Nothing here reads the VDP: the scrolls are
+| the RAM copies the loop has just written (reads are slow and, on real
+| hardware, a VSRAM read's upper bits are FIFO leftovers). Where a block meets stalactites or the
 | platforms' slopes in the same tile, that tile keeps its wall still.
 | Cost (cycles, counted): ~300 a frame; ~1800 (4 lines) on the frames the
 | phase moves, about 2 in 5 while walking. Measured in stage 3 (V counter):
@@ -146,17 +147,13 @@ w3_wall:
     movem.l %d0-%d1/%a0-%a2,-(%sp)
     lea     0xC00004,%a0
     lea     0xC00000,%a1
-    move.l  #0x3C020003,(%a0)       | VRAM read $FC02: plane B's h scroll
-    move.w  (%a1),%d0               | -cam
-    neg.w   %d0
+    move.w  0xFF9100,%d0            | cam (the loop just wrote -this)
     lsr.w   #1,%d0
     andi.w  #15,%d0
-    add.w   %d0,%d0
-    lea     wall3_chk,%a2
-    move.w  0(%a2,%d0.w),%d1
-    move.l  wall3_cmd,(%a0)
-    cmp.w   (%a1),%d1
+    cmp.b   w3_phase,%d0
     beq.w   9f                      | already drawn at this phase
+    move.b  %d0,w3_phase
+    add.w   %d0,%d0
     lsl.w   #7,%d0                  | phase * 256
     lea     wall3,%a2
     adda.w  %d0,%a2
@@ -171,11 +168,10 @@ w3_wall:
 
     .lcomm  par_s, 2                | stage 1: the mountain rows' scroll shown
     .lcomm  par_ok, 1               | par_s is valid
+    .lcomm  w3_phase, 1             | stage 3: the wall's phase drawn, $FF = none
 
 | filled by install_parallax (tools/patch_gng.py); in the intro bank, which has room
     .section .intro.wall3,"a"
     .balign 4
-    .global wall3, wall3_chk, wall3_cmd
+    .global wall3
 wall3:      .space  16 * 8 * 32     | [phase][tile $44 $4B $50 $72 $74 $7A $81 $83][32 bytes]
-wall3_chk:  .space  16 * 2          | [phase] the check word
-wall3_cmd:  .space  4               | VRAM read command of the check word

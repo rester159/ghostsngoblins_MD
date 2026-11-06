@@ -605,13 +605,7 @@ def install_parallax(rom, sym):
             rolled[left], rolled[right] = L, R
         for t in order:
             table += rolled[t]
-    # a word that differs in all 16 phases: the upload's "already there" check
-    at = next(o for o in range(0, 256, 2) if len({bytes(table[p * 256 + o:p * 256 + o + 2]) for p in range(16)}) == 16)
-    vaddr = order[at // 32] * 32 + at % 32
-    chk = b''.join(table[p * 256 + at:p * 256 + at + 2] for p in range(16))
     put(rom, sym['wall3'], bytes(table))
-    put(rom, sym['wall3_chk'], chk)
-    put(rom, sym['wall3_cmd'], be32(((vaddr & 0x3FFF) << 16) | (vaddr >> 14)))
 
 
 def install_vd_map(rom, sym):
@@ -1123,7 +1117,7 @@ def install_big_man_edge(rom, sym):
     put(rom, 0xAD4C, bytes.fromhex('4e714e714e71'))
 
 
-VERSION = 'V0.8 ALPHA'         # the features build's, in its header (src_patch/common.h)
+VERSION = 'V0.8.1 ALPHA'         # the features build's, in its header (src_patch/common.h)
 
 FRAME = 0x200                  # 32x32 4bpp, 16 tiles column-major
 MAXIMO_A = 0x109E2             # bank A: boot-time copy of A0..A10, loaded to VRAM $6000

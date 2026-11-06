@@ -1,4 +1,4 @@
-MEGA GHOSTS'N GOBLINS  -  V0.8 ALPHA
+MEGA GHOSTS'N GOBLINS  -  V0.8.1 ALPHA
 rester159, 2026
 ==================================
 
@@ -7,8 +7,15 @@ run on real hardware and accurate emulators, faster, with 2-player co-op as
 Maximo and two campaigns as Firebrand, the Red Arremer. Formerly Ghosts'n
 Goblins MD.
 
-File: MegaGhosts'nGoblins_Alpha_0.8.bin  (4 MiB, regions J/U/E, NTSC and PAL)
-SHA-1: 863021b312fec7920f12ce9b6ccef55cdce6e728
+File: MegaGhosts'nGoblins_Alpha_0.8.1.bin  (4 MiB, regions J/U/E, NTSC and PAL)
+SHA-1: e06e1805bf621bf31c1bd8f27678af5e8340d7af
+
+
+CHANGED IN V0.8.1
+-----------------
+- Home's parallax no longer reads the video chip while the game runs: a
+  try at a reported freeze early in stage 1 on a Model 1 console. Reports
+  from real hardware are very welcome.
 
 
 NEW IN V0.8
