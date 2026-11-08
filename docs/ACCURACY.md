@@ -1350,6 +1350,11 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
 114. **Building crows stay blue** (`bigman.s` `crow_hook`). Reported on V0.8: a blue crow following Arthur out of the building turned red at
     the first moving platforms: the colour came from the bank in (`$FFB028`). Now subtype 4 goes through the cache in either bank
     (no plane cell uses its tiles in bank 1, sampled every 10 frames from x 6020 to 6202).
+115. **The weapon after a death** (`settings.c` `weapon_start`, `hook_weapon_start` at `$9204`, `$9982`, `$104F16`). Requested on V0.8.2
+    (as in Ghouls'n Ghosts). The arcade's life start leaves the weapon (`<$73`): `tools/arcade/gng.py` with the cross set in stage 1,
+    two deaths, both restarts at x 96 with the cross. The port's stage and life starts cleared it and set the lance in every stage. Now
+    the weapon held in play comes back after a death or a continue, in Arcade (not the attract demo) and in Home unless OPTIONS -> WEAPON
+    is LANCE AFTER DEATH; a new game starts with the lance. Time-out deaths in stages 1-6 with the cross restart with it.
 
 ## Matching (audited)
 

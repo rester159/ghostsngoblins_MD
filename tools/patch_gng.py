@@ -77,10 +77,18 @@ def load_symbols(path):
 
 
 MUSIC_ATT = 8          # music volume: total-level steps of 0.75 dB (8 = -6 dB)
+# Extra steps for the tunes and jingles that played far above the stage music
+# (sound id: steps). Measured unclipped with tools/re/music_levels.py, as a
+# console mixes its channels: the stage tunes ($2B, $33, $29) play at -22 to
+# -19 dBFS, the map theme ($30) at -12.6, three times their amplitude. These
+# bring each to about -20.5; the stage tunes are unchanged.
+MUSIC_LEVEL = {0x1C: 13, 0x26: 7, 0x27: 9, 0x28: 9, 0x2A: 7, 0x2C: 4, 0x2D: 4,
+               0x2E: 5, 0x2F: 12, 0x30: 11, 0x32: 5, 0x34: 3, 0x37: 7, 0x38: 3,
+               0x3A: 4, 0x3B: 11}
 SOUND_TABLE = 0x14CBF8  # 12 bytes per sound id: type, slot, stream offset
 
 
-def attenuate_music(rom, att):
+def attenuate_music(rom, att, level=None):
     """Make the music quieter in the data itself. The music (stage tunes, map
     and intro themes, jingles) is the sequencer's register streams: per track,
     per tick a word count and that many (part, register, value) writes; the
@@ -90,7 +98,9 @@ def attenuate_music(rom, att):
     levels and algorithms together at its start, so a tick's algorithm writes
     count for that tick's level writes; with no algorithm yet, only S4 (a
     carrier in every algorithm) is changed. No code changes and no run-time
-    cost: the driver's restore of cached registers sends the same values."""
+    cost: the driver's restore of cached registers sends the same values.
+    `level` adds steps per sound id (table entry 0 is id -1: the driver reads
+    entry id + 1)."""
     rd16 = lambda a: int.from_bytes(rom[a:a + 2], 'big')
     rd32 = lambda a: int.from_bytes(rom[a:a + 4], 'big')
     carriers = (8, 8, 8, 8, 0xC, 0xE, 0xE, 0xF)      # bit = $40 S1, $44 S3, $48 S2, $4C S4
@@ -100,6 +110,7 @@ def attenuate_music(rom, att):
         if rd16(e) not in (1, 2):
             continue
         base = SOUND_TABLE + rd32(e + 4)
+        steps = att + (level or {}).get(sid - 1, 0)
         for t in range(rd16(base)):
             tr = base + 4 + 20 * t
             p = base + rd32(tr + 12)
@@ -117,7 +128,7 @@ def attenuate_music(rom, att):
                         mask = carriers[alg[ch]] if alg[ch] is not None else 8
                         if mask >> ((reg >> 2) & 3) & 1:
                             v = rom[a + 2]
-                            rom[a + 2] = (v & 0x80) | min(0x7F, (v & 0x7F) + att)
+                            rom[a + 2] = (v & 0x80) | min(0x7F, (v & 0x7F) + steps)
                         done.add(a)
     return len(done)
 
@@ -163,6 +174,10 @@ def install_features(rom, build_dir):
             (0x62FA, b'\x4a\x79' + be32(0xFFC594), 'hook_continue_tick')):
         expect(rom, site, orig, name)
         put(rom, site, jsr(sym[name]))
+    # the stage and life starts' lance: kept after a death as the arcade (settings.c weapon_start)
+    for a in (0x9204, 0x9982, 0x104F16):
+        expect(rom, a, bytes.fromhex('13fc000100ffa218'), 'stage start weapon')
+        put(rom, a, jsr(sym['hook_weapon_start']) + b'\x4e\x71')
     expect(rom, 0x6348, b'\x13\xfc\x00\x03' + be32(0xFFC500), 'continue lives')
     put(rom, 0x6348, jsr(sym['hook_continue_lives']) + b'\x4e\x71')
     expect(rom, 0x89E4, jmp(0x11C73E), 'sound play entry')
@@ -285,7 +300,7 @@ def install_features(rom, build_dir):
     # sound effect). The music data needs no change: its notes are the arcade's.
     expect(rom, 0x11CADC, bytes.fromhex('700072003600'), 'sound request scan')
     put(rom, 0x11CADC, jmp(sym['sound_scan']))
-    attenuate_music(rom, MUSIC_ATT)
+    attenuate_music(rom, MUSIC_ATT, MUSIC_LEVEL)
     # boss hit points as the arcade's: Astaroth 10 ($DB1B; port 6), the Satans 10
     # ($BEF1; port 4); the dragon's head 6 ($D596; port 10) is set by dragon.c
     for a, old, new in ((0x111C00, '197c0006000b', '197c000a000b'), (0x110586, '197c0004000b', '197c000a000b')):

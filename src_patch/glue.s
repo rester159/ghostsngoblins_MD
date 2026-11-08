@@ -67,6 +67,15 @@ hook_player_init:
     movem.l (%sp)+,%d0-%d1/%a0-%a1
     rts
 
+| $9204, $9982, $104F16 (8 bytes: `move.b #1,$FFA218`): the stage and life
+| starts' lance; settings.c weapon_start decides whether the weapon is kept.
+    .global hook_weapon_start
+hook_weapon_start:
+    movem.l %d0-%d1/%a0-%a1,-(%sp)
+    jsr     weapon_start
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+    rts
+
 | $6348: `move.b #3,$FFC500` on continue
     .global hook_continue_lives
 hook_continue_lives:

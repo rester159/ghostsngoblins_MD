@@ -8,6 +8,7 @@
 #define TOPSCORE   RAM32(0xFFC004)
 #define STAGE      RAM8(0xFFC512)
 #define CONT_TIMER RAM16(0xFFC594)
+#define WEAPON     RAM8(0xFFA218)   /* 0 torch, 1 lance, 2 axe, 3 cross, 4 knife */
 
 /* ---- option tables ---------------------------------------------------- */
 
@@ -27,7 +28,8 @@ static const u8 diff_rank[4] = { 0x06, 0x00, 0x18, 0x20 };
 extern u8 rank_easy;    /* arthur.s; glue.s rank_creep holds the rank at 0 */
 static const char *const onoff_vals[] = { "OFF", "ON" };
 
-const char *const home_names[HOP_N] = { "LIVES", "CONTINUES", "BONUS", "DIFFICULTY" };
+const char *const home_names[HOP_N] = { "LIVES", "CONTINUES", "BONUS", "DIFFICULTY", "WEAPON" };
+static const char *const weapon_vals[] = { "KEEP AFTER DEATH", "LANCE AFTER DEATH" };
 static const char *const digits[] = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "INFINITE" };
 
 int dip_count(int i)
@@ -49,7 +51,7 @@ const char *dip_value(int i, int v)
 
 int home_count(int i)
 {
-    static const u8 n[HOP_N] = { 9, 11, 5, 4 };
+    static const u8 n[HOP_N] = { 9, 11, 5, 4, 2 };
     return n[i];
 }
 
@@ -59,6 +61,7 @@ const char *home_value(int i, int v)
     case HOP_LIVES: return digits[v + 1];           /* 1-9 */
     case HOP_CONT:  return digits[v];               /* 0-9, INFINITE */
     case HOP_BONUS: return bonus_vals[v];
+    case HOP_WEAPON: return weapon_vals[v];
     default:        return diff_vals[v];
     }
 }
@@ -76,6 +79,7 @@ void settings_defaults(void)
     p->home[HOP_CONT] = 3;
     p->home[HOP_BONUS] = 0;
     p->home[HOP_DIFF] = 0;
+    p->home[HOP_WEAPON] = 0;        /* kept, as the arcade */
 }
 
 int is_home(void)   { return PERSIST->magic == PERSIST_MAGIC && PERSIST->mode == MODE_HOME; }
@@ -147,8 +151,12 @@ void p2_reset(void);
 /* $61A2: player block initialised at game start */
 void arc_rand_seed(void);   /* arcrand.c */
 
+static u8 weapon_fresh;              /* a new game: its first start gives the lance */
+static u8 weapon_held;               /* Arthur's weapon in play (play_tick) */
+
 void player_init(void)
 {
+    weapon_fresh = 1;
     arc_rand_seed();                /* every game starts from $87CD, as the arcade's */
     p2_reset();
     LIVES = start_lives();
@@ -166,6 +174,23 @@ void player_init(void)
     stage_pending = PERSIST->dev_on && PERSIST->dev_stage > 1 ? PERSIST->dev_stage : 0;
     if (vd_on() && !PERSIST->dev_on) stage_pending = vd_first_stage();   /* Vendetta starts at the end */
     vd_new_game();
+}
+
+/* $9204, $9982, $104F16 (`move.b #1,$FFA218` in the stage and life starts):
+ * the port gave Arthur the lance back after every death. The arcade keeps his
+ * weapon (its life start leaves <$73: two deaths in stage 1 with the cross,
+ * restarted with it), so Arcade keeps it, and Home as its WEAPON option says.
+ * A new game starts with the lance; a continue keeps the weapon like a death.
+ * A stage clear's weapon is kept either way (the game's own $FFC5F0/$FFC5F2).
+ * The restart has cleared $FFA218 (to the torch) by then, so the weapon comes
+ * from weapon_held, taken in play. */
+void weapon_start(void)
+{
+    int keep = is_arcade() ? !G_ATTRACT
+             : is_home() && PERSIST->home[HOP_WEAPON] != HOME_WEAPON_LANCE;
+    WEAPON = weapon_fresh || !keep ? 1 : weapon_held;
+    weapon_held = WEAPON;
+    weapon_fresh = 0;
 }
 
 /* $6348: continue. As the arcade's ($7882 -> $6C33): lives from the setting,
@@ -254,6 +279,7 @@ void play_tick(void)
         stage_jump(st - 1);         /* STAGE n is stage index n - 1 ($FFC512) */
     }
     if (p->dev_on && p->dev_inf && LIVES < 3) LIVES = 3;
+    if (RAM8(0xFFC305) == 1 && !RAM16(0xFFC570)) weapon_held = WEAPON;   /* playing, not dying */
     p2_frame();
     fb_frame();
     vd_frame();

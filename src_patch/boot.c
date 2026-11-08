@@ -97,20 +97,15 @@ static void frame_screen(const char *title)
     if (title) text_center(10, title, PAL_TEXT);
 }
 
-/* OPTIONS' logo after TITLE changes. full: its items start under the whole
- * Mega logo (it was opened with it), so that's shown, with no screen title;
- * else the logo is kept to rows 0-9 with OPTIONS on row 10. */
-static void redraw_logo(int full)
+/* OPTIONS' logo after TITLE changes: rows 0-9, OPTIONS on row 10. */
+static void redraw_logo(void)
 {
     int i;
     VDP_CTRLL = VRAM_W(0xC000);
-    for (i = 0; i < (full ? 14 : 10) * 64; i++) VDP_DATA = 0;   /* any logo */
+    for (i = 0; i < 10 * 64; i++) VDP_DATA = 0;     /* any logo */
     clear_rows(10, 10);
-    if (full && mega()) logo(0);
-    else {
-        logo(1);
-        text_center(10, "OPTIONS", PAL_TEXT);
-    }
+    logo(1);
+    text_center(10, "OPTIONS", PAL_TEXT);
 }
 
 static int wrap(int v, int dir, int n) { v += dir; return v < 0 ? n - 1 : v >= n ? 0 : v; }
@@ -139,37 +134,36 @@ static void dip_menu(void)
 /* ---- options (Home) ----------------------------------------------- */
 
 static const char *const opt_items[] = {
-    "LIVES", "CONTINUES", "BONUS", "DIFFICULTY", "TITLE", "SOUND TEST", "BACK",
+    "LIVES", "CONTINUES", "BONUS", "DIFFICULTY", "WEAPON", "TITLE", "SOUND TEST", "BACK",
 };
+enum { OPT_TITLE = HOP_N, OPT_SOUND, OPT_BACK };
 static char snd_buf[3];
-static u8 opt_full;                 /* OPTIONS opened under the whole Mega logo */
 static const char *opt_val(int i)
 {
     if (i < HOP_N) return home_value(i, PERSIST->home[i]);
-    if (i == 4) return PERSIST->title_jp ? "JAPANESE" : "ENGLISH";
-    if (i == 5) { num2(snd_buf, PERSIST->sound_id); return snd_buf; }
+    if (i == OPT_TITLE) return PERSIST->title_jp ? "JAPANESE" : "ENGLISH";
+    if (i == OPT_SOUND) { num2(snd_buf, PERSIST->sound_id); return snd_buf; }
     return 0;
 }
 static void opt_chg(int i, int d)
 {
     if (i < HOP_N) PERSIST->home[i] = wrap(PERSIST->home[i], d, home_count(i));
-    if (i == 4) { PERSIST->title_jp ^= 1; redraw_logo(opt_full); }
-    if (i == 5) PERSIST->sound_id = (PERSIST->sound_id + d) & 63;
+    if (i == OPT_TITLE) { PERSIST->title_jp ^= 1; redraw_logo(); }
+    if (i == OPT_SOUND) PERSIST->sound_id = (PERSIST->sound_id + d) & 63;
 }
 
+/* 8 items: under OPTIONS, as DEVELOPER (they don't fit under the whole logo) */
 static void options_menu(void)
 {
-    static const Menu m = { opt_items, 7, 3, 14, opt_val, opt_chg, 0 };
-    int sel = 0, y0;
-    opt_full = mega();              /* Home's: the whole logo, no screen title */
-    frame_screen(opt_full ? 0 : "OPTIONS");
-    y0 = opt_full ? logo_rows + 1 : 12;
+    static const Menu m = { opt_items, OPT_BACK + 1, 3, 14, opt_val, opt_chg, 0 };
+    int sel = 0;
+    frame_screen("OPTIONS");
     display_on();
     game_sound_init();
     for (;;) {
-        sel = menu_run(&m, y0, sel);
-        if (sel == 5) { sound_stop(); game_sound_play(PERSIST->sound_id); continue; }
-        if (sel == MENU_BACK || sel == 6) break;
+        sel = menu_run(&m, 12, sel);
+        if (sel == OPT_SOUND) { sound_stop(); game_sound_play(PERSIST->sound_id); continue; }
+        if (sel == MENU_BACK || sel == OPT_BACK) break;
     }
     sound_stop();
     save_write();

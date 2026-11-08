@@ -13,7 +13,8 @@ enum { HOME_1P = 0, HOME_COOP = 1, HOME_FIREBRAND = 2, HOME_VENDETTA = 3 };
 /* Arcade DIP switches (indices into the option tables in settings.c) */
 enum { DIP_COIN, DIP_LIVES, DIP_BONUS, DIP_DIFF, DIP_DEMO, DIP_CONT, DIP_N };
 /* Home options */
-enum { HOP_LIVES, HOP_CONT, HOP_BONUS, HOP_DIFF, HOP_N };
+enum { HOP_LIVES, HOP_CONT, HOP_BONUS, HOP_DIFF, HOP_WEAPON, HOP_N };
+#define HOME_WEAPON_LANCE 1         /* HOP_WEAPON: 0 = kept after a death, as the arcade */
 #define HOME_CONT_INF 10
 #define FB_PLUS_RANK  0x20          /* VERY DIFFICULT's starting rank (settings.c diff_rank) */
 
