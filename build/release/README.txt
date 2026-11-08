@@ -1,4 +1,4 @@
-MEGA GHOSTS'N GOBLINS  -  V0.8.2 ALPHA
+MEGA GHOSTS'N GOBLINS  -  V0.8.3 ALPHA
 rester159, 2026
 ==================================
 
@@ -7,8 +7,19 @@ run on real hardware and accurate emulators, faster, with 2-player co-op as
 Maximo and two campaigns as Firebrand, the Red Arremer. Formerly Ghosts'n
 Goblins MD.
 
-File: MegaGhosts'nGoblins_Alpha_0.8.2.bin  (4 MiB, regions J/U/E, NTSC and PAL)
-SHA-1: 1b3c25f59189e48c21826508b03805ccdda3b15a
+File: MegaGhosts'nGoblins_Alpha_0.8.3.bin  (4 MiB, regions J/U/E, NTSC and PAL)
+SHA-1: a7028c1a3387799275ee5ea0c5d808c93d507850
+
+
+NEW AND FIXED IN V0.8.3
+-----------------------
+- The map theme at the start of each stage was about three times louder
+  than the stage music. It now plays at the stage music's level, and 15
+  other tunes were evened out to that level too.
+- New Home option, WEAPON: KEEP AFTER DEATH (the default, as in the arcade
+  and the sequel) keeps the weapon you were holding when you lose a life;
+  LANCE AFTER DEATH gives you the lance again, as before.
+- Arcade mode now keeps the weapon after a death, as the arcade does.
 
 
 FIXED IN V0.8.2
@@ -106,8 +117,9 @@ HOME
                       hop up it. Fire level with Astaroth to hurt him.
   FIREBRAND'S QUEST PLUS  appears once the quest is beaten: top difficulty
                       throughout, half the hover time.
-  OPTIONS ........... lives, continues, bonus life, difficulty, English or
-                      Japanese (Makaimura) title, sound test
+  OPTIONS ........... lives, continues, bonus life, difficulty, weapon after
+                      a death, English or Japanese (Makaimura) title,
+                      sound test
 
 ARCADE
   DIP SWITCHES ...... coinage (including free play), lives, bonus life,
