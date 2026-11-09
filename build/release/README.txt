@@ -112,7 +112,8 @@ HOME
                       your partner's head to bounce off it. Shared score.
   FIREBRAND'S QUEST . play as the Red Arremer. Hold jump at the top of a jump
                       to hover for up to 2 seconds. Fireballs only; pickups
-                      give points. No armor: one hit and you're dead.
+                      give points. Two hits: the first takes away his
+                      flight until he loses a life, the second kills.
                       In the air, push into a wall to cling to it; jump to
                       hop up it. Fire level with Astaroth to hurt him.
   FIREBRAND'S QUEST PLUS  appears once the quest is beaten: top difficulty

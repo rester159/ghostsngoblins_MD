@@ -32,7 +32,11 @@
  *  - one attack: the lance's mechanics, drawn as the fireball (uploaded where
  *    the game uploads the lance art for each shot slot, $11711E); the HUD's
  *    weapon box shows the fireball, and its lives icons his head.
- *  - one hit: never armored, so the first hit kills.
+ *  - two hits: he starts each life with the armor flag on, so the first hit
+ *    is Arthur's armored knockback (with its invincibility) and the second
+ *    kills. Wounded (the flag off) he can't fly: his flight is 0 and the FLY
+ *    gauge shows it spent until his next life. Vendetta's flaps are jumps
+ *    and stay (its climbs need them).
  *  - boxes: weapon and armor pickups give 1000 points instead.
  *  - the end: stage 6 needs no cross (the game's check at $119D2E sees one),
  *    the fireball hurts Astaroth (cross-only for everyone else, glue.s
@@ -156,7 +160,8 @@ static u8 fly_level(void)
     return l < 1 ? 1 : l > FLY_MAX ? FLY_MAX : l;
 }
 
-static u8 hover_max(void) { return fly_unit() * fly_level(); }
+/* frames of flight from a landing or a grab: none once he has been hit */
+static u8 hover_max(void) { return ARMOR_SET ? 0 : fly_unit() * fly_level(); }
 
 /* Vendetta's flaps a jump: three at levels 1-2 (its routes need three),
  * then one more a level */
@@ -309,7 +314,11 @@ void fb_frame(void)
     u8 in, jump, toward, leapt = 0;
     if (!fb_on()) return;
     WEAPON = 1;
-    ARMOR_SET = 1;
+    RAM8(0xFFC39C) = 0;                 /* no armor shatter: Arthur's armor pieces ($5572 -> $6700) */
+    if (ARMOR_SET) {                    /* hit once: no flight left */
+        hover_t = 0;
+        flying = 0;
+    }
     if (RAM8(0xFF9787)) item_made[0] = 0;   /* the items past state 0 */
     if (RAM8(0xFFCEA7)) item_made[1] = 0;
     if (RAM16(0xFFC570) && !died) {     /* dying: the flight level drops one */
