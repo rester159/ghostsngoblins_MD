@@ -3,6 +3,7 @@
  * is never shown. */
 #include "md.h"
 #include "common.h"
+#include "build/credits.inc"
 
 void sound_stop(void);
 int  title_jp(void);
@@ -291,19 +292,28 @@ static int arcade_menu(void)
 
 /* ---- community credits ------------------------------------------- */
 
+#define CRED_T   0x300                  /* free on the menu screens (Home's logo is elsewhere) */
+#define CRED_ROW 3
+
 /* The people from the itch.io page's comments: art, then the playtesters in
  * the order of how much they reported. Any button goes back. */
 static void credits_screen(void)
 {
-    static const char *const art[] = { "ROBOT-RANDOM", "HJRODRIGO" };
+    static const char *const art[] = { "ROBOT-RANDOM", "HJRODRIGO", "GOODLUCKTRYING" };
     static const char *const testers[] = {
         "METALCANDYMAN", "ROBOT-RANDOM", "DARKFALZX", "DANGLYLINGHAM",
     };
     u16 p;
     int i;
-    frame_screen("COMMUNITY CREDITS");
-    text_center(12, "ADDITIONAL ART", PAL_SEL);
-    for (i = 0; i < (int)(sizeof(art) / sizeof(art[0])); i++) text_center(14 + i, art[i], PAL_TEXT);
+    screen_init();                      /* no logo: the title in its lettering (mkcredits.py) */
+    VDP_CTRLL = VRAM_W(CRED_T * 32);
+    for (i = 0; i < CRED_NT * 16; i++) VDP_DATA = cred_tiles[i];
+    for (i = 0; i < 3 * 32; i++) {
+        if (!(i & 31)) VDP_CTRLL = VRAM_W(0xC000 + (CRED_ROW + i / 32) * 128);
+        VDP_DATA = cred_map[i] ? CRED_T + cred_map[i] : 0;
+    }
+    text_center(8, "ADDITIONAL ART", PAL_SEL);   /* both lists a name every other row */
+    for (i = 0; i < (int)(sizeof(art) / sizeof(art[0])); i++) text_center(10 + 2 * i, art[i], PAL_TEXT);
     text_center(17, "PLAYTESTING", PAL_SEL);
     for (i = 0; i < (int)(sizeof(testers) / sizeof(testers[0])); i++) text_center(19 + 2 * i, testers[i], PAL_TEXT);
     display_on();

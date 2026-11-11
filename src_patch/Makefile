@@ -48,6 +48,10 @@ build/swap.s: mkswap.py p2.c
 build/swap.o: build/swap.s
 	$(CC) -m68000 -c $< -o $@
 
+build/credits.inc: mkcredits.py
+	python3 -I mkcredits.py $@
+build/boot.o: build/credits.inc
+
 build/jp.inc: mkjp.py ../rom/gg1.bin
 	python3 -I mkjp.py ../rom/gg1.bin $@
 build/%.o: %.c md.h common.h
