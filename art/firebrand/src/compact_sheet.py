@@ -1,12 +1,13 @@
 """The compact Firebrand sheet (art/firebrand/sheets/firebrand_compact.png): every distinct picture
 once, 48x32 at 1x in 50x34 cells, 7 to a row, on (44, 40, 50) with transparent (or white) cells,
-in three sections under coloured lines:
-  green   the bank's distinct frames (a mirrored pair once), then the 18 pictures full_sheet.py lists
+in handoff_sheet.py's three sections (its _raw.png) under coloured lines:
+  green   WORKS: the bank's distinct frames (a mirrored pair once), then the 18 pictures full_sheet.py lists
           after them: fireball shapes 1-4, impacts (burst, flame, sparks), weapon box, map marker,
           wing pickup, frog 1-8 (the order of full_sheet.py's extras; the frog isn't imported: it is in its own colours; small ones centred, on the cell's floor; the fireballs and
           impacts as they fly left, i.e. their pieces mirrored)
-  orange  the ladder frames
-  red     the slots the game never shows (45-49)
+  orange  BROKEN: the ladder as it was (a reference: not imported)
+  red     MISSING: Climb A, Climb B, Climb top A, Climb top B (slots 70-73), then "hit, facing left",
+          which has no slot of its own (not imported)
 Which cell each of the 112 slots takes (and mirrored or not) is in compact_sheet_map.json,
 made once with `map` from the art in place when the sheet was drawn (every unchanged cell equals
 its slots' frames; a changed one goes to the slots it is nearest).
@@ -48,6 +49,7 @@ def mirror(g):
 HERE = os.path.dirname(os.path.abspath(__file__))
 MAP = os.path.join(HERE, '..', 'sheets', 'compact_sheet_map.json')
 BG = (44, 40, 50)
+LADDER = [70, 71, 72, 73]                         # Climb A, Climb B, Climb top A, Climb top B
 L0 = [tuple(c) for c in a.LINE0]
 L2 = [tuple(c) for c in a.LINE2]
 
@@ -150,11 +152,14 @@ def do_map(png, art):
     frame_cells = list(range(k0)) + list(range(k0 + n_ex, len(cs)))
     red = [c for c in frame_cells if sec[c] == 2]
     for s in range(a.COUNT):
-        if s in a.EMPTY and s - a.EMPTY[0] < len(red):       # the red section: those slots, in order
-            slots[s] = (red[s - a.EMPTY[0]], 0, 1536)
+        if s in a.EMPTY:                                    # never shown, not on the sheet: kept
+            slots[s] = (-1, 0, 1536)
             continue
-        cand = [(same(cs[c], fr[s]), 1, -c, c, 0) for c in frame_cells if sec[c] != 2]
-        cand += [(same(cs[c], mirror(fr[s])), 0, -c, c, 1) for c in frame_cells if sec[c] != 2]
+        if s in LADDER and LADDER.index(s) < len(red):     # MISSING: the ladder frames, in order
+            slots[s] = (red[LADDER.index(s)], 0, 1536)
+            continue
+        cand = [(same(cs[c], fr[s]), 1, -c, c, 0) for c in frame_cells if sec[c] == 0]
+        cand += [(same(cs[c], mirror(fr[s])), 0, -c, c, 1) for c in frame_cells if sec[c] == 0]
         n, _, _, c, mi = max(cand)                          # ties: unmirrored, the first cell
         slots[s] = (c, mi, n)
     m = {'frames': {str(s): [c, mi] for s, (c, mi, _) in slots.items()},
@@ -194,8 +199,13 @@ def do_import(png, art):
         raise SystemExit('the sheet has %d cells, the map %d' % (len(cs), m['cells']))
     flags_old = open(os.path.join(art, 'firebrand_flags.bin'), 'rb').read()
     bank, flags = bytearray(), bytearray()
+    bank_old = open(os.path.join(art, 'firebrand_bank.bin'), 'rb').read()
     for s in range(a.COUNT):
         c, mi = m['frames'][str(s)]
+        if c < 0:                               # not on the sheet: as it is
+            bank += bank_old[s * 0x300:(s + 1) * 0x300]
+            flags.append(flags_old[s])
+            continue
         g = mirror(cs[c]) if mi else cs[c]
         line, p = pens(g, 2 if flags_old[s] & 4 else 0)
         bank += a.bank_frame(p)

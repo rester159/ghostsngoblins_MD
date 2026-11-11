@@ -1,4 +1,4 @@
-MEGA GHOSTS'N GOBLINS  -  V0.8.3 ALPHA
+MEGA GHOSTS'N GOBLINS  -  V0.8.4 ALPHA
 rester159, 2026
 ==================================
 
@@ -7,8 +7,17 @@ run on real hardware and accurate emulators, faster, with 2-player co-op as
 Maximo and two campaigns as Firebrand, the Red Arremer. Formerly Ghosts'n
 Goblins MD.
 
-File: MegaGhosts'nGoblins_Alpha_0.8.3.bin  (4 MiB, regions J/U/E, NTSC and PAL)
-SHA-1: a7028c1a3387799275ee5ea0c5d808c93d507850
+File: MegaGhosts'nGoblins_Alpha_0.8.4.bin  (4 MiB, regions J/U/E, NTSC and PAL)
+SHA-1: c161ae325d2a89ca9c338b8312aff6745e50efd7
+
+
+NEW IN V0.8.4
+-------------
+- Firebrand takes two hits: the first knocks him back and takes his
+  flight, the second kills. A wing heals him and gives his flight back.
+- New Firebrand art by Robot-Random and GoodLuckTrying: he climbs ladders
+  seen from behind, and his wall cling is redrawn.
+- The community credits have a title in the Ghosts'n Goblins lettering.
 
 
 NEW AND FIXED IN V0.8.3
@@ -113,7 +122,8 @@ HOME
   FIREBRAND'S QUEST . play as the Red Arremer. Hold jump at the top of a jump
                       to hover for up to 2 seconds. Fireballs only; pickups
                       give points. Two hits: the first takes away his
-                      flight until he loses a life, the second kills.
+                      flight, the second kills. A wing heals him and
+                      gives his flight back; the next wing raises it.
                       In the air, push into a wall to cling to it; jump to
                       hop up it. Fire level with Astaroth to hurt him.
   FIREBRAND'S QUEST PLUS  appears once the quest is beaten: top difficulty

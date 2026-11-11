@@ -35,8 +35,9 @@
  *  - two hits: he starts each life with the armor flag on, so the first hit
  *    is Arthur's armored knockback (with its invincibility) and the second
  *    kills. Wounded (the flag off) he can't fly: his flight is 0 and the FLY
- *    gauge shows it spent until his next life. Vendetta's flaps are jumps
- *    and stay (its climbs need them).
+ *    gauge shows it spent until a wing heals him (the flag on again, his
+ *    flight back at his level; the next wing raises it) or his next life.
+ *    Vendetta's flaps are jumps and stay (its climbs need them).
  *  - boxes: weapon and armor pickups give 1000 points instead.
  *  - the end: stage 6 needs no cross (the game's check at $119D2E sees one),
  *    the fireball hurts Astaroth (cross-only for everyone else, glue.s
@@ -465,8 +466,9 @@ void fb_key_y(u16 *ctx)
  * sense for him, so the game's weapon items (types 1-5: torch, lance, axe,
  * cross, knife) become wings as they are made, up to WINGS[stage] a stage,
  * and the stage's point item (type 6 + stage) after that. A wing is the
- * torch (type 1), drawn as the wing. Taken, it raises his level and fills his
- * flight; at FLY_MAX it is 1000 points. The game makes a weapon item about
+ * torch (type 1), drawn as the wing. Taken, it heals him if he has been hit
+ * (fb_item), else raises his level and fills his flight; at FLY_MAX it is
+ * 1000 points. The game makes a weapon item about
  * every 21 enemies (an item every 6th, 2 of its 7-step cycle weapons):
  * a run through stage 1 meets about 3. With 4 levels, a wing a stage
  * through stage 4 and two in 5 and 6 build him up as the stages get harder,
@@ -510,7 +512,10 @@ void fb_item(u8 *ctx)
 {
     if (!fb_on()) return;
     if (ctx[17] != WEAPON) {
-        if (PERSIST->fly_lv < FLY_MAX) {
+        if (ARMOR_SET) {                /* wounded: the wing heals him, flight back at his level */
+            ARMOR_SET = 0;
+            hover_t = hover_max();
+        } else if (PERSIST->fly_lv < FLY_MAX) {
             PERSIST->fly_lv = fly_level() + 1;
             hover_t = hover_max();
         } else {

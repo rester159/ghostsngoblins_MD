@@ -2,7 +2,7 @@
 #define COMMON_H
 #include "md.h"
 
-#define VERSION    "V0.8.3 ALPHA"     /* Mega Ghosts'n Goblins; also tools/patch_gng.py VERSION */
+#define VERSION    "V0.8.4 ALPHA"     /* Mega Ghosts'n Goblins; also tools/patch_gng.py VERSION */
 #define FONT_TILE  0x100
 #define FONT_VRAM  (FONT_TILE * 32)
 

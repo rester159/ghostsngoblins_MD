@@ -57,7 +57,8 @@ Without `--features` the patcher produces the compatibility-only ROM.
   - **One attack:** the lance's mechanics, drawn as the fireball from `art/firebrand/src/fire.py` (uploaded in place of the lance art for each shot slot, `$11711E`; right-moving shots get their two pieces swapped so the picture faces forward, and left-moving ones are drawn 14 px ahead because the game starts them over his body; either way the fireball leaves the mouth of his firing pose). The HUD weapon box shows the game's own fire icon (`$1037D4`). Pickups never change it.
   - **Two hits:** each life starts with the armor flag on (`$FFC328 = 0`), so the first hit is Arthur's
     armored knockback and the second kills. The armor pieces are not thrown (`$FFC39C` cleared each
-    frame). Hit once, he can't fly: his flight is 0 (the FLY gauge spent) until his next life;
+    frame). Hit once, he can't fly: his flight is 0 (the FLY gauge spent) until a wing heals him
+    (the flag back on, his flight at his level; the next wing raises the level) or his next life;
     Vendetta's flaps stay, as its climbs need them.
   - **Boxes:** armor pickups give 1,000 points instead (the game's score message `$0C00|9` on the queue at `$FFB400`; it was entry 8, 800 points).
   - **Head:** a hand-drawn head is stamped on every frame where his head is in profile (see Art); the firing pose gets an open-mouth version with fire in the mouth.
