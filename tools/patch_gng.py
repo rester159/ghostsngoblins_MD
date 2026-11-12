@@ -906,6 +906,11 @@ def install_stage_end(rom, sym):
                          (0xC35E8, 0x11693E, 'se_items_draw')):
         expect(rom, a, jmp(old), name)
         put(rom, a, jmp(sym[name]))
+    # stages 4-6's second table load keeps the second item object's pointer $FFCE18
+    for a, table, name in ((0x10F1C8, 0x247C14, 'item_reload4'), (0x110166, 0x254414, 'item_reload5'),
+                           (0x11111C, 0x25DBC4, 'item_reload6')):
+        expect(rom, a, b'\x41\xf9' + be32(table), name)
+        put(rom, a, jmp(sym[name]))
     # weapons are drawn by their on-screen flag +9 (se_wmove sets it), not +8
     expect(rom, 0x115960, bytes.fromhex('4a2c0008673c'), 'weapon draw test')
     put(rom, 0x115960, bytes.fromhex('4a2c0009673c'))

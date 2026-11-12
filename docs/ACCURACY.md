@@ -1355,6 +1355,23 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     two deaths, both restarts at x 96 with the cross. The port's stage and life starts cleared it and set the lance in every stage. Now
     the weapon held in play comes back after a death or a continue, in Arcade (not the attract demo) and in Home unless OPTIONS -> WEAPON
     is LANCE AFTER DEATH; a new game starts with the lance. Time-out deaths in stages 1-6 with the cross restart with it.
+116. **Stage 2's black block and tile bands** (`rowfast.s` `row_s124`, `row_s3`, `row_s5`, `row_s6`). Reported on V0.7.3 and V0.8: a black
+    block at the end of the building, bands of stage 1/3 tiles over the floor before the Unicorns. The row loop added d1.l to the plane
+    pointer; its upper word, from the collision row fill (`$938E`), is 0 only when a cell is in the collision map. Since Fixed 49 rows 0-4
+    of stages 1, 2 and 4 are outside it, so those rows' plane entries were read 64 KiB x n away. Seen only coming back down from the
+    building's top floor by its east ladders (route sheets: the band, now gone). `tools/re/test_rowfast.py`: no difference in stages 2-6.
+117. **Stage 6's hidden pot** (`stageend.s` `item_reload4-6` at `$10F1C8`, `$110166`, `$11111C`; `bmart.c` `item_guard`, `piece_slot`).
+    Reported on V0.7.3: on stage 6's floor at y 2254 (the Ogre's, above the sitting Red Arremer) the arcade gives Arthur, when he has lost his armor, a pot
+    at x 7748 that turns into the armor; the port gave nothing. The floor's hidden item (arcade `$1360`, kind 0 at 7648, 2256, an
+    invisible sprite `$30`) is touched in both games; the arcade's `$E402` then makes the pot in its second item object (`$1600`) when
+    `<$AC` (armor lost) is set, the port's `$C2F92` the same through the pointer `$FFCE18` with `$FFC328`. Stages 4-6 load their tables a
+    second time after the start's item init (`$C3456`), falling into their own item-table init, which clears `$FFCE10`-`$FFCE5B`: the
+    pointer was 0 and the pot went to address 0 (the base port's code). The loads now set it back. Measured from the same floor: the
+    arcade and the port make the pot at (7748, 2256), it rises 10 px, comes down and turns into the armor (the port 2-4 updates later),
+    which puts Arthur's armor back on; armored, nothing comes (both). The pot's frames go to tiles `$6D0`-`$6D7` (the object-art
+    streamer's channel 2), which the skulls' cache had taken as free (Fixed 97), as the first item object's `$798`-`$79F` overlap the
+    crows' and skulls' `$79A`/`$79E`: while either object is live the cache gives up and skips the slots on its tiles, and makes the
+    channel load its frame again if the cache wrote there. Bench stages 1-6: no fault, the same speed.
 
 ## Matching (audited)
 
@@ -1505,11 +1522,17 @@ They stay as they are; each note says why.
   3. Stage 6: one Satan instead of two: Fixed 106.
   4. Fixed 112. Stage 6's start: three skulls on the floor where the arcade has five. Then not reproduced: developer launches of
      V0.7.3 and now show five (x as the screenshot's three plus one each side); the report's came after stage 5.
-  5. Stage 6's first floor: no armor above the Red Arremer before the first skull when Arthur has lost his armor
-     (the arcade puts one there), and that first skull missing. Not reproduced: Arthur can't be put on that floor by
-     a life start (he falls through), and Firebrand's route search (`fb_campaign.py` on this build) stayed at the
-     stage's first screen for 11 minutes; the stage 6 proof (`fb_proofs/stage6.moves`) only replays on V0.7.2.
-  6. Reported again on V0.8 (the block smaller, in the first loop only; the garbage in both, more in the second). Stage 2's second half can
+  5. Fixed 117 (the armor) and 112 (the skull). Stage 6's floor: no armor above the Red Arremer before the first skull when
+     Arthur has lost his armor. Reached by the route `R7797,L7704,U,W30,L7604,U,W40,R7760,U,W40,L7664,U,W40,L7504,U,W30,
+     R7520,U,W30,R7560,U,W30` (`route.py`, both games, from the stage's start).
+  6. Fixed 116 (the block and the bands). Still seen: two black frames (display off) when stage 2's camera reaches x 5744 and
+     x 5888, from a life started at x 5700 (`restart_entry.py` entry `00164450`, index 1), walking right. The streamer (`$11A89C`)
+     takes the full reload (`$11A7C0`) when the column 15 left of the camera (Fixed 49) enters segment 1 (column 344, `$FFB020`
+     table) or window 1 (`$11AA08`, column 353): display off, the segment's tile set (652-672 tiles) and palette, 32 columns, display
+     on. The base port does it at every segment change. The sets are packed separately (by index ~95% differ), but by content the
+     next segment needs only 186, 267 and 60 tiles, and every column on the screen at the switch is in both segments: re-indexed so
+     shared tiles keep their place, a switch could upload only the new ones into tiles no visible column uses. Not done.
+     Reported again on V0.8 (the block smaller, in the first loop only; the garbage in both, more in the second). Stage 2's second half can
      be reached headless now (flag `$FFC521` and `$FFF401`, die: x 4736; lift out of the water, 32 px past walls): a direct launch, sampled
      every 150 px to x 6240, shows neither, so it's still not reproduced; a real stage 1 exit isn't forced yet. Stage 2: the large black block at the end of the building (still); sprite garbage at the bottom before the
      Unicorns (screenshots: black bands of stage 1/3 tiles over the floor at x ~5900-6200); smaller in loop 2. Not

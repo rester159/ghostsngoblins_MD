@@ -142,11 +142,68 @@ static void map_set(u16 t, u8 v)
     if (i < SK_T1 - CR_T0 && !(i & 3)) sk_map[i >> 2] = v;
 }
 
+/* The item objects' art: the object-art streamer ($1169B8, its state at
+ * $FF97C0: loaded frames +0/+2, wanted +6/+8) uploads 8 tiles of the first
+ * item object's frame ($FF9780, an enemy's drop; live at $FFC8C4, copied to
+ * $FF9784 for its update) to $798-$79F, and the second's ($FFCEA0: a hidden
+ * item's pot) to $6D0-$6D7, each time the frame changes. The cache's slots
+ * there were measured free because the second object never came in stages
+ * 4-6 (stageend.s item_reload). While an object is live, the slots on its
+ * tiles are given up and not taken (item_guard each update, before the
+ * objects' update and the sprites; piece_slot), and once the cache has written
+ * there the channel is made to load its frame again. Bit c: channel c
+ * ($FF97C0 + 2c). The skulls' fast path (bigman.s) finds no entry for a slot
+ * given up, so it needs no test of its own. */
+static u8 ch_dirty;                     /* channels whose tiles the cache wrote */
+
+static u8 ch_live(void)
+{
+    return ((RAM8(0xFFC8C4) | RAM8(0xFF9784)) ? 1 : 0) | (RAM8(0xFFCEA4) ? 2 : 0);
+}
+
+/* the channels a 4-tile slot at v overlaps */
+static u8 ch_mask(u16 v)
+{
+    return (v < 0x7A0 && v + 4 > 0x798 ? 1 : 0) | (v < 0x6D8 && v + 4 > 0x6D0 ? 2 : 0);
+}
+
+/* the slots of base[0..n) on a live channel's tiles */
+static u16 ch_blocked(const u16 *base, int n, u8 live)
+{
+    u16 blk = 0;
+    int s;
+    if (live)
+        for (s = 0; s < n; s++)
+            if (ch_mask(base[s]) & live) blk |= 1 << s;
+    return blk;
+}
+
+/* stageend.s se_items, each update before the item objects' */
+void item_guard(void)
+{
+    u8 live = ch_live();
+    u16 blk;
+    int s;
+    if (!live) return;
+    blk = RAM8(0xFFC512) == 5 ? ch_blocked(sk_base, NSK, live) : ch_blocked(cr_base, NCR, live);
+    for (s = 0; s < NCR; s++)
+        if ((blk & (1 << s)) && cr_tile[s]) {
+            map_set(cr_tile[s], 0);
+            cr_tile[s] = 0;
+            cr_pend &= ~(1 << s);
+        }
+    for (s = 0; s < 2; s++)
+        if (live & ch_dirty & (1 << s)) {
+            RAM16(0xFF97C0 + 2 * s) = 0xFFFF;
+            ch_dirty &= ~(1 << s);
+        }
+}
+
 /* sk_map follows cr_tile here: a skull's piece taking a slot is entered, any
  * tile leaving one cleared */
 static u16 piece_slot(u16 attr, const u16 *base, int n)
 {
-    u16 t = attr & 0x7FF;
+    u16 t = attr & 0x7FF, blk;
     int s;
     if ((u16)(fs_last - cr_build) > 30) {           /* a pause, a death, a map: VRAM may have been reloaded */
         for (s = 0; s < NCR; s++) {
@@ -156,18 +213,20 @@ static u16 piece_slot(u16 attr, const u16 *base, int n)
         cr_pend = 0;
     }
     cr_build = fs_last;
+    blk = ch_blocked(base, n, ch_live());
     for (s = 0; s < n; s++)
         if (cr_tile[s] == t) break;
     if (s == n) {
         for (s = 0; s < n; s++)
-            if (!cr_tile[s]) break;
+            if (!cr_tile[s] && !(blk & (1 << s))) break;
         if (s == n)
             for (s = 0; s < n; s++)
-                if (cr_used[s] != fs_last) break;
+                if (cr_used[s] != fs_last && !(blk & (1 << s))) break;
         if (s == n) s = 0;                          /* more pieces than slots: the first slot's */
         else {
             if (cr_tile[s]) map_set(cr_tile[s], 0);
             cr_tile[s] = t; cr_pend |= 1 << s;
+            ch_dirty |= ch_mask(base[s]);
             if (base == sk_base) map_set(t, s + 1);
         }
     }

@@ -156,12 +156,43 @@ se_spawn:
 se_items:
     bsr     se_active
     bne.s   1f
-    jmp     0x11677A
+    tst.b   0xFFCEA4                | an item object live (bmart.c ch_live):
+    bne.s   2f                      | the cache off its tiles
+    tst.b   0xFFC8C4
+    bne.s   2f
+    tst.b   0xFF9784
+    beq.s   3f
+2:  movem.l %d0-%d1/%a0-%a1,-(%sp)
+    jsr     item_guard
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+3:  jmp     0x11677A
 se_items_draw:
     bsr     se_active
     bne.s   1f
     jmp     0x11693E
 1:  rts
+
+| $10F1C8 / $110166 / $11111C: `jmp item_reload4/5/6` over `lea <table>,a0`.
+| Stages 4-6 load their enemy and item tables a second time after the stage
+| start's item init ($C3456), falling into their item-table init ($10F1FC /
+| $11019A / $111154), which clears $FFCE10-$FFCE5B and with it $FFCE18, the
+| second item object ($FFCEA0) that $C3456 points it at; stages 1-3 don't.
+| A hidden item's drop ($C2F9E, the arcade's $E402: the pot when Arthur has
+| lost his armor) went to address 0, so stage 6's pot never came.
+    .global item_reload4, item_reload5, item_reload6
+item_reload4:
+    lea     0x247C14,%a0
+    jsr     0x10F1CE
+    bra.s   1f
+item_reload5:
+    lea     0x254414,%a0
+    jsr     0x11016C
+    bra.s   1f
+item_reload6:
+    lea     0x25DBC4,%a0
+    jsr     0x111122
+1:  move.l  #0xFFCEA0,0xFFCE18
+    rts
 
 | $102C56: `jsr se_wtomb` + 3 nops over `jsr $104546` / `move.w #71,$FFCFB0`
 | (stage 1's weapons against the tombstones; the arcade's $F6A2 is part of
