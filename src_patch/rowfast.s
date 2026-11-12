@@ -90,9 +90,17 @@ fast_maprow:
 | stage's plane map ($FFB014 + column * stride + row * 8, the column offset
 | with the stage's own formula) and stored its four words at
 | (d4 & 31) * 4 of $FF0A00 and $FF0A80. Each stub computes the first cell's
-| address with its loop's own instructions (d1's upper word as the original
-| sees it) and its stride; row_core steps it. The callers return straight to
-| a movem that restores every register.
+| address with its loop's own instructions and its stride; row_core steps
+| it. The callers return straight to a movem that restores every register.
+|
+| The original loop added d1.l, whose upper word was what $938E's last
+| lookup left: 0 whenever a cell of the row was in the collision map. Since
+| mw_rows (Fixed 49) the ring holds the row 5 lower, so the bottom rows 0-4
+| of stages 1, 2 and 4 are outside it, and d1's upper word was then the
+| caller's leftover: the row's plane entries were read 64 KiB * n away, a
+| black band or another stage's tiles (stage 2's street under and past the
+| ladder building, after coming down from its top floor). The stubs clear
+| d1 first: the address the in-map case always gave.
 
 | $986C, $11570E, $11AB02 (map $125A70): (d4 - $FFB018) << 8 + d5 * 8. A
 | column left of $FFB018 gives the same address mod 2^24 either way.
@@ -101,6 +109,7 @@ row_s124:
     move.w  %d4,%d0
     sub.w   0xFFB018,%d0
     lsl.l   #8,%d0
+    moveq   #0,%d1                  | d1.l: the row alone (see above)
     move.w  %d5,%d1
     lsl.w   #3,%d1
     add.l   %d1,%d0
@@ -113,6 +122,7 @@ row_s3:
     move.w  %d4,%d0
     lsl.l   #8,%d0
     lsl.l   #1,%d0
+    moveq   #0,%d1                  | d1.l: the row alone (see above)
     move.w  %d5,%d1
     subi.w  #32,%d1
     lsl.w   #3,%d1
@@ -127,6 +137,7 @@ row_s5:
     move.w  %d4,%d0
     subi.w  #416,%d0
     mulu.w  #640,%d0
+    moveq   #0,%d1                  | d1.l: the row alone (see above)
     move.w  %d5,%d1
     subi.w  #32,%d1
     lsl.w   #3,%d1
@@ -140,6 +151,7 @@ row_s6:
     move.w  %d4,%d0
     subi.w  #464,%d0
     mulu.w  #640,%d0
+    moveq   #0,%d1                  | d1.l: the row alone (see above)
     move.w  %d5,%d1
     subi.w  #96,%d1
     lsl.w   #3,%d1
