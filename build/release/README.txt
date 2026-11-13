@@ -1,4 +1,4 @@
-MEGA GHOSTS'N GOBLINS  -  V0.8.4 ALPHA
+MEGA GHOSTS'N GOBLINS  -  V0.8.5 ALPHA
 rester159, 2026
 ==================================
 
@@ -7,8 +7,21 @@ run on real hardware and accurate emulators, faster, with 2-player co-op as
 Maximo and two campaigns as Firebrand, the Red Arremer. Formerly Ghosts'n
 Goblins MD.
 
-File: MegaGhosts'nGoblins_Alpha_0.8.4.bin  (4 MiB, regions J/U/E, NTSC and PAL)
-SHA-1: c161ae325d2a89ca9c338b8312aff6745e50efd7
+File: MegaGhosts'nGoblins_Alpha_0.8.5.bin  (4 MiB, regions J/U/E, NTSC and PAL)
+SHA-1: dc2f9719e6f9b901363dc6a54c60c9bd08bf98e0
+
+
+NEW AND FIXED IN V0.8.5
+-----------------------
+- FIREBRAND'S VENDETTA plays left to right: each stage is shown mirrored,
+  so Firebrand still runs it from its end back to its start, but heads
+  right across the screen like any side-scroller. Up and down are
+  unchanged; text and score numbers are not mirrored.
+- Stage 2: no more black block at the end of the building, no stray tile
+  bands before the Unicorns, and moving along the street no longer
+  blanks the screen.
+- Stage 6: the hidden pot on the Ogre floor appears again and gives the
+  armor back, as in the arcade.
 
 
 NEW IN V0.8.4
