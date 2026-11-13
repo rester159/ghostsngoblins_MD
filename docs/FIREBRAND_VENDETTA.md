@@ -74,10 +74,14 @@ the unmirrored game:
 - **Sprites:** the table goes up from a mirrored copy (`$FF4000`, `vd_mirror_sat`
   from `glue.s` `hook_sat_dma`): x to 512 - x - width, h flip toggled.
 - **The pad:** left and right trade places in play (`pad.c`).
+- **Text stays readable:** the score pop-ups ("1000", "200") keep their
+  flip, and each row of touching text pieces moves as a block (its box
+  mirrored, the pieces in their order). Text pieces: tiles $430-$43F and
+  $490-$49F in stages 3-6 (the port's score frames, the dragon's 13 and 14),
+  and a Satan's pose buffer while it holds the score (`bossart.c`
+  `sat_score_tile`).
 - **Not mirrored:** plane A (the HUD; it never scrolls), the stage map (already
-  drawn with the lair on the left), the story pages. Sprite text, the "1000"
-  over a dead dragon or Satan, reads backwards: nothing in a sprite says it is
-  text.
+  drawn with the lair on the left), the story pages.
 - Off for tests: `$FF43FE` = `$4E4F` ('NO'). Checked headless: the same input
   (left/right swapped) with mirroring on and off gives the mirror image of the
   same frame in every stage, starts and a death's restart included (rows

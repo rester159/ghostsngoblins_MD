@@ -413,6 +413,18 @@ static int buffer_for(u8 *p)
     return -1;
 }
 
+/* tile t shows a Satan's score ("1000", the port's 2 pieces at base and
+ * base + 4): Vendetta's mirror (vendetta.c) keeps text readable */
+int sat_score_tile(u16 t)
+{
+    int b;
+    for (b = 0; b < 2; b++) {
+        u16 base = b ? SAT_BUF1 : SAT_BUF0;
+        if (sb_have[b] == (const u16 *)SCORE_SRC && (u16)(t - base) < 8) return 1;
+    }
+    return 0;
+}
+
 typedef struct { u8 *sat; u16 link, left, drawn, dropped; } Spr;
 
 /* one 16x16 sprite, as the port's builds write them ($1108B8) */

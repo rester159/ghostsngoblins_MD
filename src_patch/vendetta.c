@@ -142,28 +142,64 @@ int vd_mirror(void)
     return vd_on() && STAGE < 6 && VDM_OFF != 0x4E4F;
 }
 
+/* Text stays readable: the score pop-ups ("1000", "200") are the only sprite
+ * text in play. In stages 3-6 their pieces are tiles $430-$43F and $490-$49F
+ * (the port's score frames, the dragon's 13 and 14); a Satan's score is
+ * drawn from its pose buffer while that holds the score (bossart.c). */
+int sat_score_tile(u16 t);              /* bossart.c */
+static int text_tile(u16 at)
+{
+    u16 t = at & 0x7FF;
+    if (STAGE >= 2 && ((u16)(t - 0x430) < 16 || (u16)(t - 0x490) < 16)) return 1;
+    return sat_score_tile(t);
+}
+
+#define SPR_W(sz)   (((((sz) >> 10) & 3) + 1) << 3)
+#define NTEXT 16
+
 /* The sprite table's mirrored copy (vdmirror.s vdm_sat_dma): x to
- * 512 - x - width, h flip toggled. x = 0 (a masking sprite) stays. Returns
+ * 512 - x - width, h flip toggled. x = 0 (a masking sprite) stays. Text
+ * pieces keep their flip, and each row of touching text pieces moves as a
+ * block (its box mirrored, the pieces in their order inside it). Returns
  * nonzero when the copy is what goes up. */
 int vd_mirror_sat(u16 len)
 {
     const volatile u16 *s = (const volatile u16 *)0xFFB500;
     volatile u16 *d = VDM_SAT;
-    u16 n = len >> 3;
+    u16 n = len >> 3, i, j, nt = 0;
+    u8 txt[NTEXT];
     if (!vd_mirror() || n == 0 || n > 80) return 0;
-    while (n--) {
+    for (i = 0; i < n; i++, s += 4, d += 4) {
         u16 sz = s[1], at = s[2], x = s[3] & 511;
-        if (x) {
-            x = (512 - x - ((((sz >> 10) & 3) + 1) << 3)) & 511;
+        d[0] = s[0];
+        d[1] = sz;
+        if (x && text_tile(at) && nt < NTEXT) {
+            txt[nt++] = i;              /* placed below, with its row */
+        } else if (x) {
+            x = (512 - x - SPR_W(sz)) & 511;
             if (!x) x = 1;
             at ^= 0x0800;
         }
-        d[0] = s[0];
-        d[1] = sz;
         d[2] = at;
         d[3] = x;
-        s += 4;
-        d += 4;
+    }
+    s = (const volatile u16 *)0xFFB500;
+    d = VDM_SAT;
+    for (i = 0; i < nt; i++) {
+        const volatile u16 *e = s + 4 * txt[i];
+        u16 y = e[0], x = e[3] & 511, l = x, r = x + SPR_W(e[1]), grow = 1, x2;
+        while (grow) {                  /* the row's box: touching text, same y */
+            grow = 0;
+            for (j = 0; j < nt; j++) {
+                const volatile u16 *f = s + 4 * txt[j];
+                u16 fx = f[3] & 511, fw = SPR_W(f[1]);
+                if (f[0] != y) continue;
+                if (fx + fw == l) { l = fx; grow = 1; }
+                if (fx == r) { r = fx + fw; grow = 1; }
+            }
+        }
+        x2 = (512 - r + (x - l)) & 511;
+        d[4 * txt[i] + 3] = x2 ? x2 : 1;
     }
     return 1;
 }
