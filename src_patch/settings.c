@@ -28,8 +28,9 @@ static const u8 diff_rank[4] = { 0x06, 0x00, 0x18, 0x20 };
 extern u8 rank_easy;    /* arthur.s; glue.s rank_creep holds the rank at 0 */
 static const char *const onoff_vals[] = { "OFF", "ON" };
 
-const char *const home_names[HOP_N] = { "LIVES", "CONTINUES", "BONUS", "DIFFICULTY", "WEAPON" };
+const char *const home_names[HOP_N] = { "LIVES", "CONTINUES", "BONUS", "DIFFICULTY", "WEAPON", "ATTACK" };
 static const char *const weapon_vals[] = { "KEEP AFTER DEATH", "LANCE AFTER DEATH" };
+static const char *const attack_vals[] = { "SIDEWAYS", "4-WAY" };
 static const char *const digits[] = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "INFINITE" };
 
 int dip_count(int i)
@@ -51,7 +52,7 @@ const char *dip_value(int i, int v)
 
 int home_count(int i)
 {
-    static const u8 n[HOP_N] = { 9, 11, 5, 4, 2 };
+    static const u8 n[HOP_N] = { 9, 11, 5, 4, 2, 2 };
     return n[i];
 }
 
@@ -62,6 +63,7 @@ const char *home_value(int i, int v)
     case HOP_CONT:  return digits[v];               /* 0-9, INFINITE */
     case HOP_BONUS: return bonus_vals[v];
     case HOP_WEAPON: return weapon_vals[v];
+    case HOP_ATTACK: return attack_vals[v];
     default:        return diff_vals[v];
     }
 }
@@ -80,6 +82,7 @@ void settings_defaults(void)
     p->home[HOP_BONUS] = 0;
     p->home[HOP_DIFF] = 0;
     p->home[HOP_WEAPON] = 0;        /* kept, as the arcade */
+    p->home[HOP_ATTACK] = 0;        /* sideways, as the arcade */
 }
 
 int is_home(void)   { return PERSIST->magic == PERSIST_MAGIC && PERSIST->mode == MODE_HOME; }
@@ -141,6 +144,7 @@ void stage_jump(int stage);         /* glue.s: what the game does at a stage end
 
 void p2_frame(void);
 void fb_frame(void);
+int  fb_on(void);
 int  fb_plus_on(void);
 int  vd_on(void);                   /* vendetta.c */
 int  vd_first_stage(void);
@@ -269,6 +273,66 @@ void home_prestart(void)
     G_CREDITS = c == HOME_CONT_INF ? 9 : c;
 }
 
+/* Home's ATTACK 4-WAY: a weapon thrown with up held (not on a ladder) flies
+ * straight up from his head, one thrown with down held in the air straight
+ * down. Lance, cross and knife only (the torch and axe arc). The game moves
+ * the shot sideways as before; each frame it is put back at the x it started
+ * from and that frame's sideways step is applied to its y instead, so its
+ * hits (enemies, enemy shots) are tested where it is. Off the screen
+ * vertically it is sent far sideways, where the game's own removal takes it.
+ * Weapon slots at $FF9600, $20 each (x/y 16.8 at +0/+4, y counting up the
+ * screen, active at +8, 1 = flying; +$0A = 2 flying left). Not in Firebrand
+ * mode: fix_shots (firebrand.c) places his new shots. */
+#define SHOT_SLOTS  3
+#define SHOT_UP     1
+#define SHOT_DOWN   2
+#define SHOT_HEAD   16                  /* px from the throw's line to his head / feet */
+static u8  shot_on[SHOT_SLOTS], shot_dir[SHOT_SLOTS];
+static u32 shot_x[SHOT_SLOTS];
+
+static void attack_tick(void)
+{
+    u8 in = G_P1;                       /* active low: 8 = up, 4 = down */
+    int on = is_home() && PERSIST->home[HOP_ATTACK] == HOME_ATTACK_4WAY && !fb_on();
+    int k;
+    for (k = 0; k < SHOT_SLOTS; k++) {
+        u32 s = 0xFF9600UL + 0x20 * k;
+        u8 live = RAM8(s + 8);
+        if (live && !shot_on[k]) {      /* thrown since last frame */
+            u8 w = WEAPON;
+            shot_dir[k] = 0;
+            if (on && live == 1 && (w == 1 || w == 3 || w == 4)) {
+                if (!(in & 8) && !RAM8(0xFF9459)) shot_dir[k] = SHOT_UP;
+                else if (!(in & 4) && RAM16(0xFF9410)) shot_dir[k] = SHOT_DOWN;
+            }
+            if (shot_dir[k] == SHOT_UP) {
+                shot_x[k] = RAM32(s);
+                RAM32(s + 4) += (u32)SHOT_HEAD << 8;
+            } else if (shot_dir[k] == SHOT_DOWN) {
+                shot_x[k] = RAM32(s);
+                RAM32(s + 4) -= (u32)SHOT_HEAD << 8;
+            }
+        } else if (live == 1 && shot_dir[k]) {
+            long d = (long)(RAM32(s) - shot_x[k]);
+            u32 y = RAM32(s + 4);
+            s16 sy;
+            if (d < 0) d = -d;
+            y = shot_dir[k] == SHOT_UP ? y + (u32)d : y - (u32)d;
+            RAM32(s + 4) = y;
+            RAM32(s) = shot_x[k];
+            sy = (s16)((u16)(y >> 8) - RAM16(0xFF9102));    /* above the screen's bottom */
+            if (sy > 240 || sy < -16) {
+                RAM32(s) = RAM8(s + 0x0A) == 2 ? shot_x[k] - (512UL << 8)
+                                               : shot_x[k] + (512UL << 8);
+                shot_dir[k] = 0;
+            }
+        } else if (live != 1) {
+            shot_dir[k] = 0;            /* hit or gone: the game's own */
+        }
+        shot_on[k] = live;
+    }
+}
+
 /* once per frame from the pad routine during play */
 void play_tick(void)
 {
@@ -280,6 +344,7 @@ void play_tick(void)
     }
     if (p->dev_on && p->dev_inf && LIVES < 3) LIVES = 3;
     if (RAM8(0xFFC305) == 1 && !RAM16(0xFFC570)) weapon_held = WEAPON;   /* playing, not dying */
+    attack_tick();
     p2_frame();
     fb_frame();
     vd_frame();
