@@ -1373,6 +1373,21 @@ x/y, `$FFE000` the 30 objects (48 bytes: x, y, +4 live, +10 type).
     crows' and skulls' `$79A`/`$79E`: while either object is live the cache gives up and skips the slots on its tiles, and makes the
     channel load its frame again if the cache wrote there. Bench stages 1-6: no fault, the same speed.
 
+118. **Stage 2's black frames at the street's changes** (`segswap.c`, `segswap_s.s` `seg_check` at `$11A8B6`, `bank_hook` at `$11AA4E`;
+    `tools/seg_reindex.py`). Stage 2's streamer took the full reload (display off, two black frames) when the column 15 left of the
+    camera (Fixed 49) entered another segment (camera x 5744, 6192, 6816) or window (5888, 6608), and turned the display off inside
+    the update to swap the bank art at `$320` (5824: a black band). The base port's segments are packed on their own (by index ~95% of
+    their tiles differ), but by content the next one needs only 186-267 tiles, and at a change every column in the plane's ring is in
+    both segments' overlap, drawn the same. The build now lays each segment's tiles out on the one before it (shared tiles keep their
+    index, new ones go where no overlap cell of the previous points, tile 0 kept blank for the HUD's plane), remaps the maps (the
+    overlap cells then equal word for word, checked) and writes, per change and direction, the tiles to upload, ordered by the column
+    that first needs them. A step to a neighbouring segment sets the streamer's segment, column and map and uploads 96 tiles a vblank
+    (the column entering at the right edge, the only one that can show before the end, in the first); a window change uploads its 16
+    tiles at `$7F0`, a bank change its art over the next vblanks, all with the display on. A life start, a jump of segments or a
+    section change takes the reload as before (Open: V0.7.3 reports, 6). Measured: plane B rendered from VRAM equals the old build's
+    (after its reload) at every camera position sampled every 5 px, 320 in all, on walks across each change and back; no black frame
+    there; bench stages 1-6 and stage 2 co-op and Firebrand: no fault, the same speed.
+
 ## Matching (audited)
 
 - **Tombstone boxes against their art** (reported on V0.7: drawn in one place, solid slightly to the right).
@@ -1525,13 +1540,12 @@ They stay as they are; each note says why.
   5. Fixed 117 (the armor) and 112 (the skull). Stage 6's floor: no armor above the Red Arremer before the first skull when
      Arthur has lost his armor. Reached by the route `R7797,L7704,U,W30,L7604,U,W40,R7760,U,W40,L7664,U,W40,L7504,U,W30,
      R7520,U,W30,R7560,U,W30` (`route.py`, both games, from the stage's start).
-  6. Fixed 116 (the block and the bands). Still seen: two black frames (display off) when stage 2's camera reaches x 5744 and
-     x 5888, from a life started at x 5700 (`restart_entry.py` entry `00164450`, index 1), walking right. The streamer (`$11A89C`)
-     takes the full reload (`$11A7C0`) when the column 15 left of the camera (Fixed 49) enters segment 1 (column 344, `$FFB020`
-     table) or window 1 (`$11AA08`, column 353): display off, the segment's tile set (652-672 tiles) and palette, 32 columns, display
-     on. The base port does it at every segment change. The sets are packed separately (by index ~95% differ), but by content the
-     next segment needs only 186, 267 and 60 tiles, and every column on the screen at the switch is in both segments: re-indexed so
-     shared tiles keep their place, a switch could upload only the new ones into tiles no visible column uses. Not done.
+  6. Fixed 116 (the block and the bands) and 118 (the black frames at segment, window and bank changes). Still seen: a section
+     change (the zone of the camera's screen, table `$6E26A`: 1 below camera x 4352, 12 to 6655, 2 from 6656 and on the building's
+     upper floors, camera y 256 and up; `$11AB62`) takes the full reload: three black frames walking left past camera x 4336
+     (life start entry `00118050`, index 1). The sections draw a few cells of the same columns differently (2-6 a column at the
+     x 4352 change) and form a cycle with the segments (sections 1 and 2 meet at every segment), so Fixed 118's chain doesn't cover
+     them.
      Reported again on V0.8 (the block smaller, in the first loop only; the garbage in both, more in the second). Stage 2's second half can
      be reached headless now (flag `$FFC521` and `$FFF401`, die: x 4736; lift out of the water, 32 px past walls): a direct launch, sampled
      every 150 px to x 6240, shows neither, so it's still not reproduced; a real stage 1 exit isn't forced yet. Stage 2: the large black block at the end of the building (still); sprite garbage at the bottom before the

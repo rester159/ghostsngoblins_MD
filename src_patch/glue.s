@@ -390,6 +390,7 @@ hook_sat_dma:
 1:  movem.l %d0-%d1/%a0-%a1,-(%sp)
     jsr     sat_vblank              | bossart.c: the Satans' pose uploads
     jsr     bm_vblank               | bmart.c: stage 5's Big Men's poses
+    jsr     seg_vblank              | segswap.c: stage 2's segment, bank and window art
     movem.l (%sp)+,%d0-%d1/%a0-%a1
     movem.l %d1/%a0-%a1,-(%sp)
     move.l  %d0,-(%sp)

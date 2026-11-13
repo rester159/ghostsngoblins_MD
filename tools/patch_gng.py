@@ -586,6 +586,20 @@ def install_features(rom, build_dir):
     install_speed(rom, sym)
     install_parallax(rom, sym)
     install_vd_map(rom, sym)
+    install_segswap(rom, sym)
+
+
+def install_segswap(rom, sym):
+    """Stage 2's segment, window and bank changes without the display off (src_patch/segswap.c,
+    tools/seg_reindex.py)."""
+    import seg_reindex
+    jmp = lambda a: b'\x4e\xf9' + be32(a)
+    expect(rom, 0x11A8B6, bytes.fromhex('61000150b07900ffb00c66000074300661 0000fcb07900ffb01c66000064'.replace(' ', '')),
+           'stage 2 window and segment tests')
+    put(rom, 0x11A8B6, jsr(sym['seg_check']) + bytes.fromhex('66000078') + bytes.fromhex('6012') + b'\x4e\x71' * 9)
+    expect(rom, 0x11AA4E, jsr(sym['par_dispoff']) + bytes.fromhex('4e7161d0'), 'stage 2 bank change (display off)')
+    put(rom, 0x11AA4E, jmp(sym['bank_hook']))
+    seg_reindex.install(rom, sym, put, be32)
 
 
 def install_parallax(rom, sym):
