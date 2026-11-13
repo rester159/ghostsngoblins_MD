@@ -104,6 +104,47 @@ static const u16 win_tile[3][16] = {
     { 0x6BC, 0x6BD, 0x6BE, 0x6BF, 0x6C0, 0x6C1, 0x6C2, 0x6C3, 0x6C4, 0x6C5, 0x6C6, 0x6C7, 0x5F4, 0x5F5, 0x5F6, 0x5F7 },
     { 0x5F8, 0x5F9, 0x5FA, 0x5FB, 0x6D0, 0x6D1, 0x6D2, 0x6D3, 0x6D4, 0x6D5, 0x6D6, 0x6D7, 0x6D8, 0x6D9, 0x6DA, 0x6DB } };
 
+int vd_mirror(void);                    /* vendetta.c: Vendetta's mirrored plane B (vdmirror.s) */
+
+/* a window's row r of 4 cells: written from v / read into its cells. Mirrored
+ * (Vendetta), plane column c is drawn at 63 - c with its h flip toggled, so
+ * the row's 4 cells run backwards from column 60 - col; the cells are kept as
+ * the game's world has them. */
+static void win_put(const Win *w, int r, const u16 *v)
+{
+    u16 a = WIN_PLANE + ((w->row + r) & 31) * 128;
+    int c;
+    if (vd_mirror()) {
+        VDP_CTRLL = VRAM_W(a + ((60 - w->col) & 63) * 2);
+        for (c = 3; c >= 0; c--) VDP_DATA = v[c] ^ 0x0800;
+    } else {
+        VDP_CTRLL = VRAM_W(a + w->col * 2);
+        for (c = 0; c < 4; c++) VDP_DATA = v[c];
+    }
+}
+
+static void win_get(Win *w, int r)
+{
+    u16 a = WIN_PLANE + ((w->row + r) & 31) * 128;
+    int c;
+    if (vd_mirror()) {
+        VDP_CTRLL = VRAM_R(a + ((60 - w->col) & 63) * 2);
+        for (c = 3; c >= 0; c--) w->cell[r * 4 + c] = VDP_DATA ^ 0x0800;
+    } else {
+        VDP_CTRLL = VRAM_R(a + w->col * 2);
+        for (c = 0; c < 4; c++) w->cell[r * 4 + c] = VDP_DATA;
+    }
+}
+
+/* row r of the window in pose tiles t (the cells' palette and priority kept) */
+static void win_pose(const Win *w, int r, const u16 *t)
+{
+    u16 v[4];
+    int c;
+    for (c = 0; c < 4; c++) v[c] = (w->cell[r * 4 + c] & 0xE000) | t[r * 4 + c];
+    win_put(w, r, v);
+}
+
 static int win_reach(const Win *w)
 {
     u16 d = w->wx - RAM16(0xFFA200) + 64;
@@ -230,12 +271,9 @@ static void win_upload(int n, int r)
 
 static void win_restore(Win *w)
 {
-    int r, c;
+    int r;
     if (w->saved == 1 && win_reach(w))
-        for (r = 0; r < 4; r++) {
-            VDP_CTRLL = VRAM_W(WIN_PLANE + ((w->row + r) & 31) * 128 + w->col * 2);
-            for (c = 0; c < 4; c++) VDP_DATA = w->cell[r * 4 + c];
-        }
+        for (r = 0; r < 4; r++) win_put(w, r, &w->cell[r * 4]);
     w->saved = 0;                               /* closed again: the entry is free */
     w->owner = 0;
     w->pend = 0;
@@ -266,7 +304,7 @@ static int win_region(int n, const Win *w)
 
 static void win_vblank(Win *w, u8 *done)
 {
-    int r, c, g;
+    int r, g;
     const u16 *t;
     if (!win_reach(w)) {
         if (w->pend == 0xFF) { w->owner = 0; w->saved = 0; }
@@ -283,17 +321,11 @@ static void win_vblank(Win *w, u8 *done)
     }
     reg_pose[g] = w->pend;
     if (!w->saved) {
-        for (r = 0; r < 4; r++) {
-            VDP_CTRLL = VRAM_R(WIN_PLANE + ((w->row + r) & 31) * 128 + w->col * 2);
-            for (c = 0; c < 4; c++) w->cell[r * 4 + c] = VDP_DATA;
-        }
+        for (r = 0; r < 4; r++) win_get(w, r);
         w->saved = 1;
     }
     t = win_tile[g];
-    for (r = 0; r < 4; r++) {
-        VDP_CTRLL = VRAM_W(WIN_PLANE + ((w->row + r) & 31) * 128 + w->col * 2);
-        for (c = 0; c < 4; c++) VDP_DATA = (w->cell[r * 4 + c] & 0xE000) | t[r * 4 + c];
-    }
+    for (r = 0; r < 4; r++) win_pose(w, r, t);
     w->reg = g;
     w->pend = 0;
 }
@@ -320,7 +352,7 @@ static void win_vblanks(void)
  * The VDP is written with the interrupts off (the vblank's uploads use it). */
 void win_chan(void)
 {
-    int k, r, c, g;
+    int k, r, g;
     u16 sr;
     if (!r2_held) return;
     if (chan_idle() && reg_users(2, 0)) return;
@@ -338,10 +370,7 @@ void win_chan(void)
                 if (!reg_users(r, w)) { g = r; win_upload(reg_pose[2], r); reg_pose[r] = reg_pose[2]; break; }
         if (g >= 0) {
             const u16 *t = win_tile[g];
-            for (r = 0; r < 4; r++) {
-                VDP_CTRLL = VRAM_W(WIN_PLANE + ((w->row + r) & 31) * 128 + w->col * 2);
-                for (c = 0; c < 4; c++) VDP_DATA = (w->cell[r * 4 + c] & 0xE000) | t[r * 4 + c];
-            }
+            for (r = 0; r < 4; r++) win_pose(w, r, t);
             w->reg = g;
         } else if (win_orphan(w))
             win_restore(w);

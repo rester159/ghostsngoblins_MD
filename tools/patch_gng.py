@@ -587,6 +587,7 @@ def install_features(rom, build_dir):
     install_parallax(rom, sym)
     install_vd_map(rom, sym)
     install_segswap(rom, sym)
+    install_vd_mirror(rom, sym)
 
 
 def install_segswap(rom, sym):
@@ -655,6 +656,18 @@ def install_vd_map(rom, sym):
     for a in (0x113D32, 0x113D74):
         expect(rom, a, bytes.fromhex('0c39000400ffc512'), 'stage map far-stage test')
         put(rom, a, jsr(sym['vd_map_far']) + b'\x4e\x71')
+
+
+def install_vd_mirror(rom, sym):
+    # Firebrand's Vendetta shown mirrored, left to right (src_patch/vdmirror.s): plane B's
+    # column streamer and each stage's row upload draw the mirrored table (the scroll,
+    # parallax.s's exits; the sprites, glue.s hook_sat_dma; the pad, pad.c)
+    jmp = lambda a: b'\x4e\xf9' + be32(a)
+    expect(rom, 0x94D8, bytes.fromhex('0c79ffff00ffb002'), 'column streamer entry')
+    put(rom, 0x94D8, jmp(sym['vdm_col']) + b'\x4e\x71')
+    for a in (0x970C, 0x104CF8, 0x10FFFE, 0x110FD2, 0x1155BE, 0x11A968):
+        expect(rom, a, bytes.fromhex('41f900ff0a00303c0100') + jsr(0x704BE), 'row upload')
+        put(rom, a + 10, jsr(sym['vdm_row_dma']))
 
 
 def install_speed(rom, sym):

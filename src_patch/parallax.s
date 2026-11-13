@@ -34,7 +34,7 @@
     .equ    PAR_ROWS, 6
 
     .section .text,"ax"
-    .global par_9600
+    .global par_9600, par_ok
 par_9600:
     cmpi.b  #2,0xFF5004             | Home only (PERSIST->mode == MODE_HOME, all its
     bne.s   0f                      | modes); Arcade keeps the original's single scroll
@@ -45,7 +45,7 @@ par_9600:
     cmpi.b  #2,0xFFC512             | stage 3
     beq.w   w3_wall
 0:  move.w  #0x8B00,0xC00004        | one scroll for the whole screen
-    jmp     copy9600
+    jmp     vdm_scroll              | vdmirror.s: Vendetta mirrored, then copy9600
 1:  movem.l %d0-%d3/%a0-%a1,-(%sp)
     lea     0xC00004,%a0
     lea     0xC00000,%a1
@@ -108,7 +108,7 @@ par_9600:
 8:  move.w  #0x8B00,(%a0)           | one scroll for the whole screen
     sf      par_ok                  | the next time in starts at its target
 9:  movem.l (%sp)+,%d0-%d3/%a0-%a1
-    jmp     copy9600
+    jmp     vdm_scroll              | vdmirror.s: Vendetta mirrored, then copy9600
 
 | Every `move.w #$8104,$C00004` (display off: a new screen is being drawn;
 | fourteen places, patch_gng.py): the display off, then one scroll for the
@@ -164,7 +164,7 @@ w3_wall:
     .endr
     .endr
 9:  movem.l (%sp)+,%d0-%d1/%a0-%a2
-    jmp     copy9600
+    jmp     vdm_scroll              | vdmirror.s: Vendetta mirrored, then copy9600
 
     .lcomm  par_s, 2                | stage 1: the mountain rows' scroll shown
     .lcomm  par_ok, 1               | par_s is valid

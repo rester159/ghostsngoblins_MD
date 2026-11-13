@@ -49,9 +49,40 @@ THE RED ARREMER.
 | 5     | stage 2            |                                                  |
 | 6     | stage 1, graveyard | stage boss replaced by **Arthur**                |
 
-The stages come in reverse order, **and each map is played right to left**:
-Firebrand starts at a stage's right end, beside the boss arena, and the stage
-ends when he reaches its left edge, where Arthur's run started.
+The stages come in reverse order, **and each map is played backwards**:
+Firebrand starts at a stage's far end, beside the boss arena, and the stage
+ends when he reaches the place where Arthur's run started. In the game's world
+that is right to left; **the screen shows the world mirrored**, so he goes
+from left to right like any side-scroller (below).
+
+### The mirrored screen (src_patch/vdmirror.s)
+The game's own world, collisions, camera and enemies are untouched; only what
+reaches the VDP is turned round, so the screen is the exact mirror image of
+the unmirrored game:
+- **Plane B** (the whole stage): world cell column c is drawn at plane column
+  63 - (c & 63) with its h flip toggled. In play the game writes plane B in two
+  places: the column streamer (`$94D8`, all stages; it also draws a stage's
+  start), hooked to `vdm_col`, and each stage's 2-row upload (`jsr $704BE` of
+  `$FF0A00`, six places), hooked to `vdm_row_dma`, which uploads a reversed,
+  flipped copy (`$FF4280`). Stage 2's windows (`bossart.c` `win_put`/`win_get`)
+  do the same.
+- **The scroll:** plane B's h scroll -v becomes v - 256, at the exits of
+  `par_9600` (after every stage loop's scroll write, held frames included;
+  stage 1's mountain rows too) and on a stage start's still frames (`pad.c`
+  `stage_hold`). Stage 3's rolled wall needs nothing: its h-flipped tiles roll
+  the other way on the screen, which is the mirror.
+- **Sprites:** the table goes up from a mirrored copy (`$FF4000`, `vd_mirror_sat`
+  from `glue.s` `hook_sat_dma`): x to 512 - x - width, h flip toggled.
+- **The pad:** left and right trade places in play (`pad.c`).
+- **Not mirrored:** plane A (the HUD; it never scrolls), the stage map (already
+  drawn with the lair on the left), the story pages. Sprite text, the "1000"
+  over a dead dragon or Satan, reads backwards: nothing in a sprite says it is
+  text.
+- Off for tests: `$FF43FE` = `$4E4F` ('NO'). Checked headless: the same input
+  (left/right swapped) with mirroring on and off gives the mirror image of the
+  same frame in every stage, starts and a death's restart included (rows
+  32-203; the HUD rows differ by design), apart from the fireball's animation a
+  frame apart twice.
 
 Built (src_patch/vendetta.c, vendetta_glue.s; hooks in tools/patch_gng.py):
 - **Story:** `vd_story` (one page, from the Home menu) and `regicide` (90 frames
@@ -75,14 +106,15 @@ Built (src_patch/vendetta.c, vendetta_glue.s; hooks in tools/patch_gng.py):
   wrapped floor; it now starts on him.
 - **Checkpoint:** passed with the camera left of the game's mark ($103E1A)
   instead of right of it ($103CB0). A death after it restarts there.
-- **Facing:** left on every start.
+- **Facing:** left in the world (right on the mirrored screen) on every start.
 
 ### Camera: always show where he's going
 The game's camera ($FFF420, follow routine $10414A) holds the player 128 px
 from the left and 142 px above the bottom, and scrolls down at 1, 3 or 5 px
 a frame, so a long drop outruns it. In Vendetta:
-- he is held **176 px from the left** (80 px from the right edge), so 176 px of
-  the way ahead is on screen ($10415C gap, $1042BE new x);
+- he is held **176 px from the left** of the world's view (80 px from its right
+  edge; on the mirrored screen 80 px from the left), so 176 px of the way ahead
+  is on screen ($10415C gap, $1042BE new x);
 - he is held **166 px above the bottom**, so 166 px below his feet is on screen
   ($1041E6 gap), and the camera scrolls down at **1, 4 or 7 px a frame**
   ($1042D0 speed table);

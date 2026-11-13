@@ -16,6 +16,8 @@ static const u8 dir_lut[16] = {
 
 void coin_inserted(void);
 void play_tick(void);
+int  vd_mirror(void);                    /* vendetta.c */
+void vd_mirror_hold(void);
 
 /* The arcade's input timing (gg3): its player routines read left/right as
  * (this frame AND last frame) ($93D0, inputs $4B/$4C from $6920/$6930), so a
@@ -126,6 +128,9 @@ void pad_update(void)
         prev_start = start;
     }
 
+    /* Vendetta's mirrored screen (vdmirror.s): right on the pad is left in
+     * the game's world */
+    if (in_play() && vd_mirror() && ((t1 >> 2 ^ t1 >> 3) & 1)) t1 ^= 0x0C;
     p1 = 0xC0 | dir_lut[t1 & 15];
     if (!act4) p1 |= 0x10;
     if (!act5) p1 |= 0x20;
@@ -166,6 +171,7 @@ void stage_hold(void)
 {
     int i, n = STAGE_HOLD - intro_hold() - 1;
     hide_frame();           /* (the HUD's TIME digits, drawn just before) */
+    vd_mirror_hold();       /* Vendetta's mirrored plane B scroll (vendetta.c) */
     for (i = 0; i < n; i++) {
         while (VDP_CTRL & 8) ;
         while (!(VDP_CTRL & 8)) ;

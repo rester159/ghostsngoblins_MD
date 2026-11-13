@@ -131,6 +131,52 @@ int vd_on(void)
     return is_home() && PERSIST->home_sub == HOME_VENDETTA;
 }
 
+/* Vendetta is shown mirrored (vdmirror.s): the stages run right to left in
+ * the game's world and left to right on the screen. VDM_OFF = 'NO' turns it
+ * off (equivalence tests: the mirrored screen against the plain one). */
+#define VDM_OFF     RAM16(0xFF43FE)
+#define VDM_SAT     ((volatile u16 *)0xFF4000)
+
+int vd_mirror(void)
+{
+    return vd_on() && STAGE < 6 && VDM_OFF != 0x4E4F;
+}
+
+/* The sprite table's mirrored copy (vdmirror.s vdm_sat_dma): x to
+ * 512 - x - width, h flip toggled. x = 0 (a masking sprite) stays. Returns
+ * nonzero when the copy is what goes up. */
+int vd_mirror_sat(u16 len)
+{
+    const volatile u16 *s = (const volatile u16 *)0xFFB500;
+    volatile u16 *d = VDM_SAT;
+    u16 n = len >> 3;
+    if (!vd_mirror() || n == 0 || n > 80) return 0;
+    while (n--) {
+        u16 sz = s[1], at = s[2], x = s[3] & 511;
+        if (x) {
+            x = (512 - x - ((((sz >> 10) & 3) + 1) << 3)) & 511;
+            if (!x) x = 1;
+            at ^= 0x0800;
+        }
+        d[0] = s[0];
+        d[1] = sz;
+        d[2] = at;
+        d[3] = x;
+        s += 4;
+        d += 4;
+    }
+    return 1;
+}
+
+/* Plane B's h scroll for a stage start's still frames (pad.c stage_hold),
+ * before the loop's own writes go through vdm_scroll */
+void vd_mirror_hold(void)
+{
+    if (!vd_mirror()) return;
+    VDP_CTRLL = VRAM_W(0xFC02);
+    VDP_DATA = RAM16(0xFF9100) - 256;
+}
+
 /* a game's first stage (settings.c player_init) */
 int vd_first_stage(void)
 {

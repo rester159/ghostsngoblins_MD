@@ -397,7 +397,7 @@ hook_sat_dma:
     jsr     p2_sat
     addq.l  #4,%sp
     movem.l (%sp)+,%d1/%a0-%a1
-    jmp     0x704BE
+    jmp     vdm_sat_dma             | vdmirror.s: Vendetta's mirrored copy, then $704BE
 
 | $644, stage 1's sprite-table DMA: the arcade's water colour cycle first.
 | Every 8 frames the arcade ($EE00, stage 1) sets colours 42-44 from tables
