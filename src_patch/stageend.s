@@ -71,7 +71,14 @@ se_wmove:
     bsr     se_active
     bne.s   1f
     bsr.s   w_visible
+    tst.b   0xFF5000+24+5           | PERSIST->home[HOP_ATTACK] (aim.c), else as before
+    bne.s   3f
     jmp     0x1158D0
+3:  jsr     0x1158D0
+    movem.l %d0-%d1/%a0-%a1,-(%sp)
+    jsr     aim_move                | aim.c: Home's 4-WAY lances up and down
+    movem.l (%sp)+,%d0-%d1/%a0-%a1
+    rts
 1:  tst.b   0xFF9700
     beq.s   2f
     move.w  0xFF9704,0xFF9206

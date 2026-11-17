@@ -98,15 +98,13 @@ static void frame_screen(const char *title)
     if (title) text_center(10, title, PAL_TEXT);
 }
 
-/* OPTIONS' logo after TITLE changes: rows 0-9, OPTIONS on row 10. */
+/* OPTIONS' logo after TITLE changes: rows 0-9. */
 static void redraw_logo(void)
 {
     int i;
     VDP_CTRLL = VRAM_W(0xC000);
     for (i = 0; i < 10 * 64; i++) VDP_DATA = 0;     /* any logo */
-    clear_rows(10, 10);
     logo(1);
-    text_center(10, "OPTIONS", PAL_TEXT);
 }
 
 static int wrap(int v, int dir, int n) { v += dir; return v < 0 ? n - 1 : v >= n ? 0 : v; }
@@ -135,7 +133,7 @@ static void dip_menu(void)
 /* ---- options (Home) ----------------------------------------------- */
 
 static const char *const opt_items[] = {
-    "LIVES", "CONTINUES", "BONUS", "DIFFICULTY", "WEAPON", "TITLE", "SOUND TEST", "BACK",
+    "LIVES", "CONTINUES", "BONUS", "DIFFICULTY", "WEAPON", "ATTACK", "TITLE", "SOUND TEST", "BACK",
 };
 enum { OPT_TITLE = HOP_N, OPT_SOUND, OPT_BACK };
 static char snd_buf[3];
@@ -153,16 +151,18 @@ static void opt_chg(int i, int d)
     if (i == OPT_SOUND) PERSIST->sound_id = (PERSIST->sound_id + d) & 63;
 }
 
-/* 8 items: under OPTIONS, as DEVELOPER (they don't fit under the whole logo) */
+/* 9 items: under the logo's 10 rows (as DEVELOPER's), from row 10 with no
+ * screen title, so BACK is on row 26 (the whole logo leaves no room) */
 static void options_menu(void)
 {
     static const Menu m = { opt_items, OPT_BACK + 1, 3, 14, opt_val, opt_chg, 0 };
     int sel = 0;
-    frame_screen("OPTIONS");
+    screen_init();
+    logo(1);
     display_on();
     game_sound_init();
     for (;;) {
-        sel = menu_run(&m, 12, sel);
+        sel = menu_run(&m, 10, sel);
         if (sel == OPT_SOUND) { sound_stop(); game_sound_play(PERSIST->sound_id); continue; }
         if (sel == MENU_BACK || sel == OPT_BACK) break;
     }

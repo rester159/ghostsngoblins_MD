@@ -28,7 +28,8 @@ static const u8 diff_rank[4] = { 0x06, 0x00, 0x18, 0x20 };
 extern u8 rank_easy;    /* arthur.s; glue.s rank_creep holds the rank at 0 */
 static const char *const onoff_vals[] = { "OFF", "ON" };
 
-const char *const home_names[HOP_N] = { "LIVES", "CONTINUES", "BONUS", "DIFFICULTY", "WEAPON" };
+const char *const home_names[HOP_N] = { "LIVES", "CONTINUES", "BONUS", "DIFFICULTY", "WEAPON", "ATTACK" };
+static const char *const attack_vals[] = { "NORMAL", "4-WAY" };
 static const char *const weapon_vals[] = { "KEEP AFTER DEATH", "LANCE AFTER DEATH" };
 static const char *const digits[] = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "INFINITE" };
 
@@ -51,7 +52,7 @@ const char *dip_value(int i, int v)
 
 int home_count(int i)
 {
-    static const u8 n[HOP_N] = { 9, 11, 5, 4, 2 };
+    static const u8 n[HOP_N] = { 9, 11, 5, 4, 2, 2 };
     return n[i];
 }
 
@@ -62,6 +63,7 @@ const char *home_value(int i, int v)
     case HOP_CONT:  return digits[v];               /* 0-9, INFINITE */
     case HOP_BONUS: return bonus_vals[v];
     case HOP_WEAPON: return weapon_vals[v];
+    case HOP_ATTACK: return attack_vals[v];
     default:        return diff_vals[v];
     }
 }
@@ -80,6 +82,7 @@ void settings_defaults(void)
     p->home[HOP_BONUS] = 0;
     p->home[HOP_DIFF] = 0;
     p->home[HOP_WEAPON] = 0;        /* kept, as the arcade */
+    p->home[HOP_ATTACK] = 0;        /* NORMAL */
 }
 
 int is_home(void)   { return PERSIST->magic == PERSIST_MAGIC && PERSIST->mode == MODE_HOME; }
@@ -154,9 +157,12 @@ void arc_rand_seed(void);   /* arcrand.c */
 static u8 weapon_fresh;              /* a new game: its first start gives the lance */
 static u8 weapon_held;               /* Arthur's weapon in play (play_tick) */
 
+void aim_reset(void);      /* aim.c */
+
 void player_init(void)
 {
     weapon_fresh = 1;
+    aim_reset();
     arc_rand_seed();                /* every game starts from $87CD, as the arcade's */
     p2_reset();
     LIVES = start_lives();

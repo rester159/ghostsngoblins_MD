@@ -142,8 +142,10 @@ HOME
   FIREBRAND'S QUEST PLUS  appears once the quest is beaten: top difficulty
                       throughout, half the hover time.
   OPTIONS ........... lives, continues, bonus life, difficulty, weapon after
-                      a death, English or Japanese (Makaimura) title,
-                      sound test
+                      a death, attack (4-WAY: hold Up to throw the lance
+                      straight up; jump and hold Down to throw it straight
+                      down; Arthur only), English or Japanese (Makaimura)
+                      title, sound test
 
 ARCADE
   DIP SWITCHES ...... coinage (including free play), lives, bonus life,

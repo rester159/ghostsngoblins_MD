@@ -178,6 +178,9 @@ def install_features(rom, build_dir):
     for a in (0x9204, 0x9982, 0x104F16):
         expect(rom, a, bytes.fromhex('13fc000100ffa218'), 'stage start weapon')
         put(rom, a, jsr(sym['hook_weapon_start']) + b'\x4e\x71')
+    # the throw: Home's ATTACK 4-WAY aims Arthur's new lance up or down (aim.c)
+    expect(rom, 0xBA4A, jmp(0x115DFC), 'throw')
+    put(rom, 0xBA4A, jmp(sym['hook_throw']))
     expect(rom, 0x6348, b'\x13\xfc\x00\x03' + be32(0xFFC500), 'continue lives')
     put(rom, 0x6348, jsr(sym['hook_continue_lives']) + b'\x4e\x71')
     expect(rom, 0x89E4, jmp(0x11C73E), 'sound play entry')
