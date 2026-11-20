@@ -3,7 +3,8 @@
  * per-mode mapping:
  *   original / no mode : B, C act; A inserts a coin; Start starts (as shipped)
  *   ARCADE             : B, A act (A takes C's old role); C inserts a coin
- *   HOME               : B, C act (A = C); Start pauses during play
+ *   HOME               : fire and jump as its BUTTONS option (B, and A or C);
+ *                        Start pauses during play
  */
 #include "md.h"
 #include "common.h"
@@ -57,6 +58,17 @@ u8 arcade_input(u8 raw, InFilter *f, int on_ground)
 }
 
 static InFilter p1f;
+
+/* Home's BUTTONS option (active high in and out): the fire button, and jump
+ * on the other two. The shipped port fires with B and jumps with A or C. */
+u8 home_buttons(u8 a, u8 b, u8 c, u8 *jump)
+{
+    switch (PERSIST->home[HOP_BUTTONS]) {
+    case 1:  *jump = b | c; return a;
+    case 2:  *jump = a | b; return c;
+    default: *jump = a | c; return b;
+    }
+}
 
 static u8 prev_start;
 
@@ -116,7 +128,7 @@ void pad_update(void)
         u8 b = !(t1 & 0x10), c = !(t1 & 0x20), a = !(t0 & 0x10);
         start = !(t0 & 0x20);
         if (mode == MODE_ARCADE) { act4 = b; act5 = a; coin = c; }
-        else if (mode == MODE_HOME) { act4 = b; act5 = c | a; coin = 0; }
+        else if (mode == MODE_HOME) { act4 = home_buttons(a, b, c, &act5); coin = 0; }
         else { act4 = b; act5 = c; coin = a; }
     }
 

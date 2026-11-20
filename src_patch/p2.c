@@ -165,8 +165,11 @@ static void read_pad2(void)
     irq_restore(sr);
     if (t0 & 0x0C) { input = 0xFF; return; }        /* no pad 2 */
     p = 0xC0 | dir_lut[t1 & 15];
-    if (t1 & 0x10) p |= 0x10;                       /* B */
-    if ((t1 & 0x20) && (t0 & 0x10)) p |= 0x20;      /* C or A */
+    {                                               /* Home's BUTTONS, as pad 1 */
+        u8 jump, fire = home_buttons(!(t0 & 0x10), !(t1 & 0x10), !(t1 & 0x20), &jump);
+        if (!fire) p |= 0x10;
+        if (!jump) p |= 0x20;
+    }
     input = p;
 }
 

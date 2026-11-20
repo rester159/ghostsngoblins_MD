@@ -135,7 +135,7 @@ static void dip_menu(void)
 /* ---- options (Home) ----------------------------------------------- */
 
 static const char *const opt_items[] = {
-    "LIVES", "CONTINUES", "BONUS", "DIFFICULTY", "WEAPON", "ATTACK", "TITLE", "SOUND TEST",
+    "LIVES", "CONTINUES", "BONUS", "DIFFICULTY", "WEAPON", "ATTACK", "BUTTONS", "TITLE", "SOUND TEST",
 };
 enum { OPT_TITLE = HOP_N, OPT_SOUND, OPT_N };
 static char snd_buf[3];
@@ -153,8 +153,9 @@ static void opt_chg(int i, int d)
     if (i == OPT_SOUND) PERSIST->sound_id = (PERSIST->sound_id + d) & 63;
 }
 
-/* 8 items under OPTIONS, as DEVELOPER (they don't fit under the whole logo).
- * No BACK item: B goes back, as on the Home menu. */
+/* 9 items under OPTIONS (they don't fit under the whole logo), from the row
+ * under the heading so the last is on row 27. No BACK item: B goes back, as
+ * on the Home menu. */
 static void options_menu(void)
 {
     static const Menu m = { opt_items, OPT_N, 3, 14, opt_val, opt_chg, 0 };
@@ -163,7 +164,7 @@ static void options_menu(void)
     display_on();
     game_sound_init();
     for (;;) {
-        sel = menu_run(&m, 12, sel);
+        sel = menu_run(&m, 11, sel);
         if (sel == OPT_SOUND) { sound_stop(); game_sound_play(PERSIST->sound_id); continue; }
         if (sel == MENU_BACK) break;
     }

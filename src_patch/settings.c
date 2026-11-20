@@ -28,8 +28,9 @@ static const u8 diff_rank[4] = { 0x06, 0x00, 0x18, 0x20 };
 extern u8 rank_easy;    /* arthur.s; glue.s rank_creep holds the rank at 0 */
 static const char *const onoff_vals[] = { "OFF", "ON" };
 
-const char *const home_names[HOP_N] = { "LIVES", "CONTINUES", "BONUS", "DIFFICULTY", "WEAPON", "ATTACK" };
+const char *const home_names[HOP_N] = { "LIVES", "CONTINUES", "BONUS", "DIFFICULTY", "WEAPON", "ATTACK", "BUTTONS" };
 static const char *const attack_vals[] = { "NORMAL", "4-WAY" };
+static const char *const button_vals[] = { "FIRE B  JUMP A C", "FIRE A  JUMP B C", "FIRE C  JUMP A B" };
 static const char *const weapon_vals[] = { "KEEP AFTER DEATH", "LANCE AFTER DEATH" };
 static const char *const digits[] = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "INFINITE" };
 
@@ -52,7 +53,7 @@ const char *dip_value(int i, int v)
 
 int home_count(int i)
 {
-    static const u8 n[HOP_N] = { 9, 11, 5, 4, 2, 2 };
+    static const u8 n[HOP_N] = { 9, 11, 5, 4, 2, 2, 3 };
     return n[i];
 }
 
@@ -64,6 +65,7 @@ const char *home_value(int i, int v)
     case HOP_BONUS: return bonus_vals[v];
     case HOP_WEAPON: return weapon_vals[v];
     case HOP_ATTACK: return attack_vals[v];
+    case HOP_BUTTONS: return button_vals[v];
     default:        return diff_vals[v];
     }
 }
@@ -83,6 +85,7 @@ void settings_defaults(void)
     p->home[HOP_DIFF] = 0;
     p->home[HOP_WEAPON] = 0;        /* kept, as the arcade */
     p->home[HOP_ATTACK] = 0;        /* NORMAL */
+    p->home[HOP_BUTTONS] = 0;       /* fire B, as shipped */
 }
 
 int is_home(void)   { return PERSIST->magic == PERSIST_MAGIC && PERSIST->mode == MODE_HOME; }
