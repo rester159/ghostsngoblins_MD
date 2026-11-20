@@ -1,4 +1,4 @@
-MEGA GHOSTS'N GOBLINS  -  V0.8.5 ALPHA
+MEGA GHOSTS'N GOBLINS  -  V0.8.6 ALPHA
 rester159, 2026
 ==================================
 
@@ -7,8 +7,18 @@ run on real hardware and accurate emulators, faster, with 2-player co-op as
 Maximo and two campaigns as Firebrand, the Red Arremer. Formerly Ghosts'n
 Goblins MD.
 
-File: MegaGhosts'nGoblins_Alpha_0.8.5.bin  (4 MiB, regions J/U/E, NTSC and PAL)
-SHA-1: dc2f9719e6f9b901363dc6a54c60c9bd08bf98e0
+File: MegaGhosts'nGoblins_Alpha_0.8.6.bin  (4 MiB, regions J/U/E, NTSC and PAL)
+SHA-1: a1a55d776e6fa06b21419cbde57cf5e26d1b94da
+
+
+NEW IN V0.8.6
+-------------
+- HOME -> OPTIONS -> BUTTONS: choose the fire button. FIRE B (jump A or
+  C, as before), FIRE A (jump B or C) or FIRE C (jump A or B). Both pads
+  in 2-player co-op. Arcade mode keeps its layout.
+- HOME -> OPTIONS -> ATTACK: NORMAL, or 4-WAY: hold Up to throw the lance
+  straight up, or Down in a jump to throw it straight down (Arthur and
+  the lance only).
 
 
 NEW AND FIXED IN V0.8.5
